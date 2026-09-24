@@ -11,6 +11,7 @@ afterEach(() => document.body.replaceChildren());
 const pledges = [
   pledge({ id: 'p1', phone: '555-010-0101', name: '<b>Aisha</b>', amountPledged: 100 }),
   pledge({ id: 'p2', phone: '2', name: 'Aisha Khan', amountPledged: 50 }),
+  pledge({ id: 'p3', phone: '', name: 'No Phone Yet', amountPledged: 75 }),
 ];
 const payments = [payment({ phone: '5550100101', amountReceived: 40, dateReceived: '2025-01-05', method: 'Cash' })];
 const state: State = { pledges, payments, settings: SETTINGS, me: 'me', computed: compute(pledges, payments, SETTINGS, TODAY) };
@@ -43,6 +44,14 @@ describe('find donor', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, '999');
     expect(view.textContent).toContain('Not found');
+  });
+
+  it('hides the Log a payment button on the donor card when the donor has no phone', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(view, 'No Phone Yet');
+    (view.querySelector('.match') as HTMLButtonElement).click();
+    expect(view.textContent).toContain('No Phone Yet');
+    expect(Array.from(view.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
   });
 
   it('logs a payment from the donor card, calling store.savePayment with the phone', () => {
