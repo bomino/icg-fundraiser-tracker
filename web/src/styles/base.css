@@ -1,0 +1,54 @@
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: 400 0.9375rem/1.6 var(--font-ui);
+  font-feature-settings: 'tnum';
+}
+h1, h2, h3, p, dl, dd, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--color-emerald); }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+
+.display-lg { font: 500 2.75rem/1.15 var(--font-display); letter-spacing: -0.005em; }
+.display-md { font: 500 2rem/1.2 var(--font-display); }
+.heading-md { font: 600 1.125rem/1.4 var(--font-ui); }
+.body-md { font-size: 0.9375rem; line-height: 1.6; }
+.label { font: 500 0.8125rem/1.4 var(--font-ui); letter-spacing: 0.01em; }
+.meta { font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.02em; color: var(--color-ink-muted); }
+.eyebrow { font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); font-feature-settings: 'tnum'; }
+.numeric-xl { font: 600 2.25rem/1.1 var(--font-ui); letter-spacing: -0.01em; font-feature-settings: 'tnum'; }
+.numeric-lg { font: 600 1.5rem/1.2 var(--font-ui); font-feature-settings: 'tnum'; }
+.ink-soft { color: var(--color-ink-soft); }
+.gold { color: var(--color-gold); }
+.warning-text { color: var(--color-danger); font-weight: 500; }
+
+.container { max-width: var(--container); margin: 0 auto; padding: var(--space-xl) var(--space-md) var(--space-2xl); }
+.container-wide { max-width: var(--container-wide); }
+.view { display: grid; gap: var(--space-lg); }
+.view-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; }
+.view-header h1 { margin-top: var(--space-xs); }
+.view-header h1::after { content: ''; display: block; width: 80px; height: 1px; margin-top: var(--space-sm); background: var(--color-gold); }
+.toolbar { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.empty { padding: var(--space-xl) var(--space-md); text-align: center; color: var(--color-ink-muted); }
+
+/* A civic register earns its motion; kept to short state-change feedback, never decoration. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .nav-bar, .toolbar, .btn, .banner, .toasts { display: none !important; }
+  .container { padding: 0; max-width: none; }
+  .card, .stat-card { box-shadow: none; break-inside: avoid; }
+}

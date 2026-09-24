@@ -1,0 +1,94 @@
+/* Mirrors DESIGN.md (ICG Heritage). The only file allowed to contain colour literals. */
+:root {
+  --color-bg: #fbf9f3;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f5f1e8;
+  --color-surface-sunken: #efe9d9;
+  --color-ink: #1a2e1f;
+  --color-ink-soft: #5a6b5f;
+  --color-ink-muted: #8a9690;
+  --color-rule: #e8e0cc;
+  --color-rule-strong: #d4c79e;
+  --color-gold: #a87c0a;
+  --color-gold-soft: #c69b2a;
+  --color-gold-tint: #f7eecf;
+  --color-emerald: #2d5e3e;
+  --color-emerald-soft: #3f7551;
+  --color-emerald-tint: #dde9df;
+  --color-warning: #9c6b1f;
+  --color-warning-tint: #f4e4c2;
+  --color-danger: #8b2e2e;
+  --color-danger-tint: #f0d8d8;
+  --color-payment-cash: #2d5e3e;
+  --color-payment-bank: #3a5a8c;
+  --color-payment-card: #6b4d8c;
+  --color-payment-online: #a8651f;
+  --chart-1: #2d5e3e;
+  --chart-2: #a87c0a;
+  --chart-3: #3a5a8c;
+  --chart-4: #8b2e2e;
+  --chart-5: #6b4d8c;
+  --chart-6: #a8651f;
+  --color-scrim: rgba(26, 46, 31, 0.2);
+  --shadow-rest: 0 1px 2px rgba(26, 46, 31, 0.04), 0 4px 16px rgba(26, 46, 31, 0.05);
+  --shadow-lift: 0 4px 8px rgba(26, 46, 31, 0.06), 0 16px 40px rgba(26, 46, 31, 0.1);
+
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-ui: 'Inter Variable', Inter, system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 72px;
+  --space-3xl: 120px;
+
+  --container: 1080px;
+  --container-wide: 1200px;
+  color-scheme: light;
+}
+
+/* Screen-only, so printing always uses the light tokens above. */
+@media screen {
+  :root[data-theme='dark'] {
+    --color-bg: #15110a;
+    --color-surface: #1f1a10;
+    --color-surface-soft: #28221a;
+    --color-surface-sunken: #1a160e;
+    --color-ink: #f1ebd8;
+    --color-ink-soft: #c5bda3;
+    --color-ink-muted: #8a8270;
+    --color-rule: #3a3320;
+    --color-rule-strong: #5a4f30;
+    --color-gold: #d4af37;
+    --color-gold-soft: #e6c463;
+    --color-gold-tint: #3d3415;
+    --color-emerald: #5a9b6f;
+    --color-emerald-soft: #73b187;
+    --color-emerald-tint: #1f3a26;
+    --color-warning: #d4a04a;
+    --color-warning-tint: #3d2e12;
+    --color-danger: #c65656;
+    --color-danger-tint: #3a1818;
+    --color-payment-cash: #5a9b6f;
+    --color-payment-bank: #7591c4;
+    --color-payment-card: #9b7ec4;
+    --color-payment-online: #d4914a;
+    --chart-1: #5a9b6f;
+    --chart-2: #d4af37;
+    --chart-3: #7591c4;
+    --chart-4: #c65656;
+    --chart-5: #9b7ec4;
+    --chart-6: #d4914a;
+    --color-scrim: rgba(10, 8, 4, 0.55);
+    --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+    --shadow-lift: 0 4px 8px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
