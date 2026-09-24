@@ -50,6 +50,15 @@ VITE_GOOGLE_CLIENT_ID=….apps.googleusercontent.com
 
 Then run `npm install`, then `npm run dev`, and open <http://localhost:5173>.
 
+## Data safety routine
+
+The Sheet is the only copy of the fundraiser's records — there is no separate database or backup service behind it. Do these as the organiser:
+
+1. **Version history is the undo button.** In the Google Sheet, **File → Version history → See version history**, find the version from before a bad change, and press **Restore this version**.
+2. **Download a copy monthly, and after each event.** On **Summary**, press **Download .xlsx**, and keep the file somewhere safe — a laptop, a shared drive — outside the Sheet itself.
+3. **Share the Sheet with a second trusted person as an Editor** (not just Viewer), so access to the fundraiser's records is never locked to one person's Google account.
+4. **Never delete the Sheet or its Apps Script project.** It is the tracker's only database; deleting either takes every pledge and payment with it.
+
 ## Troubleshooting
 
 | The app says | Likely cause and fix |

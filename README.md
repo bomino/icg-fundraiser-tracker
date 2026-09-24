@@ -6,6 +6,17 @@ A web version of `Masjid_Fundraiser_Tracker_v3.xlsx`. Volunteers sign in with Go
 - **Volunteer guide:** built into the app. The **Help** tab explains every screen, status, warning and error message in plain language.
 - **Design:** [docs/superpowers/specs/2026-09-23-fundraiser-web-app-design.md](docs/superpowers/specs/2026-09-23-fundraiser-web-app-design.md), plus [DESIGN.md](DESIGN.md) for the visual system.
 
+## Features
+
+- **Pledges, Payments and Summary**, matching the workbook's totals, statuses and data-health checks cell for cell (`test/engine/parity.test.ts`).
+- **Donor lookup** by phone number (any formatting) or name, with a card showing a donor's pledge, payments and status — and a **Log a payment** button that carries the phone number straight into the payment form.
+- **Status chips and Needs follow-up** on Pledges: filter to Pending/Partial/Paid/Overpaid, or to Pending/Partial donors with no activity in 30+ days, biggest balance first. A **date range** filter on Payments.
+- **A possible-duplicate-payments check** (app-only, on top of the workbook's six data-health checks) flags payments that share a phone number, amount and date.
+- **Friday display**: a full-screen, name-free projector view of progress toward the goal that never interrupts an announcement with a sign-in prompt.
+- **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
+- **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
+- **Paging at scale**: long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.
+
 ```bash
 npm install
 npm run dev      # local app (needs .env.local)

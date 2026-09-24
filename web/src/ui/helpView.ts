@@ -30,6 +30,7 @@ const SAID = {
   noPhone: "Enter the donor's phone number.",
   pickMethod: 'Pick a method from the list.',
   duplicateHint: 'This phone number is already on the pledge for',
+  discardPledge: 'Discard your changes to this pledge?',
   deletePledge: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
   deletePayment: 'Delete this payment? It will be removed from every total.',
   healthIntro: 'Every figure below should read 0. Anything higher needs a look.',
@@ -193,7 +194,7 @@ function gettingStarted(): Child[] {
     ),
     topic(
       'Put it on your phone’s home screen',
-      p('The tracker works in your phone’s web browser. Adding it to your home screen gives you an icon to tap, like an app.'),
+      p('The tracker works in your phone’s web browser. Adding it to your home screen gives you the ICG icon to tap, like an app, instead of a browser tab.'),
       terms(
         [b('iPhone (Safari)'), 'Tap the ', b('Share'), ' button (the square with an arrow), scroll down, and tap ', b('Add to Home Screen'), '.'],
         [b('Android (Chrome)'), 'Tap the ', b('⋮'), ' menu at the top right, then ', b('Add to Home screen'), ' or ', b('Install app'), '.'],
@@ -269,6 +270,7 @@ function theScreens(): Child[] {
         ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too.'],
         ['Tap a column heading to sort by it. Tap it again to reverse the order.'],
         ['Search, the status chips (Pledges) and the date range (Payments) all narrow the list together. A “Showing N of M” line appears whenever any of them is doing something.'],
+        ['A long list only shows the first 100 rows at a time, with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row back within the first 100 even if you have not pressed Show more.'],
       ),
     ),
     topic(
@@ -312,6 +314,17 @@ function howTo(): Child[] {
         ['Notes', PAYMENT_HELP.notes],
       ),
       note('Log each installment as its own payment. Do not edit an old payment to add a new amount to it — the tracker adds up the installments for you.'),
+      note(
+        'You can also log a payment straight from a donor: open their card on ',
+        b('Find donor'),
+        ', or tap their pledge on ',
+        b('Pledges'),
+        ', and press ',
+        b('Log a payment'),
+        ' there — the phone number is filled in for you. If you were mid-edit on the pledge, the tracker asks ',
+        said(SAID.discardPledge),
+        ' first, so you don’t lose typing you meant to keep.',
+      ),
     ),
     topic(
       'Record a pledge when the amount isn’t known yet',
@@ -379,6 +392,10 @@ function howTo(): Child[] {
       p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
       p('If a sign-in box appears when you press ', b('Friday display'), ', sign in: your sign-in was about to run out, and signing in now keeps the screen updating for about another hour.'),
       note('Google sign-ins last about an hour. After that the figures stop updating, and after 15 minutes a small note says ', said(SAID.displayStale), '. Tap it and sign in to bring the figures up to date. Press ', b('Exit'), ' in the top corner to go back to the Summary.'),
+      bullets(
+        [b('Sign in first'), ' — sign in on the projector computer before the khutbah starts, not during it, so the screen has a fresh hour and nothing interrupts the display.'],
+        [b('Keep the laptop awake'), ' — turn off sleep and screen-lock (or plug it in and disable auto-sleep) for the computer driving the projector, so the display does not go dark on its own.'],
+      ),
     ),
     topic(
       'Download a copy',
@@ -480,6 +497,7 @@ function workingTogether(): Child[] {
       ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
       ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
       ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away.'],
+      ['A save can take a few seconds, especially on a slow connection. If Google’s servers hiccup, the tracker quietly retries on its own — you do not need to press Save again unless you actually see an error message.'],
     ),
     topic(
       'When two people change the same row',
@@ -520,7 +538,35 @@ function forTheOrganiser(): Child[] {
       bullets(
         ['Do not format the Pledges or Payments columns as ', b('Plain text'), '. Leave them on Automatic, or phone numbers and dates get corrupted.'],
         ['Add pledges and payments through the app. Rows typed directly into the sheet have no id and are ignored.'],
-        ['Take a backup now and then with ', b('Download .xlsx'), ' on the Summary. Google Sheets also keeps its own version history.'],
+      ),
+    ),
+    topic(
+      'Data safety routine',
+      p('The Sheet is the only copy of the fundraiser’s records. A little routine protects it.'),
+      bullets(
+        [
+          b('Undo a bad change with Version history'),
+          ' — in the Google Sheet, ',
+          b('File → Version history → See version history'),
+          ', find the version from before the mistake, and press ',
+          b('Restore this version'),
+          '.',
+        ],
+        [
+          b('Download a copy'),
+          ' — on ',
+          b('Summary'),
+          ', press ',
+          b('Download .xlsx'),
+          ' once a month and again right after each event, and keep the file somewhere safe (a laptop, a shared drive) outside the Sheet itself.',
+        ],
+        [
+          b('Add a second editor'),
+          ' — share the Sheet with a second trusted person as an ',
+          b('Editor'),
+          ' (not just Viewer), so the fundraiser’s records are never locked to one person’s Google account.',
+        ],
+        [b('Never delete the Sheet or its Apps Script project'), ' — that is the tracker’s only database; deleting either takes every pledge and payment with it.'],
       ),
     ),
     topic('Setup and troubleshooting', p('Setting the tracker up, and fixing setup problems, is covered in docs/SETUP.md in the project’s GitHub repository.')),
