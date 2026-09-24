@@ -50,6 +50,7 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   spec.form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (save.disabled) return;
+    showFormError(null);
     const { draft, errors: parseErrors } = spec.read();
     const errors = { ...spec.validate(draft), ...parseErrors };
     for (const [name, fieldHandle] of Object.entries(spec.fields)) fieldHandle.setError(errors[name]);
@@ -58,7 +59,6 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
       spec.fields[firstInvalid].input.focus();
       return;
     }
-    showFormError(null);
     setBusy(true);
     try {
       await spec.onSave(draft);

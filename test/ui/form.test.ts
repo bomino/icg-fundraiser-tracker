@@ -93,6 +93,19 @@ describe('runForm', () => {
     expect(onSave).toHaveBeenCalledTimes(2);
   });
 
+  it('clears the form-level error on the next submit, even one stopped by validation', async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const { name, submit, dialog } = setup(async () => { throw new ApiError('BUSY', 'The tracker is busy. Try again in a moment.'); });
+    name.input.value = 'Aisha';
+    submit();
+    const alert = () => dialog.element.querySelector<HTMLElement>('.form-error[role="alert"]') as HTMLElement;
+    await vi.waitFor(() => expect(alert().hidden).toBe(false));
+    name.input.value = '';
+    submit();
+    expect(alert().hidden).toBe(true);
+    expect(alert().textContent).toBe('');
+  });
+
   it('keeps the dialog open with the message when a delete fails for a transient reason', async () => {
     const name = field({ name: 'name', label: 'Name', value: 'x' });
     const form = h('form', { class: 'form' }, name.wrapper);
