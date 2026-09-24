@@ -44,6 +44,9 @@
 .input[aria-invalid='true'] { border-color: var(--color-danger); }
 textarea.input { resize: vertical; }
 .search { max-width: 360px; }
+.date-range { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.date-range label { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: 0.75rem; }
+.date-range input { min-width: 9.5rem; }
 .help { font-size: 0.75rem; color: var(--color-ink-muted); }
 .field-error { font-size: 0.8125rem; color: var(--color-danger); }
 .required { color: var(--color-danger); }
@@ -129,6 +132,7 @@ textarea.input { resize: vertical; }
   .btn { min-height: 44px; }
   .tab { min-height: 44px; display: inline-flex; align-items: center; }
   .chip { min-height: 44px; display: inline-flex; align-items: center; }
+  .chip-toggle { min-height: 44px; display: inline-flex; align-items: center; }
   .match { min-height: 44px; }
 }
 
@@ -149,6 +153,10 @@ textarea.input { resize: vertical; }
 .banner { padding: var(--space-sm) var(--space-md); border: 1px solid transparent; text-align: center; font-size: 0.8125rem; }
 .banner-warning { background: var(--color-warning-tint); color: var(--color-ink); border-color: var(--color-warning); }
 .chip { border: 1px solid var(--color-rule-strong); background: var(--color-gold-tint); color: var(--color-ink); border-radius: var(--radius-full); padding: 4px 12px; cursor: pointer; font-size: 0.8125rem; transition: border-color 150ms ease, background-color 150ms ease; }
+.chip-row { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-bottom: var(--space-md); }
+.chip-toggle { border: 1px solid var(--color-rule-strong); background: var(--color-surface); color: var(--color-ink-soft); border-radius: var(--radius-full); padding: 4px 12px; cursor: pointer; font-size: 0.8125rem; transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease; }
+.chip-toggle:hover { border-color: var(--color-rule-strong); color: var(--color-ink); }
+.chip-toggle[aria-pressed='true'] { background: var(--color-emerald); border-color: var(--color-emerald); color: var(--color-surface); }
 
 /* Summary */
 .health-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); min-height: 48px; padding: var(--space-xs) 0 var(--space-xs) var(--space-md); border-bottom: 1px solid var(--color-rule); }

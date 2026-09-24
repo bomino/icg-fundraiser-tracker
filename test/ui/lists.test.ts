@@ -60,11 +60,137 @@ describe('pledges view', () => {
   });
 });
 
+describe('pledges view: status chips and follow-up', () => {
+  const followUpPledges = [
+    pledge({ id: 'f1', phone: '555-200-0001', name: 'Alpha Partial', amountPledged: 1000, datePledged: '2026-01-01' }),
+    pledge({ id: 'f2', phone: '555-200-0002', name: 'Fresh Pending', amountPledged: 500, datePledged: TODAY }),
+    pledge({ id: 'f3', phone: '555-200-0003', name: 'Paid Stale', amountPledged: 200, datePledged: '2020-01-01' }),
+    pledge({ id: 'f4', phone: '555-200-0004', name: 'Zeta Pending', amountPledged: 3000, datePledged: '2020-01-01' }),
+  ];
+  const followUpPayments = [
+    payment({ phone: '555-200-0001', amountReceived: 100, dateReceived: '2026-01-02' }),
+    payment({ phone: '555-200-0003', amountReceived: 200, dateReceived: '2026-01-02' }),
+  ];
+  const followUpState: State = {
+    pledges: followUpPledges,
+    payments: followUpPayments,
+    settings: SETTINGS,
+    me: 'me@example.com',
+    computed: compute(followUpPledges, followUpPayments, SETTINGS, TODAY),
+  };
+  const chip = (view: HTMLElement, label: string) => Array.from(view.querySelectorAll('.chip-toggle')).find((b) => b.textContent === label) as HTMLButtonElement;
+  const ids = (view: HTMLElement) => [...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+
+  it('filters rows by status chip and marks the active one aria-pressed', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    expect(chip(view, 'All').getAttribute('aria-pressed')).toBe('true');
+    chip(view, 'Paid').click();
+    expect(ids(view)).toEqual(['f3']);
+    expect(chip(view, 'Paid').getAttribute('aria-pressed')).toBe('true');
+    expect(chip(view, 'All').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('"Needs follow-up" selects stale Pending/Partial rows, sorted by balance descending by default', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    chip(view, 'Needs follow-up').click();
+    expect(ids(view)).toEqual(['f4', 'f1']);
+  });
+
+  it('lets a column sort override the default balance ordering under "Needs follow-up"', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    chip(view, 'Needs follow-up').click();
+    const nameHeader = Array.from(view.querySelectorAll('th button')).find((b) => b.textContent === 'Donor Name') as HTMLButtonElement;
+    nameHeader.click();
+    expect(ids(view)).toEqual(['f1', 'f4']);
+  });
+
+  it('combines the status chip with search', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    chip(view, 'Pending').click();
+    const search = view.querySelector('input[type=search]') as HTMLInputElement;
+    vi.useFakeTimers();
+    type(search, '0004');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(view)).toEqual(['f4']);
+  });
+
+  it('shows a "Showing N of M" line only when a filter is active', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    expect(view.textContent).not.toContain('Showing');
+    chip(view, 'Paid').click();
+    expect(view.textContent).toContain('Showing 1 of 4');
+  });
+});
+
 describe('payments view', () => {
   it('flags a payment that will not be counted and a future date', () => {
     const view = createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined);
     expect(view.querySelector('tr.row-danger')?.textContent).toContain('⚠ phone not in Pledges');
     expect(view.querySelector('td.cell-warning')).not.toBeNull();
+  });
+});
+
+describe('payments view: date range', () => {
+  const rangePayments = [
+    payment({ id: 'r1', phone: '555-300-0001', amountReceived: 10, dateReceived: '2026-01-01' }),
+    payment({ id: 'r2', phone: '555-300-0002', amountReceived: 20, dateReceived: '2026-06-15' }),
+    payment({ id: 'r3', phone: '555-300-0003', amountReceived: 30, dateReceived: '2026-09-01' }),
+    payment({ id: 'r4', phone: '555-300-0004', amountReceived: 40, dateReceived: '' }),
+  ];
+  const rangeState: State = {
+    pledges: [],
+    payments: rangePayments,
+    settings: SETTINGS,
+    me: 'me@example.com',
+    computed: compute([], rangePayments, SETTINGS, TODAY),
+  };
+  const ids = (view: HTMLElement) => [...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+  const dateInput = (view: HTMLElement, key: string) => view.querySelector(`input[type=date][data-focus-key="${key}"]`) as HTMLInputElement;
+
+  it('filters inclusively by From/To and hides undated rows once a bound is set', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    expect(ids(view)).toHaveLength(4);
+    type(dateInput(view, 'payments-date-from'), '2026-02-01');
+    expect(ids(view)).toEqual(['r2', 'r3']);
+    type(dateInput(view, 'payments-date-to'), '2026-06-15');
+    expect(ids(view)).toEqual(['r2']);
+  });
+
+  it('clears both bounds with the Clear dates control', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    type(dateInput(view, 'payments-date-from'), '2026-06-01');
+    expect(ids(view)).toHaveLength(2);
+    (Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Clear dates') as HTMLButtonElement).click();
+    expect(ids(view)).toHaveLength(4);
+    expect(dateInput(view, 'payments-date-from').value).toBe('');
+  });
+
+  it('combines the date range with search', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    type(dateInput(view, 'payments-date-from'), '2026-01-01');
+    const search = view.querySelector('input[type=search]') as HTMLInputElement;
+    vi.useFakeTimers();
+    type(search, '0002');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(view)).toEqual(['r2']);
+  });
+
+  it('shows "Showing N of M" only while a date bound is active', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    expect(view.textContent).not.toContain('Showing');
+    type(dateInput(view, 'payments-date-from'), '2026-06-01');
+    expect(view.textContent).toContain('Showing 2 of 4');
   });
 });
 

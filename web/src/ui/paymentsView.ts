@@ -6,7 +6,7 @@ import { isPending, type State } from '../store';
 import type { Payment } from '../types';
 import { methodBadge } from './badges';
 import { h } from './dom';
-import { filterChip, type ListFilter } from './filter';
+import { filterChip, showingLine, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
@@ -24,6 +24,8 @@ const COLUMNS: Column<DerivedPayment>[] = [
 export function createPaymentsView(deps: ListViewDeps) {
   let query = '';
   let sort: SortState | null = null;
+  let dateFrom = '';
+  let dateTo = '';
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
@@ -39,10 +41,23 @@ export function createPaymentsView(deps: ListViewDeps) {
         reportError: deps.reportError,
       });
     };
+    const dateFilterActive = () => dateFrom !== '' || dateTo !== '';
+    const matchesDateRange = (d: DerivedPayment) => {
+      if (!dateFilterActive()) return true;
+      const date = d.payment.dateReceived;
+      if (date === '') return false;
+      if (dateFrom !== '' && date < dateFrom) return false;
+      if (dateTo !== '' && date > dateTo) return false;
+      return true;
+    };
     const tableSlot = h('div');
+    const showing = h('div');
     const drawTable = () => {
       const rows = state.computed.payments.filter(
-        (d) => (!filter || filter.ids.has(d.payment.id)) && matchesQuery(query, [d.payment.phone, d.donorName, d.payment.notes, d.payment.method], d.key),
+        (d) =>
+          (!filter || filter.ids.has(d.payment.id)) &&
+          matchesDateRange(d) &&
+          matchesQuery(query, [d.payment.phone, d.donorName, d.payment.notes, d.payment.method], d.key),
       );
       tableSlot.replaceChildren(
         renderTable({
@@ -58,9 +73,11 @@ export function createPaymentsView(deps: ListViewDeps) {
           onOpen: (d) => {
             if (!isPending(d.payment)) openEditor(d.payment);
           },
-          empty: filter || query ? 'No payments match.' : 'No payments yet. Use “Log a payment” when money comes in.',
+          empty: filter || query || dateFilterActive() ? 'No payments match.' : 'No payments yet. Use “Log a payment” when money comes in.',
         }),
       );
+      const line = showingLine(!!filter || query.trim() !== '' || dateFilterActive(), rows.length, state.computed.payments.length);
+      showing.replaceChildren(...(line ? [line] : []));
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
     search.value = query;
@@ -68,6 +85,32 @@ export function createPaymentsView(deps: ListViewDeps) {
       query = search.value;
       clearTimeout(searchTimer);
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
+    });
+    const dateFromInput = h('input', { type: 'date', class: 'input', 'data-focus-key': 'payments-date-from' });
+    dateFromInput.value = dateFrom;
+    const dateToInput = h('input', { type: 'date', class: 'input', 'data-focus-key': 'payments-date-to' });
+    dateToInput.value = dateTo;
+    const clearDates = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Clear dates');
+    const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput));
+    const redrawDateControls = () => {
+      clearDates.hidden = !dateFilterActive();
+      drawTable();
+    };
+    dateFromInput.addEventListener('input', () => {
+      dateFrom = dateFromInput.value;
+      redrawDateControls();
+    });
+    dateToInput.addEventListener('input', () => {
+      dateTo = dateToInput.value;
+      redrawDateControls();
+    });
+    clearDates.hidden = !dateFilterActive();
+    clearDates.addEventListener('click', () => {
+      dateFrom = '';
+      dateTo = '';
+      dateFromInput.value = '';
+      dateToInput.value = '';
+      redrawDateControls();
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Log a payment');
     add.addEventListener('click', () => openEditor());
@@ -78,7 +121,8 @@ export function createPaymentsView(deps: ListViewDeps) {
       { class: 'view' },
       h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Money received'), h('h1', { class: 'display-md' }, 'Payments')), add),
       h('p', { class: 'totals-band' }, `${totals.paymentsWithAmount} payments · ${formatCents(totals.loggedCents)} logged`),
-      h('div', { class: 'toolbar' }, search, filter ? filterChip(filter, clearFilter) : null),
+      h('div', { class: 'toolbar' }, search, dateRange, clearDates, filter ? filterChip(filter, clearFilter) : null),
+      showing,
       tableSlot,
     );
   };

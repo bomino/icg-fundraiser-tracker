@@ -1,4 +1,5 @@
-import type { DerivedPledge } from '../engine';
+import { todayIso } from '../dates';
+import { needsFollowUp, STATUS, type DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
 import { newId as makeId } from '../id';
 import { toCents } from '../money';
@@ -6,7 +7,7 @@ import { isPending, type State, type Store } from '../store';
 import type { Pledge } from '../types';
 import { statusBadge } from './badges';
 import { h } from './dom';
-import { filterChip, type ListFilter } from './filter';
+import { filterChip, showingLine, toggleChip, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import { openPledgeForm } from './pledgeForm';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
@@ -30,9 +31,14 @@ const COLUMNS: Column<DerivedPledge>[] = [
   { key: 'notes', label: 'Notes', value: (d) => d.pledge.notes, cellClass: () => 'cell-wrap' },
 ];
 
+const ALL_CHIP = 'All';
+const FOLLOW_UP_CHIP = 'Needs follow-up';
+const STATUS_CHIPS: readonly string[] = [ALL_CHIP, STATUS.pending, STATUS.partial, STATUS.paid, STATUS.overpaid, FOLLOW_UP_CHIP];
+
 export function createPledgesView(deps: ListViewDeps) {
   let query = '';
   let sort: SortState | null = null;
+  let statusChip: string = ALL_CHIP;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
@@ -59,15 +65,24 @@ export function createPledgesView(deps: ListViewDeps) {
         reportError: deps.reportError,
       });
     };
+    const today = todayIso();
+    const matchesChip = (d: DerivedPledge) => {
+      if (statusChip === ALL_CHIP) return true;
+      if (statusChip === FOLLOW_UP_CHIP) return needsFollowUp(d, today);
+      return d.status === statusChip;
+    };
     const tableSlot = h('div');
+    const showing = h('div');
     const drawTable = () => {
       const rows = state.computed.pledges.filter(
-        (d) => (!filter || filter.ids.has(d.pledge.id)) && matchesQuery(query, [d.pledge.phone, d.pledge.name, d.pledge.notes], d.key),
+        (d) => (!filter || filter.ids.has(d.pledge.id)) && matchesChip(d) && matchesQuery(query, [d.pledge.phone, d.pledge.name, d.pledge.notes], d.key),
       );
+      // "Needs follow-up" defaults to worst-balance-first; a column click still wins once the volunteer picks one.
+      const ordered = statusChip === FOLLOW_UP_CHIP && !sort ? [...rows].sort((a, b) => (b.balanceCents ?? 0) - (a.balanceCents ?? 0)) : rows;
       tableSlot.replaceChildren(
         renderTable({
           columns: COLUMNS,
-          rows: sortRows(rows, COLUMNS, sort),
+          rows: sortRows(ordered, COLUMNS, sort),
           sort,
           rowId: (d) => d.pledge.id,
           rowClass: (d) => (isPending(d.pledge) ? 'row-pending' : d.duplicate ? 'row-danger' : undefined),
@@ -78,9 +93,11 @@ export function createPledgesView(deps: ListViewDeps) {
           onOpen: (d) => {
             if (!isPending(d.pledge)) openEditor(d.pledge);
           },
-          empty: filter || query ? 'No pledges match.' : 'No pledges yet. Use “Add pledge” to record the first one.',
+          empty: filter || query || statusChip !== ALL_CHIP ? 'No pledges match.' : 'No pledges yet. Use “Add pledge” to record the first one.',
         }),
       );
+      const line = showingLine(!!filter || query.trim() !== '' || statusChip !== ALL_CHIP, rows.length, state.computed.pledges.length);
+      showing.replaceChildren(...(line ? [line] : []));
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', 'data-focus-key': 'pledges-search' });
     search.value = query;
@@ -91,6 +108,17 @@ export function createPledgesView(deps: ListViewDeps) {
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add pledge');
     add.addEventListener('click', () => openEditor());
+    const chipRow = h(
+      'div',
+      { class: 'chip-row', role: 'group', 'aria-label': 'Filter by status' },
+      ...STATUS_CHIPS.map((label) =>
+        toggleChip(label, statusChip === label, () => {
+          statusChip = label;
+          drawTable();
+          chipRow.querySelectorAll('.chip-toggle').forEach((el, i) => el.setAttribute('aria-pressed', String(STATUS_CHIPS[i] === statusChip)));
+        }),
+      ),
+    );
     drawTable();
     const totals = state.computed.totals;
     return h(
@@ -99,6 +127,8 @@ export function createPledgesView(deps: ListViewDeps) {
       h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Donors'), h('h1', { class: 'display-md' }, 'Pledges')), add),
       h('p', { class: 'totals-band' }, `Pledged ${formatCents(totals.pledgedCents)} · Received ${formatCents(totals.receivedCents)} · Outstanding ${formatCents(totals.outstandingCents)} · ${totals.pledgePaymentCount} payments`),
       h('div', { class: 'toolbar' }, search, filter ? filterChip(filter, clearFilter) : null),
+      chipRow,
+      showing,
       tableSlot,
     );
   };

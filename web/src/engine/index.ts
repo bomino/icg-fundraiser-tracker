@@ -4,6 +4,7 @@ import { computeHealth, computeMethods, computeTotals, type HealthCheck, type Me
 
 export * from './constants';
 export * from './derive';
+export * from './followUp';
 export * from './lookup';
 export * from './summary';
 

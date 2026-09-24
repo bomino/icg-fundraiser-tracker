@@ -232,6 +232,18 @@ function theScreens(): Child[] {
         [b('Red rows'), ' are donors listed more than once. Their payments are being counted twice until you fix it.'],
         ['A faded row is still being saved. Wait a moment before tapping it.'],
         ['Tap any row to edit or delete it.'],
+        [
+          b('Pending'),
+          ', ',
+          b('Partial'),
+          ', ',
+          b('Paid'),
+          ' and ',
+          b('Overpaid'),
+          ' chips filter to that status. ',
+          b('Needs follow-up'),
+          ' finds Pending or Partial donors with no pledge or payment activity in the last 30 days, biggest balance first.',
+        ],
       ),
     ),
     topic(
@@ -241,6 +253,7 @@ function theScreens(): Child[] {
         [b('Red rows'), ' with a ', b('⚠'), ' in Donor Name are payments that are not being counted. ', b('Warnings and data health'), ' explains why and how to fix them.'],
         [b('An amber date'), ' is a date in the future, which is usually a typo.'],
         ['The coloured label in the Method column shows how the money was paid.'],
+        [b('From'), ' and ', b('To'), ' filter to payments received in that range; either can stay blank. Payments with no date drop out once a bound is set. ', b('Clear dates'), ' removes the range.'],
       ),
     ),
     topic(
@@ -253,6 +266,7 @@ function theScreens(): Child[] {
       bullets(
         ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too.'],
         ['Tap a column heading to sort by it. Tap it again to reverse the order.'],
+        ['Search, the status chips (Pledges) and the date range (Payments) all narrow the list together. A “Showing N of M” line appears whenever any of them is doing something.'],
       ),
     ),
     topic(
