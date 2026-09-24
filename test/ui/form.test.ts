@@ -62,6 +62,78 @@ describe('runForm', () => {
     expect(dialog.element.open).toBe(false);
   });
 
+  it.each([
+    ['NETWORK', 'Could not reach the tracker. Check your connection and try again.'],
+    ['BUSY', 'The tracker is busy. Try again in a moment.'],
+  ] as const)('keeps the dialog and the typed values after a %s failure so Save can be retried', async (code, message) => {
+    const onSave = vi.fn(async (): Promise<void> => { throw new ApiError(code, message); });
+    const { name, submit, reportError, dialog } = setup(onSave);
+    name.input.value = 'Aisha';
+    submit();
+    const alert = await vi.waitFor(() => {
+      const element = dialog.element.querySelector<HTMLElement>('.form-error[role="alert"]');
+      expect(element?.hidden).toBe(false);
+      return element as HTMLElement;
+    });
+    expect(alert.textContent).toBe(message);
+    expect(dialog.element.open).toBe(true);
+    expect(name.input.value).toBe('Aisha');
+    expect(reportError).not.toHaveBeenCalled();
+    const save = dialog.element.querySelector('button[type=submit]') as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    expect(save.textContent).toBe('Save');
+
+    onSave.mockImplementationOnce(async () => undefined);
+    submit();
+    await vi.waitFor(() => expect(dialog.element.open).toBe(false));
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the dialog open with the message when a delete fails for a transient reason', async () => {
+    const name = field({ name: 'name', label: 'Name', value: 'x' });
+    const form = h('form', { class: 'form' }, name.wrapper);
+    const reportError = vi.fn();
+    const dialog = runForm({
+      title: 'Test',
+      form,
+      fields: { name },
+      read: () => ({ draft: { name: name.input.value }, errors: {} }),
+      validate: () => ({}),
+      onSave: async () => undefined,
+      onDelete: async () => { throw new ApiError('BUSY', 'The tracker is busy. Try again in a moment.'); },
+      deleteMessage: 'Delete this?',
+      reportError,
+    });
+    (dialog.element.querySelector('.btn-danger') as HTMLButtonElement).click();
+    const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('dialog .btn-danger')).find((button) => !dialog.element.contains(button)) as HTMLButtonElement;
+    confirm.click();
+    await vi.waitFor(() => expect(dialog.element.querySelector<HTMLElement>('.form-error[role="alert"]')?.hidden).toBe(false));
+    expect(dialog.element.open).toBe(true);
+    expect(reportError).not.toHaveBeenCalled();
+    expect((dialog.element.querySelector('.btn-danger') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('closes and reports a delete that hit a conflict', async () => {
+    const name = field({ name: 'name', label: 'Name', value: 'x' });
+    const conflict = new ApiError('CONFLICT', 'changed');
+    const reportError = vi.fn();
+    const dialog = runForm({
+      title: 'Test',
+      form: h('form', { class: 'form' }, name.wrapper),
+      fields: { name },
+      read: () => ({ draft: { name: name.input.value }, errors: {} }),
+      validate: () => ({}),
+      onSave: async () => undefined,
+      onDelete: async () => { throw conflict; },
+      deleteMessage: 'Delete this?',
+      reportError,
+    });
+    (dialog.element.querySelector('.btn-danger') as HTMLButtonElement).click();
+    (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog .btn-danger')).find((button) => !dialog.element.contains(button)) as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(reportError).toHaveBeenCalledWith(conflict));
+    expect(dialog.element.open).toBe(false);
+  });
+
   it('does not open a second confirm dialog when Delete is activated twice quickly', () => {
     const name = field({ name: 'name', label: 'Name', value: 'x' });
     const form = h('form', { class: 'form' }, name.wrapper);
