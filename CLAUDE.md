@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository is
 
-Not a software project. It holds two hand-maintained Office artifacts that ship together to masjid fundraiser volunteers:
+Two hand-maintained Office artifacts, plus a web app that reimplements them, all shipping to masjid fundraiser volunteers:
 
-- `Masjid_Fundraiser_Tracker_v3.xlsx` — the tracker itself (the "application")
+- `Masjid_Fundraiser_Tracker_v3.xlsx` — the original tracker (the "application")
 - `Fundraiser_Tracker_User_Guide.docx` — the end-user manual for that tracker
 - `Masjid_Fundraiser_Tracker_v3.BACKUP-before-trim.xlsx` — restore point from before the 2026-09-15 rework
+- `web/` (Vite + TypeScript) and `apps-script/Code.gs` — a second implementation of the workbook, backed by a private Google Sheet instead of a local file; see "The web app" below
 
-There is no build and no generator script checked in, so the workbook **is** the source of truth. Edit it in place, via its OOXML parts.
+There is no build and no generator script checked in for the workbook, so it **is** the source of truth for its own behaviour. Edit it in place, via its OOXML parts. The web app is ordinary source under `web/` and `apps-script/`, with its own build and test suite (`npm run check`).
 
 The workbook ships with zero data rows — a blank template with formulas pre-filled down every row. That is what makes wholesale row regeneration safe; assert it before doing so.
 
@@ -111,9 +112,23 @@ Structural checks on the XML are necessary but have repeatedly proven insufficie
 3. Confirm new Summary labels fit column A (width 44) when a value sits in column B, or they render clipped.
 4. For formula changes, re-run the Google Sheets value comparison described above; the sample-data generator used on 2026-09-16 injected entry values straight into the sheet XML (replacing `<c r="A5" s="28"/>` with an `inlineStr` or `<v>` cell) so the test copy is byte-identical to the shipped file apart from the data.
 
+## The web app
+
+`web/` (Vite + TypeScript) plus `apps-script/Code.gs` is a second implementation of the workbook: it has the same rules, but its data lives in a private Google Sheet. Spec: `docs/superpowers/specs/2026-09-23-fundraiser-web-app-design.md`. Setup guide: `docs/SETUP.md`.
+
+- **The workbook stays the source of truth.** `web/src/engine/` must reproduce it cell for cell. `tools/excel-oracle.ps1` pushes `test/fixtures/parity-input.json` through the real workbook in Excel and writes `parity-expected.json`, and `test/engine/parity.test.ts` asserts the engine matches. **Any workbook formula change means re-running the oracle and fixing the engine in the same pass.** Never hand-edit the expected file.
+- **Validation lives in two places.** It's in `web/src/validate.ts` and in `validateRow_` in `Code.gs`, and `test/support/validationCases.ts` runs against both. Change them together.
+- **Code.gs is tested in Node** (`test/support/appsScript.ts` fakes the Apps Script services). After editing it, paste it into the Apps Script editor and deploy a **new version** of the existing deployment, so the URL doesn't change.
+- **Text written to the Sheet is apostrophe-prefixed** (`toSheetRow_`) — the only text-forcing mechanism. This keeps leading zeros and `+`, and stops formula injection. Don't remove it, and don't also format the Pledges/Payments data columns as **Plain text** in the Sheet UI: a Plain text cell stores the apostrophe literally instead of hiding it, which corrupts ids, phone numbers and dates.
+- **Hand-typed dates are read in the spreadsheet's own time zone** (`fromCell_` uses `getSpreadsheetTimeZone()`). Non-ISO text typed directly into a date column loads as blank in the app rather than as an unparseable string.
+- **The server rejects a token cheaply before calling Google.** `assertPlausibleToken_` checks the token is a well-formed 3-part JWT with the right `aud` before `verifyToken_` spends a network call on `tokeninfo`; `tokeninfo` remains the actual authority.
+- **A dev-only demo mode** exists for visual checks without Google sign-in or a deployed backend: `npm run dev`, then open `http://localhost:5173/?demo` (`web/src/demo.ts`, dynamically imported so it is excluded from production builds).
+- **Styling** comes only from `web/src/styles/tokens.css` (from `DESIGN.md`). No other file contains colour literals.
+- `npm run check` is the gate: typecheck, all tests and the build.
+
 ## Conventions
 
 - Version bumps go in the filename (`_v3`), not inside the workbook.
 - Keep volunteer-facing wording plain — the guide's audience has no spreadsheet experience.
-- The guide and the workbook are in sync as of 2026-09-16. Changing a column name, status value, warning string or Summary section means updating `Fundraiser_Tracker_User_Guide.docx` in the same pass.
+- The guide and the workbook are in sync as of 2026-09-16. Changing a column name, status value, warning string or Summary section means updating `Fundraiser_Tracker_User_Guide.docx` in the same pass. The guide covers the workbook only; the web app is documented in `docs/SETUP.md`.
 - The guide's template defines no named styles; apply `w:pStyle` values (`Heading1`, `Heading2`, `ListParagraph`) directly — python-docx cannot resolve them by name. Bullets are `numId` 2; numbered step lists use `numId` 3, 4 and 5.
