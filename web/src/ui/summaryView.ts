@@ -42,9 +42,9 @@ function methodTable(state: State): HTMLElement {
           h('td', { class: 'num' }, formatCents(row.cents)),
         );
       }),
-      // Unlike the workbook's real B37≠B15 reconciliation check, computeMethods buckets every
-      // payment (blank → "No method recorded", unlisted → "Other / unlisted"), so this total can
-      // never actually mismatch Payments Logged here - no row-danger class to flag it.
+      // computeMethods buckets every payment (blank → "No method recorded", unlisted → "Other /
+      // unlisted"), so this total can never actually mismatch Payments Logged - no row-danger
+      // class to flag it.
       h('tr', {}, h('td', {}, h('strong', {}, 'Total (should match Payments Logged)')), h('td', { class: 'num' }, h('strong', {}, formatCents(methodTotalCents)))),
     ),
   );

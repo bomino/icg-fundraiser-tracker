@@ -1,8 +1,5 @@
 {
-  "_regenerate": "Regenerate on Windows with Excel installed: pwsh -NoProfile -File tools/excel-oracle.ps1",
   "source": "Masjid_Fundraiser_Tracker_v3.xlsx",
-  "sourceSha256": "c3ea20cbcbc4fb7fd6ff764211fb47fce88e7ba20e33c748288dade0e38b2598",
-  "generatedBy": "tools/excel-oracle.ps1",
   "today": "2026-09-24",
   "pledges": [
     {

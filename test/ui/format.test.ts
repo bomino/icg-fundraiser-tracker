@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { flooredGoalFraction, formatCents, formatClock, formatDate, formatFlooredPercent, formatPercent, formatWholeDollars, parseAmount } from '../../web/src/format';
 
 describe('format', () => {
-  it('shows money like the workbook, with credits in brackets', () => {
+  it('shows money in accounting format, with credits in brackets', () => {
     expect(formatCents(123456)).toBe('$1,234.56');
     expect(formatCents(-5000)).toBe('($50.00)');
     expect(formatCents(0)).toBe('$0.00');

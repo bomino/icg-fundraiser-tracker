@@ -1,9 +1,14 @@
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compute, findByPhone, type Computed } from '../../web/src/engine';
 import { toCents } from '../../web/src/money';
 import type { Payment, Pledge, Settings } from '../../web/src/types';
+
+// test/fixtures/parity-{input,expected}.json are a frozen expected-values fixture: about 40
+// pledges and 80 payments covering every awkward case the engine handles, with the values each
+// one should produce. The expected values were originally computed from a reference spreadsheet's
+// rules (see CLAUDE.md); the fixture is now the sole source of truth here and never regenerated
+// from anything in this repo.
 
 type Cell = string | number | null;
 interface FixtureInput {
@@ -13,7 +18,6 @@ interface FixtureInput {
   lookups: string[];
 }
 interface FixtureExpected {
-  sourceSha256: string;
   today: string;
   pledges: { id: string; E: Cell; F: Cell; G: Cell; H: Cell; I: Cell }[];
   payments: { id: string; B: Cell }[];
@@ -57,15 +61,7 @@ function lookupBlock(result: Computed, query: string): Record<string, Cell> {
   return Object.fromEntries(cells.map((cell, i) => [cell, values[i]]));
 }
 
-describe('parity fixture provenance', () => {
-  it('was generated from the exact tracked workbook (re-run tools/excel-oracle.ps1 on Windows with Excel if this fails)', () => {
-    const workbook = readFileSync(new URL('../../Masjid_Fundraiser_Tracker_v3.xlsx', import.meta.url));
-    const actualSha256 = createHash('sha256').update(workbook).digest('hex');
-    expect(actualSha256, 'workbook changed — re-run tools/excel-oracle.ps1 on Windows with Excel to regenerate test/fixtures/parity-expected.json').toBe(expected.sourceSha256);
-  });
-});
-
-describe('parity with Masjid_Fundraiser_Tracker_v3.xlsx (values computed by Excel)', () => {
+describe('parity against the frozen expected-values fixture', () => {
   it('matches Pledges E–I on every row', () => {
     expect(computed.pledges.map((d) => ({ id: d.pledge.id, E: blankToNull(d.lastPaymentDate), F: d.receivedCents, G: d.balanceCents, H: d.paymentCount, I: d.status }))).toEqual(
       expected.pledges.map((row) => ({ ...row, F: cents(row.F), G: cents(row.G) })),
@@ -79,7 +75,7 @@ describe('parity with Masjid_Fundraiser_Tracker_v3.xlsx (values computed by Exce
   it('matches every Summary figure', () => {
     const { totals, methods } = computed;
     // Includes possibleDuplicatePayments, but it is never read below - that check is app-only
-    // (v1.1), has no counterpart in the workbook's Summary B21:B26, and is excluded from parity.
+    // (v1.1), has no counterpart in the fixture's frozen health-check cells, and is excluded from parity.
     const health = Object.fromEntries(computed.health.map((check) => [check.id, check.ids.length]));
     const { B14, ...rest } = normalise(expected.summary);
     expect({
@@ -92,8 +88,8 @@ describe('parity with Masjid_Fundraiser_Tracker_v3.xlsx (values computed by Exce
       B30: methods[0].cents, B31: methods[1].cents, B32: methods[2].cents, B33: methods[3].cents,
       B34: methods[4].cents, B35: methods[5].cents, B36: methods[6].cents, B37: computed.methodTotalCents,
     }).toEqual(rest);
-    // Excel's B14 (a raw division, B6/goal) and the engine's goalFraction (receivedCents /
-    // goalCents) take different floating-point paths, so bit-for-bit equality isn't guaranteed;
+    // The fixture's B14 (originally a raw division, B6/goal) and the engine's goalFraction
+    // (receivedCents / goalCents) take different floating-point paths, so bit-for-bit equality isn't guaranteed;
     // 9 decimal digits is far tighter than a cent at any realistic goal size, so it still catches
     // a real mismatch without being sensitive to float noise or a B14 number-format change.
     expect(totals.goalFraction).toBeCloseTo(Number(B14), 9);

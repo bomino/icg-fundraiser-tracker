@@ -24,7 +24,7 @@ export type HealthId =
   | 'predatesPledge'
   | 'possibleDuplicatePayments';
 
-// Labels are the workbook's Summary A21:A26 text, verbatim.
+// Labels are the original health-check wording, verbatim (see CLAUDE.md).
 export const HEALTH_LABELS: Record<HealthId, string> = {
   notMatched: 'Payments not matched to a pledge',
   duplicates: 'Donors listed more than once',
@@ -32,7 +32,7 @@ export const HEALTH_LABELS: Record<HealthId, string> = {
   paymentIncomplete: 'Payments missing a date or amount',
   futureDated: 'Payments dated in the future',
   predatesPledge: 'Donors whose payments predate their pledge',
-  // App-only check (v1.1), added after the workbook's original six; excluded from parity.test.ts.
+  // App-only check (v1.1), added after the original six health checks; excluded from parity.test.ts.
   possibleDuplicatePayments: 'Possible duplicate payments',
 };
 

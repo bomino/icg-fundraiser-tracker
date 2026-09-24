@@ -14,11 +14,11 @@ describe('matchKey', () => {
   it('keeps a leading zero distinct', () => {
     expect(matchKey('0551234')).not.toBe(matchKey('551234'));
   });
-  it('gives punctuation-only and space-only phones the bare "#" key, like the workbook', () => {
+  it('gives punctuation-only and space-only phones the bare "#" key', () => {
     expect(matchKey('--')).toBe('#');
     expect(matchKey(' ')).toBe('#');
   });
-  it('ignores letter case, as Excel lookups do', () => {
+  it('ignores letter case', () => {
     expect(matchKey('555-010-0122X')).toBe(matchKey('555 010 0122x'));
   });
 });

@@ -61,7 +61,7 @@ describe('derivePledges', () => {
     expect(d).toMatchObject({ receivedCents: 0, paymentCount: 1, lastPaymentDate: '2025-03-03', status: 'Pending' });
   });
 
-  it('flags every row of a duplicated phone and double-counts, like the workbook', () => {
+  it('flags every row of a duplicated phone and double-counts, by design', () => {
     const rows = derivePledges(
       [pledge({ phone: '555-010-0107', amountPledged: 200 }), pledge({ phone: '5550100107', amountPledged: 200 }), pledge({ phone: '9', amountPledged: 1 })],
       [payment({ phone: '555 010 0107', amountReceived: 200 })],

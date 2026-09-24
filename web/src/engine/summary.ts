@@ -108,7 +108,7 @@ export function computeHealth(pledges: readonly DerivedPledge[], payments: reado
     check('pledgeNoPhone', 'pledges', pledgeIds((d) => (d.pledge.amountPledged ?? 0) > 0 && d.pledge.phone === '')),
     check('paymentIncomplete', 'payments', paymentIds((d) => d.payment.phone !== '' && (d.payment.dateReceived === '' || d.payment.amountReceived === null))),
     check('futureDated', 'payments', paymentIds((d) => d.futureDate)),
-    // Compares only the latest payment date, as the workbook does (see CLAUDE.md).
+    // Compares only the latest payment date - a deliberate limitation (see CLAUDE.md).
     check('predatesPledge', 'pledges', pledgeIds((d) => d.lastPaymentDate !== '' && d.pledge.datePledged !== '' && d.lastPaymentDate < d.pledge.datePledged)),
     check('possibleDuplicatePayments', 'payments', paymentIds((d) => possibleDuplicatePaymentIds.has(d.payment.id))),
   ];
