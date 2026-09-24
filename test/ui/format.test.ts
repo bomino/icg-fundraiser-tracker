@@ -48,4 +48,14 @@ describe('format', () => {
       expect(parseAmount(text), text).toBe('invalid');
     }
   });
+
+  it('rejects a comma anywhere but between thousands, so a decimal comma is never read as 100 times the amount', () => {
+    for (const text of ['12,50', '1,2,3', '1,00', ',5', '1234,567', '12,', '1,234,56']) {
+      expect(parseAmount(text), text).toBe('invalid');
+    }
+  });
+
+  it('reads commas between thousands', () => {
+    expect([parseAmount('12,500'), parseAmount('$1,234,567.89')]).toEqual([12500, 1234567.89]);
+  });
 });

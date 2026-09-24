@@ -44,11 +44,16 @@ export function formatDate(iso: string): string {
 // and "NaN" - every non-obvious string `Number()` would otherwise accept as a dollar amount.
 // Allows a trailing bare dot ("20.") alongside a trailing bare-dot leading form (".5").
 const AMOUNT_SHAPE = /^(\d+\.?\d*|\.\d+)$/;
+// Commas are accepted only as US thousands separators. Anything else - above all a decimal comma
+// from a non-US keyboard, "12,50" - is refused rather than stripped into 100 times the amount.
+const THOUSANDS_GROUPED = /^\d{1,3}(,\d{3})+(\.\d*)?$/;
 
 export function parseAmount(text: string): number | null | 'invalid' {
-  // Strip currency punctuation before trimming: "$ 20" leaves an internal space behind the "$"
+  // Strip the currency sign before trimming: "$ 20" leaves an internal space behind the "$"
   // that a trim done first would never reach.
-  const cleaned = text.replace(/[$,]/g, '').trim();
+  const cleaned = text.replace(/\$/g, '').trim();
   if (cleaned === '') return null;
-  return AMOUNT_SHAPE.test(cleaned) ? Number(cleaned) : 'invalid';
+  if (cleaned.includes(',') && !THOUSANDS_GROUPED.test(cleaned)) return 'invalid';
+  const plain = cleaned.replace(/,/g, '');
+  return AMOUNT_SHAPE.test(plain) ? Number(plain) : 'invalid';
 }
