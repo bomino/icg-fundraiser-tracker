@@ -64,6 +64,16 @@ describe('demo api', () => {
     expect(computed.payments).toHaveLength(3000);
   });
 
+  it('seeds the post-dated check on a fixed future date, not one relative to today', async () => {
+    const first = await createDemoApi(0).load();
+    const second = await createDemoApi(0).load();
+    expect(first.payments).toEqual(second.payments);
+    const postDated = first.payments.find((row) => row.notes === 'Post-dated check');
+    expect(postDated?.dateReceived).toBe('2036-01-01');
+    expect(postDated?.dateReceived).not.toBe('');
+    expect(postDated!.dateReceived > todayIso()).toBe(true);
+  });
+
   it('the big seed leaves the normal demo seed unchanged', async () => {
     const data = await createDemoApi(0).load();
     // The small seed's exact, hand-authored counts (also asserted as 27 payments in

@@ -51,6 +51,11 @@ async function startDevServer(): Promise<ChildProcess> {
     cwd: process.cwd(),
     stdio: 'ignore',
     shell: true,
+    // POSIX only: makes the child the leader of its own process group, so stopDevServer can kill
+    // the whole tree (vite's actual server is a grandchild, under npm's launcher) with one signal
+    // to the negative PID. Windows already gets the whole tree via `taskkill /T`, and `detached`
+    // there would instead pop the child into its own separate console window.
+    detached: process.platform !== 'win32',
   });
   if (!child.pid) throw new Error('Dev server did not report a PID');
   await waitForServer(`${BASE_URL}/?demo`, Date.now() + 30_000);
@@ -59,10 +64,16 @@ async function startDevServer(): Promise<ChildProcess> {
 
 function stopDevServer(child: ChildProcess): void {
   // Stops only the server this script started, addressed by its own PID (never by process name) -
-  // see implementer-instructions.md. /T kills the vite child node.exe under npm's launcher too.
+  // see implementer-instructions.md.
   if (!child.pid) return;
   try {
-    execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    if (process.platform === 'win32') {
+      // /T kills the vite child node.exe under npm's launcher too.
+      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      // The negative PID signals the whole process group `detached` above put this child in.
+      process.kill(-child.pid, 'SIGKILL');
+    }
   } catch (err) {
     // Most likely already exited on its own, but this is the one place this script stops a
     // process it started - a silently swallowed failure here could leave it running unnoticed.

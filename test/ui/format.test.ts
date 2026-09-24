@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCents, formatClock, formatDate, formatPercent, formatWholeDollars, parseAmount } from '../../web/src/format';
+import { flooredGoalFraction, formatCents, formatClock, formatDate, formatFlooredPercent, formatPercent, formatWholeDollars, parseAmount } from '../../web/src/format';
 
 describe('format', () => {
   it('shows money like the workbook, with credits in brackets', () => {
@@ -24,9 +24,22 @@ describe('format', () => {
   it('formats percentages', () => {
     expect(formatPercent(0.035)).toBe('3.5%');
   });
+  it('floors the goal percentage so 99.96% never reads as 100% before the goal is met', () => {
+    expect(flooredGoalFraction(9996, 10000)).toBe(0.999);
+    expect(formatFlooredPercent(9996, 10000)).toBe('99.9%');
+    expect(formatFlooredPercent(100, 0)).toBe('0%');
+  });
   it('parses what volunteers type', () => {
     expect(parseAmount(' $1,250.50 ')).toBe(1250.5);
+    expect(parseAmount('1250')).toBe(1250);
+    expect(parseAmount('.5')).toBe(0.5);
     expect(parseAmount('')).toBeNull();
     expect(parseAmount('twelve')).toBe('invalid');
+  });
+
+  it('rejects notations a volunteer never meant, even though Number() would parse them', () => {
+    for (const text of ['1e3', '0x10', '0b101', '0o17', '-5', '1.2.3', 'Infinity', 'NaN', '5.']) {
+      expect(parseAmount(text), text).toBe('invalid');
+    }
   });
 });

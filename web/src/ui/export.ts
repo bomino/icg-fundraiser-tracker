@@ -1,5 +1,6 @@
 import { todayIso } from '../dates';
 import type { Computed } from '../engine';
+import { flooredGoalFraction } from '../format';
 import type { State } from '../store';
 
 type Cell = string | number | null | Date;
@@ -35,6 +36,10 @@ export function paymentSheetRows(computed: Computed): Cell[][] {
   ];
 }
 
+// Kept as its own label constant: buildSummarySheet finds this row by label to attach a real
+// percent number format to the cell below it, so the two must never drift apart.
+export const GOAL_PERCENT_LABEL = '% of Goal Received';
+
 export function summarySheetRows(state: State): Cell[][] {
   const { totals, health, methods, methodTotalCents } = state.computed;
   return [
@@ -48,7 +53,8 @@ export function summarySheetRows(state: State): Cell[][] {
     ['Number Partial', totals.statusCounts.Partial],
     ['Number Pending', totals.statusCounts.Pending],
     ['Number Overpaid', totals.statusCounts.Overpaid],
-    ['% of Goal Received', totals.goalFraction],
+    // Floored, like the Summary view and the Friday display: never claims the goal is met early.
+    [GOAL_PERCENT_LABEL, flooredGoalFraction(totals.receivedCents, totals.goalCents ?? 0)],
     ['Payments Logged ($)', dollars(totals.loggedCents)],
     ['Unmatched Payments ($)', dollars(totals.unmatchedCents)],
     [],
@@ -61,11 +67,27 @@ export function summarySheetRows(state: State): Cell[][] {
   ];
 }
 
+// Builds the Summary worksheet from summarySheetRows, then gives "% of Goal Received" a real
+// Excel percent format - otherwise its floored fraction (e.g. 0.999) would read as "0.999", not
+// "99.9%", once opened in a spreadsheet. Async so xlsx (a large dependency) stays a lazy-loaded
+// chunk instead of being pulled into the main bundle by export.ts's eager importers (see below).
+export async function buildSummarySheet(state: State): Promise<import('xlsx').WorkSheet> {
+  const XLSX = await import('xlsx');
+  const rows = summarySheetRows(state);
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  const percentRowIndex = rows.findIndex((row) => row[0] === GOAL_PERCENT_LABEL);
+  if (percentRowIndex !== -1) {
+    const cell = sheet[XLSX.utils.encode_cell({ r: percentRowIndex, c: 1 })];
+    if (cell) cell.z = '0.0%';
+  }
+  return sheet;
+}
+
 export async function downloadWorkbook(state: State): Promise<void> {
   const XLSX = await import('xlsx');
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(pledgeSheetRows(state.computed), DATE_SHEET_OPTIONS), 'Pledges');
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(paymentSheetRows(state.computed), DATE_SHEET_OPTIONS), 'Payments');
-  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(summarySheetRows(state)), 'Summary');
+  XLSX.utils.book_append_sheet(book, await buildSummarySheet(state), 'Summary');
   XLSX.writeFile(book, `ICG-Fundraiser-${todayIso()}.xlsx`);
 }

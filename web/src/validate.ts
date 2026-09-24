@@ -40,7 +40,9 @@ export function validatePledge(draft: PledgeDraft): FieldErrors {
 
 export function validatePayment(draft: PaymentDraft, methods: readonly string[]): FieldErrors {
   return compact({
-    phone: draft.phone.trim() === '' ? "Enter the donor's phone number." : textError(draft.phone),
+    // Length before blank, matching validateRow_ in Code.gs: it checks every field's length in
+    // field order before its Payments-only blank-phone check runs.
+    phone: textError(draft.phone) ?? (draft.phone.trim() === '' ? "Enter the donor's phone number." : undefined),
     dateReceived: dateError(draft.dateReceived),
     amountReceived: amountError(draft.amountReceived),
     method: draft.method === '' || methods.includes(draft.method) ? undefined : 'Pick a method from the list.',

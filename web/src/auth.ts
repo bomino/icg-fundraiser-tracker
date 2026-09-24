@@ -56,9 +56,11 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
   let token: string | null = null;
   let waiting: Waiter[] = [];
   let initialised = false;
-  // Browsers deliver the close event as a later task, so the waiters to settle are captured when
-  // the close is requested; anyone who asks for a token after that belongs to the next prompt.
-  let closing: { waiters: Waiter[]; dismissed: boolean } | null = null;
+  // Browsers deliver the close event as a later task. `closing` only carries bookkeeping for that
+  // later event (host.hidden, and guarding a reopen against a stale close) - the waiters present
+  // when a close is requested are settled immediately below, not deferred to it, so a getToken
+  // landing in the gap before it fires can never be swept into a dismissal that already happened.
+  let closing: { dismissed: boolean } | null = null;
   let dismissedAt = Number.NEGATIVE_INFINITY;
   let suppressions = 0;
   const buttonSlot = h('div', { class: 'signin-button' });
@@ -76,23 +78,32 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
   // requested while a form dialog is open must sit above that form in the top layer.
   const dialog = h('dialog', { class: 'modal signin-dialog', 'aria-labelledby': 'signin-title' }, panel);
 
+  // Snapshots and clears `waiting` before doing anything else, so a getToken called in the gap
+  // before the close event fires starts a fresh array of its own - it can never be mistaken for a
+  // waiter this dismissal already settled, however that gap ends up being handled elsewhere.
+  function settleWaiting(dismissed: boolean) {
+    const waiters = waiting;
+    waiting = [];
+    closing = { dismissed };
+    if (dismissed) dismissedAt = Date.now();
+    waiters.forEach((waiter) => waiter.reject(new ApiError('UNAUTHENTICATED', 'Sign-in was cancelled.')));
+  }
+
   function requestClose(dismissed: boolean) {
-    closing = { waiters: waiting, dismissed };
+    settleWaiting(dismissed);
     dialog.close();
   }
 
-  dialog.addEventListener('cancel', () => {
-    closing = { waiters: waiting, dismissed: true };
-  });
+  dialog.addEventListener('cancel', () => settleWaiting(true));
   cancel.addEventListener('click', () => requestClose(true));
   dialog.addEventListener('close', () => {
     if (dialog.open) return;
-    const settled = closing ?? { waiters: waiting, dismissed: true };
+    // A close that arrived without going through requestClose or the 'cancel' listener above
+    // (closed some other way) is treated as an implicit dismissal, settling whoever is still
+    // waiting right now - never a snapshot taken earlier, so it cannot catch a later getToken.
+    if (closing === null) settleWaiting(true);
     closing = null;
     host.hidden = true;
-    if (settled.dismissed) dismissedAt = Date.now();
-    waiting = waiting.filter((waiter) => !settled.waiters.includes(waiter));
-    settled.waiters.forEach((waiter) => waiter.reject(new ApiError('UNAUTHENTICATED', 'Sign-in was cancelled.')));
   });
   host.append(dialog);
 

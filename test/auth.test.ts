@@ -270,6 +270,39 @@ describe('createAuth', () => {
     host.remove();
   });
 
+  it('settles every waiter present at dismissal, even if a new getToken arrives before the close event fires', async () => {
+    const { renderButton } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+    const dialog = signInDialog(host);
+    // Browsers queue the close event as a task; simulate that gap so a getToken landing inside it
+    // is exercised deterministically instead of racing the real (synchronous, in this jsdom) close.
+    const lateClose = vi.spyOn(dialog, 'close').mockImplementation(function (this: HTMLDialogElement) {
+      this.open = false;
+      setTimeout(() => this.dispatchEvent(new Event('close')), 0);
+    });
+
+    const first = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    const cancel = Array.from(dialog.querySelectorAll('button')).find((button) => button.textContent === 'Cancel') as HTMLButtonElement;
+    cancel.click();
+
+    // In the gap before the queued close event fires, a retried request asks for a token again.
+    const second = auth.getToken(false);
+    await expect(first).rejects.toMatchObject({ code: 'UNAUTHENTICATED', message: 'Sign-in was cancelled.' });
+
+    let secondSettled = false;
+    second.then(() => { secondSettled = true; }, () => { secondSettled = true; });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // `second` belongs to the next prompt, not the dismissal already in flight when it was asked.
+    expect(secondSettled).toBe(false);
+    expect(dialog.open).toBe(true);
+
+    lateClose.mockRestore();
+    host.remove();
+  });
+
   it('ignores a late close event from the previous sign-in when a new one has already opened', async () => {
     const { renderButton, emitCredential } = stubGoogleAccounts();
     const host = document.createElement('div');

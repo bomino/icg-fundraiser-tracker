@@ -1,5 +1,5 @@
 import type { Auth } from '../auth';
-import { formatClock, formatPercent, formatWholeDollars } from '../format';
+import { formatClock, formatFlooredPercent, formatWholeDollars } from '../format';
 import type { State, Store } from '../store';
 import { h } from './dom';
 
@@ -15,10 +15,6 @@ export interface DisplayDeps {
   reconnect(): Promise<void>;
 }
 
-// Floored like the dollar figures, so 99.96% never reads as 100% before the goal is met. Worked in
-// integer cents: flooring goalFraction * 1000 could drop a tenth of a percent to float error.
-const flooredPercent = (receivedCents: number, goalCents: number) => formatPercent(Math.floor((receivedCents * 1000) / goalCents) / 1000);
-
 function figures(state: State): HTMLElement[] {
   const { receivedCents, goalCents, goalFraction, donorCount } = state.computed.totals;
   const goal = goalCents !== null && goalCents > 0 ? goalCents : null;
@@ -30,7 +26,7 @@ function figures(state: State): HTMLElement[] {
       h('div', { class: 'progress-fill', style: `width: ${progress * 100}%` }),
     ),
     h('p', { class: 'friday-raised' }, h('span', { class: 'gold' }, formatWholeDollars(receivedCents)), goal === null ? ' raised' : ` raised of ${formatWholeDollars(goal)}`),
-    goal === null ? null : h('p', { class: 'friday-percent' }, flooredPercent(receivedCents, goal)),
+    goal === null ? null : h('p', { class: 'friday-percent' }, formatFlooredPercent(receivedCents, goal)),
     h('p', { class: 'friday-donors ink-soft' }, donorCount === 1 ? '1 donor has pledged' : `${donorCount} donors have pledged`),
   ];
   return nodes.filter((node): node is HTMLElement => node !== null);
