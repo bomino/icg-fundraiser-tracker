@@ -216,7 +216,8 @@ function amountProblem_(value) {
   if (value === null) return '';
   if (!isFinite(value) || value < 0) return 'Enter an amount of 0 or more.';
   if (value > MAX_AMOUNT) return 'That amount is too large.';
-  if (Math.abs(Math.round(value * 100) - value * 100) > 1e-6) return 'Use at most 2 decimal places.';
+  // Tolerance scales with the amount, as in web/src/validate.ts.
+  if (Math.abs(Math.round(value * 100) / 100 - value) > 4 * Number.EPSILON * Math.max(1, Math.abs(value))) return 'Use at most 2 decimal places.';
   return '';
 }
 

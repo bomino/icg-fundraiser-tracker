@@ -9,11 +9,17 @@ export const MAX_AMOUNT = 1_000_000_000;
 
 export type FieldErrors = Partial<Record<string, string>>;
 
+// Allows a few units of float error relative to the amount (0.1 + 0.2 is a valid 0.30), rather
+// than a fixed tolerance that large amounts' own float error exceeds.
+function hasAtMostTwoDecimals(value: number): boolean {
+  return Math.abs(Math.round(value * 100) / 100 - value) <= 4 * Number.EPSILON * Math.max(1, Math.abs(value));
+}
+
 export function amountError(value: number | null): string | undefined {
   if (value === null) return undefined;
   if (!Number.isFinite(value) || value < 0) return 'Enter an amount of 0 or more.';
   if (value > MAX_AMOUNT) return 'That amount is too large.';
-  if (Math.abs(Math.round(value * 100) - value * 100) > 1e-6) return 'Use at most 2 decimal places.';
+  if (!hasAtMostTwoDecimals(value)) return 'Use at most 2 decimal places.';
   return undefined;
 }
 
