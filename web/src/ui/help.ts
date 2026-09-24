@@ -2,7 +2,7 @@ export const PLEDGE_HELP = {
   phone: "The donor's phone number — it is their ID. Dashes, spaces and brackets don't matter. One pledge per donor.",
   name: 'Full name, e.g. Ahmed Yusuf.',
   datePledged: 'The date the pledge was made.',
-  amountPledged: 'Total amount promised, e.g. 500. Enter 0 if not known yet — payments are not counted until this is filled in.',
+  amountPledged: 'Total amount promised, e.g. 500. Enter 0 if the amount is not known yet — payments still count; they only stop counting if this is left blank.',
   notes: 'Anything worth remembering, e.g. "Prefers to pay after Jumuah".',
 } as const;
 
