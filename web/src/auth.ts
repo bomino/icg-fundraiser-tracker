@@ -77,6 +77,7 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
         if (waiting.length > 1) return;
         host.hidden = false;
         host.replaceChildren(panel);
+        buttonSlot.replaceChildren();
         google.accounts.id.renderButton(buttonSlot, { type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular' });
         google.accounts.id.prompt();
       });
