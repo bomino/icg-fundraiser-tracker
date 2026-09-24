@@ -1,5 +1,5 @@
 import type { HealthCheck, MethodRow } from '../engine';
-import { formatCents, formatFlooredPercent } from '../format';
+import { flooredGoalFraction, formatCents, formatFlooredPercent } from '../format';
 import type { State, Store } from '../store';
 import { chartSlots } from './chartSlots';
 import { h } from './dom';
@@ -53,6 +53,8 @@ function methodTable(state: State): HTMLElement {
 export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   const { totals, health, methods } = state.computed;
   const progress = Math.min(Math.max(totals.goalFraction, 0), 1);
+  // The visible percentage's floored tenths, so a screen reader never hears 100 before the goal is met.
+  const announcedPercent = Math.min(Math.max(Math.round(flooredGoalFraction(totals.receivedCents, totals.goalCents ?? 0) * 1000), 0), 1000) / 10;
 
   const editGoal = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Edit goal');
   editGoal.addEventListener('click', () => openGoalForm(state.settings.goal, (goal) => deps.store.setGoal(goal), deps.reportError));
@@ -79,7 +81,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
       { class: 'card' },
       h('div', { class: 'view-header' }, h('p', { class: 'eyebrow' }, 'Goal'), editGoal),
       h('p', {}, h('span', { class: 'numeric-xl gold' }, formatCents(totals.receivedCents)), h('span', { class: 'ink-soft' }, ` received of ${formatCents(totals.goalCents ?? 0)}`)),
-      h('div', { class: 'progress-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(progress * 100), 'aria-label': 'Progress toward goal' }, h('div', { class: 'progress-fill', style: `width: ${progress * 100}%` })),
+      h('div', { class: 'progress-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': announcedPercent, 'aria-label': 'Progress toward goal' }, h('div', { class: 'progress-fill', style: `width: ${progress * 100}%` })),
       h('p', { class: 'meta' }, `${formatFlooredPercent(totals.receivedCents, totals.goalCents ?? 0)} of goal received`),
     ),
     h(

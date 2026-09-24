@@ -35,6 +35,16 @@ describe('summary', () => {
     expect(view.textContent).not.toContain('100.0% of goal received');
   });
 
+  it('announces the same floored percentage to screen readers as it shows', () => {
+    const nearlyThere = [pledge({ id: 'p1', phone: '1', amountPledged: 100 })];
+    const nearlyPayments = [payment({ id: 'y1', phone: '1', amountReceived: 99.96, method: 'Cash' })];
+    const goal100 = { ...SETTINGS, goal: 100 };
+    const nearlyState: State = { pledges: nearlyThere, payments: nearlyPayments, settings: goal100, me: 'me@example.com', computed: compute(nearlyThere, nearlyPayments, goal100, TODAY) };
+    const deps = { store: {} as Store, reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+    const view = renderSummary(nearlyState, deps);
+    expect(view.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow')).toBe('99.9');
+  });
+
   it('says truthfully that other volunteers’ changes need a refresh', () => {
     const { view } = render();
     expect(view.querySelector('.view-header .eyebrow')?.textContent).toBe('Live from the shared sheet — tap Refresh for others’ changes');
