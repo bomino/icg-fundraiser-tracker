@@ -1,5 +1,5 @@
 import type { HealthCheck, MethodRow } from '../engine';
-import { formatCents, formatPercent } from '../format';
+import { formatCents, formatFlooredPercent } from '../format';
 import type { State, Store } from '../store';
 import { chartSlots } from './chartSlots';
 import { h } from './dom';
@@ -27,7 +27,6 @@ function healthItem(check: HealthCheck, deps: SummaryDeps): HTMLElement {
 function methodTable(state: State): HTMLElement {
   const slots = chartSlots(state.computed.methods);
   const { methodTotalCents } = state.computed;
-  const { loggedCents } = state.computed.totals;
   return h(
     'table',
     { class: 'data-table' },
@@ -43,7 +42,10 @@ function methodTable(state: State): HTMLElement {
           h('td', { class: 'num' }, formatCents(row.cents)),
         );
       }),
-      h('tr', { class: methodTotalCents === loggedCents ? undefined : 'row-danger' }, h('td', {}, h('strong', {}, 'Total (should match Payments Logged)')), h('td', { class: 'num' }, h('strong', {}, formatCents(methodTotalCents)))),
+      // Unlike the workbook's real B37≠B15 reconciliation check, computeMethods buckets every
+      // payment (blank → "No method recorded", unlisted → "Other / unlisted"), so this total can
+      // never actually mismatch Payments Logged here - no row-danger class to flag it.
+      h('tr', {}, h('td', {}, h('strong', {}, 'Total (should match Payments Logged)')), h('td', { class: 'num' }, h('strong', {}, formatCents(methodTotalCents)))),
     ),
   );
 }
@@ -78,7 +80,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
       h('div', { class: 'view-header' }, h('p', { class: 'eyebrow' }, 'Goal'), editGoal),
       h('p', {}, h('span', { class: 'numeric-xl gold' }, formatCents(totals.receivedCents)), h('span', { class: 'ink-soft' }, ` received of ${formatCents(totals.goalCents ?? 0)}`)),
       h('div', { class: 'progress-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(progress * 100), 'aria-label': 'Progress toward goal' }, h('div', { class: 'progress-fill', style: `width: ${progress * 100}%` })),
-      h('p', { class: 'meta' }, `${formatPercent(totals.goalFraction)} of goal received`),
+      h('p', { class: 'meta' }, `${formatFlooredPercent(totals.receivedCents, totals.goalCents ?? 0)} of goal received`),
     ),
     h(
       'div',
