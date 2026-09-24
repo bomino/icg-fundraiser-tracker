@@ -43,3 +43,11 @@ export function drawMethodChart(canvas: HTMLCanvasElement, rows: readonly Method
   document.addEventListener('themechange', retheme);
   stopRetheming = () => document.removeEventListener('themechange', retheme);
 }
+
+/** Call when the view holding the canvas unmounts (e.g. Summary → another tab), so the chart and its document-level theme listener don't outlive the canvas. A no-op if nothing has been drawn. */
+export function destroyMethodChart(): void {
+  active?.destroy();
+  stopRetheming?.();
+  active = null;
+  stopRetheming = null;
+}
