@@ -8,7 +8,7 @@ Two hand-maintained Office artifacts, plus a web app that reimplements them, all
 
 - `Masjid_Fundraiser_Tracker_v3.xlsx` — the original tracker (the "application")
 - `Fundraiser_Tracker_User_Guide.docx` — the end-user manual for that tracker
-- `Masjid_Fundraiser_Tracker_v3.BACKUP-before-trim.xlsx` — restore point from before the 2026-09-15 rework
+- `Masjid_Fundraiser_Tracker_v3.BACKUP-before-trim.xlsx` — restore point from before the 2026-09-15 rework (untracked; see "Version control")
 - `web/` (Vite + TypeScript) and `apps-script/Code.gs` — a second implementation of the workbook, backed by a private Google Sheet instead of a local file; see "The web app" below
 
 There is no build and no generator script checked in for the workbook, so it **is** the source of truth for its own behaviour. Edit it in place, via its OOXML parts. The web app is ordinary source under `web/` and `apps-script/`, with its own build and test suite (`npm run check`).
@@ -67,7 +67,7 @@ The key columns are hidden and locked; the tables own them, so new rows get the 
 
 ### Invariants that will silently break things
 
-**Formulas use plain A1 ranges, never structured table references,** and no `LET`, `LAMBDA` or dynamic arrays. The file must keep working after upload to Google Sheets, which the guide instructs volunteers to do. `_xlfn.MAXIFS` is the one modern function used (fine in Excel 2019+/365 and Sheets).
+**Formulas use plain A1 ranges, never structured table references,** and no `LET`, `LAMBDA` or dynamic arrays. That includes table parts: `PaymentLog` deliberately has no custom totals-row formula (the payment count lives in Payments `C3`), because an A1 range there would count the totals row itself once it is shown. The file must keep working after upload to Google Sheets, which the guide instructs volunteers to do. `_xlfn.MAXIFS` is the one modern function used (fine in Excel 2019+/365 and Sheets).
 
 **Google Sheets computes the same values as Excel (verified 2026-09-16).** A sample-data copy uploaded to Drive and opened in Sheets' Office-compatibility mode matched Excel on all 333 compared cells, including Summary `B22` (range-as-criteria `COUNTIF` inside `SUMPRODUCT`) and the `_xlfn.MAXIFS` column. Not yet verified there: conditional-format colours, protection, dropdowns, tooltips, and a fully converted Google Sheet (the guide's Import → Replace route). To re-test without a browser, share the file by link and pull values with `gviz/tq?tqx=out:csv&sheet=<tab>&range=<A1>&headers=0` — that endpoint type-infers each column and silently blanks text in numeric/date columns and skips empty rows, so match rows by key and fetch blanked cells one at a time; `export?format=csv` returns 400 for unconverted .xlsx files.
 
@@ -89,7 +89,7 @@ The key columns are hidden and locked; the tables own them, so new rows get the 
 
 **Header row is row 4, data starts at row 5**, both data tabs, `ySplit="4"` frozen panes. Pledges row 3 holds a totals band above the header.
 
-**Header cells carry the inline documentation.** `xl/comments1.xml` / `comments2.xml` hold a tooltip per column, and they are a third place the behaviour is documented — alongside the guide and this file. They were refreshed on 2026-09-15 for the four statuses and phone normalization, and on 2026-09-16 for the `⚠ no amount on Pledges` warning (Payments A4/B4, Pledges D4); changing any of those means editing the tooltip too. Box size comes from the `<x:Anchor>` in `xl/drawings/vmlDrawing*.vml` (7th value = bottom row) — grow it when a tooltip gets longer, or the text is cut off. The comment body is the *last* `<t xml:space="preserve">` run in the `<comment>` element (the first run is the author name). *(The two Match Key columns have no tooltip — they are hidden, so that is intentional.)*
+**Header cells carry the inline documentation.** `xl/comments1.xml` / `comments2.xml` hold a tooltip per column, and they are a third place the behaviour is documented — alongside the guide and this file. They were refreshed on 2026-09-15 for the four statuses and phone normalization, on 2026-09-16 for the `⚠ no amount on Pledges` warning (Payments A4/B4, Pledges D4), and on 2026-09-24 for 0-versus-blank Amount Pledged (Pledges D4: a 0 still counts payments, only a blank stops them) and dots and plus signs in phone numbers (both A4s); changing any of those means editing the tooltip too. Box size comes from the `<x:Anchor>` in `xl/drawings/vmlDrawing*.vml` (7th value = bottom row) — grow it when a tooltip gets longer, or the text is cut off. The comment body is the *last* `<t xml:space="preserve">` run in the `<comment>` element (the first run is the author name). *(The two Match Key columns have no tooltip — they are hidden, so that is intentional.)*
 
 **Table column names must equal the header cell text exactly,** or Excel repairs the file on open. When widening a table, add the `<tableColumn>`, bump `count`, extend `ref` and `autoFilter`, and write the matching header cell.
 
@@ -141,9 +141,16 @@ Structural checks on the XML are necessary but have repeatedly proven insufficie
 - **`api.ts` retries transient failures automatically.** `send()` retries a 404/502/503/504 (Google's echo redirect intermittently 404s after the script already ran) with backoff before surfacing an error. On a retried *update*, a `CONFLICT` whose `current` record already matches the draft being sent (`pledgeMatchesDraft`/`paymentMatchesDraft`) is treated as success, not resurfaced as an error — the first attempt's request landed, only its response was lost. Creates are already safe to retry as-is: they're idempotent by the client-chosen UUID (see the id/`updatedAt` note above).
 - `npm run check` is the gate: typecheck, all tests and the build.
 
+## Version control
+
+The shipped template and the guide are tracked; the backup and Office lock files (`~$*`) are ignored.
+
+- **Never commit a workbook containing real data.** The tracked file is the blank template (zero data rows); donor names and phone numbers belong in volunteers' copies only. Check before committing it.
+- **Strip `x15ac:absPath` from `xl/workbook.xml` before committing.** Excel writes the saving machine's local folder there on every save; drop the whole `<mc:AlternateContent>` block that wraps it.
+
 ## Conventions
 
 - Version bumps go in the filename (`_v3`), not inside the workbook.
 - Keep volunteer-facing wording plain — the guide's audience has no spreadsheet experience.
-- The guide and the workbook are in sync as of 2026-09-16. Changing a column name, status value, warning string or Summary section means updating `Fundraiser_Tracker_User_Guide.docx` in the same pass. The guide covers the workbook only; the web app is documented in `docs/SETUP.md`.
+- The guide and the workbook are in sync as of 2026-09-24. Changing a column name, status value, warning string or Summary section means updating `Fundraiser_Tracker_User_Guide.docx` in the same pass. The guide covers the workbook only; the web app is documented in `docs/SETUP.md`.
 - The guide's template defines no named styles; apply `w:pStyle` values (`Heading1`, `Heading2`, `ListParagraph`) directly — python-docx cannot resolve them by name. Bullets are `numId` 2; numbered step lists use `numId` 3, 4 and 5.
