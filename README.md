@@ -23,7 +23,7 @@ npm run dev      # local app (needs .env.local)
 npm run check    # typecheck + tests + build
 ```
 
-Requires Node >= 22.22 (the `jsdom` dev dependency's engine requirement; `npm install`/`npm test` warn under older Node 22.x patch releases).
+Requires Node 22.22.2+ on the 22 line, 24.15+, or 26+ (the `jsdom` dev dependency's engine requirement; `npm install`/`npm test` warn outside that range).
 
 ## Demo mode
 
