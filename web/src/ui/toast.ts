@@ -41,11 +41,28 @@ function returnFocusToPage() {
   main.focus();
 }
 
+// An open modal makes a toast inert and draws the volunteer's eye away from it, and carrying on with
+// the next entry is exactly when a background failure lands; expiring then means it is never seen.
+// So a toast that expires while any dialog is open gets its full lifetime again once the last one closes.
+function expireOutsideDialogs(toast: HTMLElement, lifetimeMs: number, close: () => void) {
+  const expire = () => {
+    if (!toast.isConnected) return;
+    if (!document.querySelector('dialog[open]')) {
+      close();
+      return;
+    }
+    void whenNoDialogOpen().then(() => setTimeout(expire, lifetimeMs));
+  };
+  setTimeout(expire, lifetimeMs);
+}
+
 export function showToast(message: string, kind: 'info' | 'error' = 'info', action?: ToastAction): void {
   if (!action) {
     const toast = h('div', { class: `toast toast-${kind}` }, message);
     region(kind).append(toast);
-    setTimeout(() => toast.remove(), LIFETIME_MS[kind]);
+    // A confirmation shown after the form closes would be stale, so only failures are held.
+    if (kind === 'error') expireOutsideDialogs(toast, LIFETIME_MS.error, () => toast.remove());
+    else setTimeout(() => toast.remove(), LIFETIME_MS.info);
     return;
   }
   const run = h('button', { type: 'button', class: 'btn btn-secondary' }, action.label);
@@ -71,15 +88,6 @@ export function showToast(message: string, kind: 'info' | 'error' = 'info', acti
   dismiss.addEventListener('click', close);
   syncReady();
   region(kind).append(toast);
-  // An open modal makes the toast inert, and a volunteer carrying on with the next entry is exactly
-  // when a background save fails; expiring then would take away their only way back to the typing.
-  const expire = () => {
-    if (!toast.isConnected) return;
-    if (!document.querySelector('dialog[open]')) {
-      close();
-      return;
-    }
-    void whenNoDialogOpen().then(() => setTimeout(expire, ACTION_LIFETIME_MS));
-  };
-  setTimeout(expire, ACTION_LIFETIME_MS);
+  // For an action toast the stakes are higher still: Reopen is the only way back to the typing.
+  expireOutsideDialogs(toast, ACTION_LIFETIME_MS, close);
 }

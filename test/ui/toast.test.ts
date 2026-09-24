@@ -133,6 +133,34 @@ describe('showToast', () => {
     expect(toasts()).toHaveLength(0);
   });
 
+  it('holds a plain error toast while a dialog is open, and gives it its usual 8 seconds from when the dialog closes', async () => {
+    // #given a plain error toast, shown while the volunteer is typing in a form
+    vi.useFakeTimers();
+    const dialog = document.createElement('dialog');
+    document.body.append(dialog);
+    dialog.showModal();
+    showToast('Could not create the export.', 'error');
+    // #when its 8 seconds run out, and the dialog closes a while later
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(toasts()).toHaveLength(1);
+    dialog.close();
+    // #then it lasts a full 8 seconds from that moment
+    await vi.advanceTimersByTimeAsync(7_999);
+    expect(toasts()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it('lets a confirmation expire on time even behind a dialog, since it would be stale later', async () => {
+    vi.useFakeTimers();
+    const dialog = document.createElement('dialog');
+    document.body.append(dialog);
+    dialog.showModal();
+    showToast('Saved.');
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(toasts()).toHaveLength(0);
+  });
+
   it('keeps an action toast well past the usual error lifetime, but not beyond 30 seconds', () => {
     vi.useFakeTimers();
     showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
