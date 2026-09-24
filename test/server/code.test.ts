@@ -207,6 +207,17 @@ describe('writes', () => {
     expect(saved.phone).toBe(phone);
   });
 
+  // The fake Sheet hands text back whether or not it was prefixed, so only the raw cells show a
+  // dropped apostrophe - which real Sheets would coerce to a number or date, or run as a formula.
+  it.each([
+    ['Pledges', 'upsertPledge', { ...pledgeDraft, name: '=HYPERLINK("x")', notes: '+1' }, ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy']],
+    ['Payments', 'upsertPayment', { ...paymentDraft, notes: '=1+1' }, ['id', 'phone', 'dateReceived', 'amountReceived', 'method', 'notes', 'updatedAt', 'updatedBy']],
+  ] as const)('writes every %s text cell apostrophe-prefixed', (tab, op, draft, columns) => {
+    const saved: Record<string, unknown> = server.post(op, newRow(draft), token).data;
+    const expected = columns.map((column) => (typeof saved[column] === 'number' ? saved[column] : `'${String(saved[column])}`));
+    expect(server.sheet(tab).raw[1]).toEqual(expected);
+  });
+
   it('rounds float dust to cents before storing', () => {
     expect(server.post('upsertPayment', newRow({ ...paymentDraft, amountReceived: 0.1 + 0.2 }), token).data.amountReceived).toBe(0.3);
   });
