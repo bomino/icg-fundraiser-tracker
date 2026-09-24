@@ -7,6 +7,7 @@ import type { Pledge } from '../types';
 import { statusBadge } from './badges';
 import { h } from './dom';
 import { filterChip, type ListFilter } from './filter';
+import { openPaymentForm } from './paymentForm';
 import { openPledgeForm } from './pledgeForm';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
 import { nextSort, renderTable, sortRows, type Column, type SortState } from './table';
@@ -35,6 +36,17 @@ export function createPledgesView(deps: ListViewDeps) {
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
+    const openPaymentFor = (pledge: Pledge) => {
+      // One id per opened form: a Save retried after a lost response must name the same row.
+      const newId = makeId();
+      openPaymentForm({
+        phone: pledge.phone,
+        methods: state.settings.paymentMethods,
+        pledges: state.pledges,
+        onSave: (draft) => deps.store.savePayment(draft, undefined, newId),
+        reportError: deps.reportError,
+      });
+    };
     const openEditor = (existing?: Pledge) => {
       // One id per opened form: a Save retried after a lost response must name the same row.
       const newId = existing ? undefined : makeId();
@@ -43,6 +55,7 @@ export function createPledgesView(deps: ListViewDeps) {
         pledges: state.pledges,
         onSave: (draft) => deps.store.savePledge(draft, existing, newId),
         onDelete: existing ? () => deps.store.deletePledge(existing) : undefined,
+        onLogPayment: existing ? () => openPaymentFor(existing) : undefined,
         reportError: deps.reportError,
       });
     };

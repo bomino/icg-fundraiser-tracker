@@ -10,6 +10,8 @@ import { NOT_A_NUMBER, PAYMENT_HELP } from './help';
 
 export interface PaymentFormOptions {
   existing?: Payment;
+  /** Default phone for a new payment, e.g. opened from a donor's pledge or the Find donor card. */
+  phone?: string;
   methods: readonly string[];
   pledges: readonly Pledge[];
   onSave(draft: PaymentDraft): Promise<void>;
@@ -21,7 +23,7 @@ export function openPaymentForm(options: PaymentFormOptions): void {
   const existing = options.existing;
   const resolveDonor = createDonorResolver(options.pledges);
   const fields = {
-    phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
+    phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
     dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : todayIso(), help: PAYMENT_HELP.dateReceived }),
     amountReceived: field({ name: 'amountReceived', label: 'Amount received ($)', inputmode: 'decimal', value: existing?.amountReceived?.toString() ?? '', help: PAYMENT_HELP.amountReceived }),
     method: field({ name: 'method', label: 'Payment method', type: 'select', options: options.methods, value: existing?.method ?? '', help: PAYMENT_HELP.method }),

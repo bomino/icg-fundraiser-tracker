@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compute } from '../../web/src/engine';
-import type { State } from '../../web/src/store';
+import type { State, Store } from '../../web/src/store';
 import { createLookupView } from '../../web/src/ui/lookupView';
+import type { PaymentDraft } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
+
+afterEach(() => document.body.replaceChildren());
 
 const pledges = [
   pledge({ id: 'p1', phone: '555-010-0101', name: '<b>Aisha</b>', amountPledged: 100 }),
@@ -19,7 +22,7 @@ const search = (view: HTMLElement, text: string) => {
 
 describe('find donor', () => {
   it('finds by phone in any format and shows payment history as text', () => {
-    const view = createLookupView()(state);
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, '(555) 010 0101');
     expect(view.querySelector('.lookup-card b')).toBeNull();
     expect(view.textContent).toContain('<b>Aisha</b>');
@@ -28,7 +31,7 @@ describe('find donor', () => {
   });
 
   it('lists name matches, then opens the chosen donor', () => {
-    const view = createLookupView()(state);
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, 'aisha');
     const matches = view.querySelectorAll('.match');
     expect(matches).toHaveLength(2);
@@ -37,8 +40,25 @@ describe('find donor', () => {
   });
 
   it('says Not found', () => {
-    const view = createLookupView()(state);
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, '999');
     expect(view.textContent).toContain('Not found');
+  });
+
+  it('logs a payment from the donor card, calling store.savePayment with the phone', () => {
+    // Typed so `.mock.calls[0][0]` below is not indexed into an inferred empty tuple.
+    const savePayment = vi.fn(async (_draft: PaymentDraft) => undefined);
+    const store = { savePayment } as unknown as Store;
+    document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 010 0101');
+    const logPayment = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
+    logPayment.click();
+    expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('555-010-0101');
+    const amount = document.querySelector('input[name=amountReceived]') as HTMLInputElement;
+    amount.value = '25';
+    amount.dispatchEvent(new Event('input'));
+    (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(savePayment).toHaveBeenCalled();
+    expect(savePayment.mock.calls[0][0]).toMatchObject({ phone: '555-010-0101', amountReceived: 25 });
   });
 });

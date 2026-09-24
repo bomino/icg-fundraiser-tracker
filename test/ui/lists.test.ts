@@ -47,6 +47,17 @@ describe('pledges view', () => {
     (view.querySelector('.chip') as HTMLButtonElement).click();
     expect(clear).toHaveBeenCalled();
   });
+
+  it('opens the payment form pre-filled after Log a payment closes the pledge dialog, without stacking dialogs', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    (view.querySelector('tr[data-id="p3"]') as HTMLElement).click();
+    const logPayment = Array.from(document.querySelectorAll('dialog[open] button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
+    logPayment.click();
+    expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
+    expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Log a payment');
+    expect((document.querySelector('input[name=phone]') as HTMLInputElement).value).toBe('555-010-0103');
+  });
 });
 
 describe('payments view', () => {
@@ -58,6 +69,14 @@ describe('payments view', () => {
 });
 
 describe('payment form', () => {
+  it('pre-fills the phone from options and shows the donor preview immediately', () => {
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
+    const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
+    expect(phone.value).toBe('555-010-0103');
+    expect(preview.textContent).toContain('Chen Wei');
+  });
+
   it('previews the donor while the phone is typed', () => {
     openPaymentForm({ methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
     const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
@@ -97,6 +116,28 @@ describe('pledge form', () => {
     (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
     expect(onSave).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain('Enter a number, e.g. 250.');
+  });
+
+  it('shows a Log a payment button for an existing pledge with a phone, firing only after the dialog closes', () => {
+    const onLogPayment = vi.fn();
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), onLogPayment, reportError: vi.fn() });
+    const button = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    expect(onLogPayment).not.toHaveBeenCalled();
+    button.click();
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    expect(onLogPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the Log a payment button for a pledge with no phone', () => {
+    const noPhone = pledge({ id: 'p9', name: 'No Phone', amountPledged: 50 });
+    openPledgeForm({ pledges: [...pledges, noPhone], existing: noPhone, onSave: vi.fn(), onLogPayment: vi.fn(), reportError: vi.fn() });
+    expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
+  });
+
+  it('hides the Log a payment button when adding a new pledge', () => {
+    openPledgeForm({ pledges, onSave: vi.fn(), onLogPayment: vi.fn(), reportError: vi.fn() });
+    expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
   });
 });
 

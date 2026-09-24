@@ -1,9 +1,12 @@
 import { findByName, findByPhone, paymentsForKey, type DerivedPayment, type DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
+import { newId as makeId } from '../id';
 import { toCents } from '../money';
 import type { State } from '../store';
 import { methodBadge, statusBadge } from './badges';
 import { h } from './dom';
+import { openPaymentForm } from './paymentForm';
+import type { ListViewDeps } from './pledgesView';
 import { renderTable, type Column } from './table';
 
 const HISTORY: Column<DerivedPayment>[] = [
@@ -13,7 +16,7 @@ const HISTORY: Column<DerivedPayment>[] = [
   { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },
 ];
 
-function donorCard(donor: DerivedPledge, payments: DerivedPayment[]): HTMLElement {
+function donorCard(donor: DerivedPledge, payments: DerivedPayment[], onLogPayment: () => void): HTMLElement {
   const rows: Array<[string, Node | string]> = [
     ['Phone', donor.pledge.phone],
     ['Date pledged', formatDate(donor.pledge.datePledged)],
@@ -25,10 +28,12 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[]): HTMLElemen
     ['Status', statusBadge(donor.status)],
     ['Notes', donor.pledge.notes],
   ];
+  const logPayment = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Log a payment');
+  logPayment.addEventListener('click', onLogPayment);
   return h(
     'article',
     { class: 'card lookup-card' },
-    h('h2', { class: 'display-md' }, donor.pledge.name || '(no name)'),
+    h('div', { class: 'view-header' }, h('h2', { class: 'display-md' }, donor.pledge.name || '(no name)'), logPayment),
     donor.duplicate ? h('p', { class: 'hint hint-warning' }, 'This phone number is on more than one pledge, so its payments are counted twice. Remove the extra pledge.') : null,
     h('dl', {}, ...rows.flatMap(([label, value]) => [h('dt', {}, label), h('dd', {}, value)])),
     h('h3', { class: 'heading-md' }, 'Payments'),
@@ -36,12 +41,23 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[]): HTMLElemen
   );
 }
 
-export function createLookupView() {
+export function createLookupView(deps: ListViewDeps) {
   let query = '';
   let chosenId: string | null = null;
 
   return function render(state: State): HTMLElement {
     const results = h('div', { class: 'view' });
+    const openPaymentFor = (donor: DerivedPledge) => {
+      // One id per opened form: a Save retried after a lost response must name the same row.
+      const paymentId = makeId();
+      openPaymentForm({
+        phone: donor.pledge.phone,
+        methods: state.settings.paymentMethods,
+        pledges: state.pledges,
+        onSave: (draft) => deps.store.savePayment(draft, undefined, paymentId),
+        reportError: deps.reportError,
+      });
+    };
     const draw = () => {
       const computed = state.computed;
       const text = query.trim();
@@ -52,7 +68,7 @@ export function createLookupView() {
       const chosen = chosenId ? (computed.pledges.find((d) => d.pledge.id === chosenId) ?? null) : null;
       const donor = chosen ?? (/\d/.test(text) ? findByPhone(computed, text) : null);
       if (donor) {
-        results.replaceChildren(donorCard(donor, paymentsForKey(computed, donor.key)));
+        results.replaceChildren(donorCard(donor, paymentsForKey(computed, donor.key), () => openPaymentFor(donor)));
         return;
       }
       const matches = findByName(computed, text);

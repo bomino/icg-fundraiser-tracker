@@ -13,6 +13,8 @@ export interface PledgeFormOptions {
   pledges: readonly Pledge[];
   onSave(draft: PledgeDraft): Promise<void>;
   onDelete?: () => Promise<void>;
+  /** Called once the dialog has closed, after the "Log a payment" button is used. Only offered for an existing pledge with a phone. */
+  onLogPayment?: () => void;
   reportError(err: unknown): void;
 }
 
@@ -43,7 +45,7 @@ export function openPledgeForm(options: PledgeFormOptions): void {
   updateHint();
 
   const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
-  runForm<PledgeDraft>({
+  const dialog = runForm<PledgeDraft>({
     title: existing ? 'Edit pledge' : 'Add pledge',
     form,
     fields,
@@ -67,4 +69,17 @@ export function openPledgeForm(options: PledgeFormOptions): void {
     deleteMessage: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
     reportError: options.reportError,
   });
+
+  const onLogPayment = options.onLogPayment;
+  if (existing?.phone.trim() && onLogPayment) {
+    // Never stack form dialogs: this closes the pledge dialog first, then the caller opens the payment form.
+    let requested = false;
+    const logPayment = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Log a payment');
+    logPayment.addEventListener('click', () => {
+      requested = true;
+      dialog.close();
+    });
+    dialog.element.querySelector('.modal-actions')?.prepend(logPayment);
+    dialog.element.addEventListener('close', () => { if (requested) onLogPayment(); }, { once: true });
+  }
 }

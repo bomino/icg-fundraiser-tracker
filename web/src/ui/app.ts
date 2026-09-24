@@ -56,7 +56,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   const reportError = createErrorReporter(() => deps.store.load());
   const pledgesView = createPledgesView({ store: deps.store, reportError });
   const paymentsView = createPaymentsView({ store: deps.store, reportError });
-  const lookupView = createLookupView();
+  const lookupView = createLookupView({ store: deps.store, reportError });
   // Built once and reattached, so the sections a volunteer opened survive store re-renders.
   const helpView = createHelpView();
 
