@@ -21,8 +21,9 @@
   .nav-actions { margin-left: auto; gap: 0; }
   .nav-actions .meta { display: none; }
   .nav-actions .btn { padding: 8px; }
-  .tabs { order: 3; flex-basis: 100%; justify-content: space-between; margin-top: var(--space-xs); }
-  .tab { padding: var(--space-sm); }
+  /* Five tabs must fit a 360px phone without a scrollbar; space-between spreads what room is left. */
+  .tabs { order: 3; flex-basis: 100%; justify-content: space-between; gap: 0; margin-top: var(--space-xs); scrollbar-width: none; }
+  .tab { padding: var(--space-sm) var(--space-xs); }
 }
 
 /* Buttons */
@@ -177,3 +178,59 @@ textarea.input { resize: vertical; }
 .signin-button { min-height: 44px; }
 .container[aria-busy='true'] { display: grid; gap: var(--space-md); }
 .skeleton { height: 120px; border-radius: var(--radius-md); background: var(--color-surface-sunken); }
+
+/* Help — a printed-handbook register: one readable column, serif section heads, hairlines between sections. */
+.help-guide { max-width: 70ch; margin: 0 auto; width: 100%; }
+.help-guide strong { font-weight: 600; color: var(--color-ink); }
+.help-lede { color: var(--color-ink-soft); font-size: 1.0625rem; line-height: 1.65; }
+.help-toc { display: grid; gap: var(--space-sm); padding: var(--space-md) 0; border-top: 1px solid var(--color-rule); border-bottom: 1px solid var(--color-rule); }
+.help-toc ol { margin: 0; padding-left: 1.5rem; columns: 2; column-gap: var(--space-xl); }
+.help-toc li { break-inside: avoid; padding: 2px 0; }
+.help-toc li::marker { color: var(--color-gold); font-feature-settings: 'tnum'; }
+.help-toc a { text-decoration: none; }
+.help-toc a:hover { text-decoration: underline; }
+/* The nav bar is sticky; without this a jumped-to section lands underneath it. */
+.help-section { border-bottom: 1px solid var(--color-rule); scroll-margin-top: 120px; }
+.help-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); min-height: 56px; padding: var(--space-sm) 0; cursor: pointer; list-style: none; }
+.help-summary::-webkit-details-marker { display: none; }
+.help-summary::after { content: '+'; flex-shrink: 0; width: 1.5rem; text-align: center; font: 400 1.5rem/1 var(--font-ui); color: var(--color-gold); }
+.help-section[open] > .help-summary::after { content: '−'; }
+.help-heading { font: 500 1.75rem/1.2 var(--font-display); color: var(--color-ink); }
+.help-summary:hover .help-heading { color: var(--color-emerald); }
+.help-body { display: grid; gap: var(--space-lg); padding: var(--space-xs) 0 var(--space-xl); line-height: 1.65; }
+.help-body > * { min-width: 0; }
+.help-topic { display: grid; gap: var(--space-sm); }
+.help-topic + .help-topic { padding-top: var(--space-lg); border-top: 1px solid var(--color-rule); }
+.help-list, .help-steps { margin: 0; padding-left: 1.5rem; display: grid; gap: var(--space-xs); }
+.help-list { list-style: disc; }
+.help-list li::marker { color: var(--color-ink-muted); }
+.help-steps li { padding-left: var(--space-xs); }
+.help-steps li::marker { color: var(--color-gold); font-weight: 600; }
+.help-terms { display: grid; grid-template-columns: minmax(7rem, 10rem) 1fr; gap: var(--space-sm) var(--space-lg); }
+.help-terms dt { font-weight: 600; }
+.help-terms dd { display: grid; gap: var(--space-xs); color: var(--color-ink-soft); }
+.help-note { padding: var(--space-sm) var(--space-md); background: var(--color-surface-soft); border-left: 3px solid var(--color-gold); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; color: var(--color-ink-soft); }
+.help-quote { color: var(--color-ink); font-style: italic; }
+.help-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.help-table th { text-align: left; padding: var(--space-sm) var(--space-sm) var(--space-sm) 0; border-bottom: 1px solid var(--color-rule-strong); font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); }
+.help-table td { vertical-align: top; padding: var(--space-md) var(--space-md) var(--space-md) 0; border-bottom: 1px solid var(--color-rule); }
+.help-table td:first-child { width: 36%; }
+.help-table tr:last-child td { border-bottom: 0; }
+@media (max-width: 720px) {
+  .help-toc ol { columns: 1; }
+  .help-toc li { padding: var(--space-xs) 0; }
+  .help-heading { font-size: 1.5rem; }
+  .help-terms { grid-template-columns: 1fr; gap: 2px; }
+  .help-terms dd + dt { margin-top: var(--space-sm); }
+  .help-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .help-table, .help-table tbody, .help-table tr, .help-table td { display: block; }
+  .help-table tr { padding: var(--space-md) 0; border-bottom: 1px solid var(--color-rule); }
+  .help-table tr:last-child { border-bottom: 0; }
+  .help-table td, .help-table td:first-child { width: auto; padding: 2px 0; border: 0; }
+  .help-table td::before { display: block; content: attr(data-label); font: 600 0.6875rem/1.8 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-muted); }
+}
+@media print {
+  .help-guide { max-width: none; }
+  .help-toc, .help-summary::after { display: none; }
+  .help-topic { break-inside: avoid; }
+}

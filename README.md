@@ -3,6 +3,7 @@
 A web version of `Masjid_Fundraiser_Tracker_v3.xlsx`. Volunteers sign in with Google and record pledges and payments. The totals, statuses and data-health checks work exactly as they do in the workbook.
 
 - **Setup:** see [docs/SETUP.md](docs/SETUP.md).
+- **Volunteer guide:** built into the app. The **Help** tab explains every screen, status, warning and error message in plain language.
 - **Design:** [docs/superpowers/specs/2026-09-23-fundraiser-web-app-design.md](docs/superpowers/specs/2026-09-23-fundraiser-web-app-design.md), plus [DESIGN.md](DESIGN.md) for the visual system.
 
 ```bash

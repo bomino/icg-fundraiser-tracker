@@ -1,0 +1,562 @@
+import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, type HealthId, type Status } from '../engine';
+import { h, type Child } from './dom';
+import { PAYMENT_HELP, PLEDGE_HELP } from './help';
+
+type Inline = Child[];
+
+// Every string the guide quotes, verbatim, so a test can fail when the app's wording drifts from the guide's.
+const SAID = {
+  offline: 'You are offline. Changes cannot be saved until the connection is back.',
+  network: 'Could not reach the tracker. Check your connection and try again.',
+  httpError: 'The tracker answered with an error',
+  busy: 'The tracker is busy. Try again in a moment.',
+  serverError: 'Something went wrong on the server. Try again.',
+  expired: 'Your sign-in has expired. Please sign in again.',
+  cancelled: 'Sign-in was cancelled.',
+  googleDidNotLoad: 'Google sign-in did not load. Check your connection and reload the page.',
+  notOnList: 'is not on the volunteer list.',
+  notOnListTitle: 'Not on the volunteer list',
+  differentAccount: 'Use a different account',
+  couldNotLoad: 'Could not load the tracker',
+  notSetUp: 'Not set up yet',
+  notConfigured: 'The server is not configured',
+  unexpectedPage: 'The tracker sent back an unexpected page.',
+  tabMissing: 'tab is missing. Run setup() in Apps Script.',
+  conflict: 'Someone else changed this row since you opened it. Reload to see the latest version, then make your change again.',
+  deleted: 'Someone else deleted this row. Reload to see the latest list.',
+  notANumber: 'Enter a number, e.g. 250.',
+  negative: 'Enter an amount of 0 or more.',
+  decimals: 'Use at most 2 decimal places.',
+  noPhone: "Enter the donor's phone number.",
+  pickMethod: 'Pick a method from the list.',
+  typePhone: 'Type the phone number to find the donor.',
+  notCountedPreview: 'this payment will not be counted until that is fixed.',
+  duplicateHint: 'This phone number is already on the pledge for',
+  lookupDuplicate: 'This phone number is on more than one pledge, so its payments are counted twice. Remove the extra pledge.',
+  deletePledge: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
+  deletePayment: 'Delete this payment? It will be removed from every total.',
+  healthIntro: 'Every figure below should read 0. Anything higher needs a look.',
+  methodTotal: 'Total (should match Payments Logged)',
+} as const;
+
+export const QUOTED_MESSAGES: readonly string[] = Object.values(SAID);
+
+const p = (...children: Inline) => h('p', {}, ...children);
+const b = (text: string) => h('strong', {}, text);
+const said = (text: string) => h('q', { class: 'help-quote' }, text);
+const note = (...children: Inline) => h('p', { class: 'help-note' }, ...children);
+const bullets = (...items: Inline[]) => h('ul', { class: 'help-list' }, ...items.map((item) => h('li', {}, ...item)));
+const steps = (...items: Inline[]) => h('ol', { class: 'help-steps' }, ...items.map((item) => h('li', {}, ...item)));
+const terms = (...entries: Array<[string | Node, ...Inline]>) =>
+  h('dl', { class: 'help-terms' }, ...entries.flatMap(([term, ...description]) => [h('dt', {}, term), h('dd', {}, ...description)]));
+const topic = (title: string, ...content: Child[]) => h('div', { class: 'help-topic' }, h('h3', { class: 'heading-md' }, title), ...content);
+
+const STATUS_HELP: Record<Status, string> = {
+  [STATUS.pending]: 'Nothing has been received from this donor yet.',
+  [STATUS.partial]: 'Some money has come in, but less than the pledge.',
+  [STATUS.paid]: 'The payments add up to the pledge exactly, to the cent.',
+  [STATUS.overpaid]: 'The donor has given more than they pledged. Their Balance Due shows the extra as a credit.',
+};
+const STATUS_ORDER: readonly Status[] = [STATUS.pending, STATUS.partial, STATUS.paid, STATUS.overpaid];
+
+// Keyed by HealthId so adding a check to the engine fails the typecheck until the guide explains it.
+const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
+  notMatched: {
+    meaning: 'Payments whose Donor Name shows a ⚠ warning. That money is left out of Total received.',
+    fix: ['Tap ', b('Show'), ', open each payment, and follow the fix for its warning (see above).'],
+  },
+  duplicates: {
+    meaning: 'The same phone number is on more than one pledge, so that donor’s payments are counted once per row.',
+    fix: ['Keep one pledge and delete the other. See ', b('Fix a donor entered twice'), ' in How to….'],
+  },
+  pledgeNoPhone: {
+    meaning: 'A pledge has an amount but no phone number, so no payment can ever be matched to it.',
+    fix: ['Open the pledge and add the donor’s phone number.'],
+  },
+  paymentIncomplete: {
+    meaning: 'A payment has a phone number but no date, or no amount. A payment without an amount adds nothing to any total.',
+    fix: ['Open the payment and fill in the missing date or amount. If it was entered by mistake, delete it.'],
+  },
+  futureDated: {
+    meaning: 'A payment is dated after today. It is still counted, but it is usually a typo, such as the wrong year.',
+    fix: ['Open the payment and correct the Date received.'],
+  },
+  predatesPledge: {
+    meaning: 'A donor’s most recent payment is dated before their Date Pledged. One of the dates is probably wrong.',
+    fix: ['Check the Date Pledged on the pledge and the dates on the donor’s payments, and correct whichever is wrong.'],
+  },
+};
+
+interface Problem {
+  message: Inline;
+  meaning: Inline;
+  action: Inline;
+}
+
+const PROBLEMS: readonly Problem[] = [
+  {
+    message: [said(SAID.offline)],
+    meaning: ['Your phone or computer has lost its internet connection. This shows as a strip under the top bar.'],
+    action: ['Wait for the connection to come back, then press Save again. You can still read the screens.'],
+  },
+  {
+    message: [said(SAID.network)],
+    meaning: ['The save did not reach the shared sheet, usually because the connection dropped.'],
+    action: ['Your typing is kept in the form. Check your connection and press ', b('Save'), ' again.'],
+  },
+  {
+    message: [said(`${SAID.httpError} (…). Try again.`)],
+    meaning: ['Google’s servers had a hiccup.'],
+    action: ['Press ', b('Save'), ' again. If it keeps happening, tell the organiser.'],
+  },
+  {
+    message: [said(SAID.busy)],
+    meaning: ['Several volunteers saved at the same moment, and the tracker handles one save at a time.'],
+    action: ['Wait a few seconds and press ', b('Save'), ' again. Nothing was lost.'],
+  },
+  {
+    message: [said(SAID.serverError)],
+    meaning: ['Something unexpected happened on the tracker’s side.'],
+    action: ['Press ', b('Save'), ' again. If it keeps happening, tell the organiser.'],
+  },
+  {
+    message: [said(SAID.expired)],
+    meaning: ['Google sign-ins last about an hour. The tracker renews yours quietly, but sometimes it has to ask.'],
+    action: ['Sign in again in the window that appears. Your form stays open with everything you typed, so press ', b('Save'), ' once you are back.'],
+  },
+  {
+    message: [said(SAID.cancelled)],
+    meaning: ['The Google sign-in window was closed before you finished signing in.'],
+    action: ['Press ', b('Save'), ' again and complete the sign-in. The window will not pop up again on its own for about a minute.'],
+  },
+  {
+    message: [said(SAID.googleDidNotLoad)],
+    meaning: ['The Google sign-in button could not be fetched, usually because of a weak connection.'],
+    action: ['Reload the page once your connection is steady.'],
+  },
+  {
+    message: [b(SAID.notOnListTitle), ' — ', said(`your-email@example.com ${SAID.notOnList}`)],
+    meaning: ['You signed in with a Google account that the organiser has not added to the volunteer list.'],
+    action: ['Ask the organiser to add that email address, or press ', b(SAID.differentAccount), ' and sign in with the account they did add.'],
+  },
+  {
+    message: [b(SAID.couldNotLoad)],
+    meaning: ['The tracker could not fetch the pledges and payments when it opened. The reason is shown underneath.'],
+    action: ['Press ', b('Try again'), '. If the reason mentions the server or the deployment, tell the organiser.'],
+  },
+  {
+    message: [said(SAID.conflict)],
+    meaning: ['Another volunteer saved a change to the same pledge or payment after you opened it.'],
+    action: ['Press ', b('Reload'), ', open the row again, look at their change, and redo yours if it is still needed.'],
+  },
+  {
+    message: [said(SAID.deleted)],
+    meaning: ['Another volunteer deleted the row you were editing.'],
+    action: ['Press ', b('Reload'), '. If the row should still exist, add it again.'],
+  },
+  {
+    message: [b(SAID.notSetUp), ', ', said(`${SAID.notConfigured}…`), ', ', said(SAID.unexpectedPage), ' or ', said(`The "…" ${SAID.tabMissing}`)],
+    meaning: ['The tracker itself is not set up correctly. This is not something you caused.'],
+    action: ['Tell the organiser, and include the exact message.'],
+  },
+];
+
+function problemTable(): HTMLElement {
+  const cell = (label: string, content: Inline) => h('td', { 'data-label': label }, ...content);
+  return h(
+    'table',
+    { class: 'help-table' },
+    h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'The app says'), h('th', { scope: 'col' }, 'What it means'), h('th', { scope: 'col' }, 'What to do'))),
+    h('tbody', {}, ...PROBLEMS.map((problem) => h('tr', {}, cell('The app says', problem.message), cell('What it means', problem.meaning), cell('What to do', problem.action)))),
+  );
+}
+
+function gettingStarted(): Child[] {
+  return [
+    p('The tracker keeps the masjid’s fundraiser records in one shared place, so every volunteer sees the same numbers.'),
+    terms(
+      [b('Pledges'), 'The promises. One row per donor: who they are and how much they promised to give.'],
+      [b('Payments'), 'The money that actually came in. One row for every payment, so a donor paying in three installments has three rows.'],
+      [b('Summary'), 'The totals, worked out for you from the other two. You never type anything here except the goal.'],
+    ),
+    note('A pledge is a promise; a payment is money in hand. The tracker links them by the donor’s phone number.'),
+    topic(
+      'Signing in',
+      steps(
+        ['Open the tracker’s web address.'],
+        ['Press the ', b('Sign in with Google'), ' button and choose your Google account.'],
+        ['The Summary opens. Your email address shows at the top of the page on a computer.'],
+      ),
+      p('Only people on the organiser’s volunteer list can open the tracker. If you see ', b(SAID.notOnListTitle), ', see ', b('When something goes wrong'), '.'),
+    ),
+    topic(
+      'Put it on your phone’s home screen',
+      p('The tracker works in your phone’s web browser. Adding it to your home screen gives you an icon to tap, like an app.'),
+      terms(
+        [b('iPhone (Safari)'), 'Tap the ', b('Share'), ' button (the square with an arrow), scroll down, and tap ', b('Add to Home Screen'), '.'],
+        [b('Android (Chrome)'), 'Tap the ', b('⋮'), ' menu at the top right, then ', b('Add to Home screen'), ' or ', b('Install app'), '.'],
+      ),
+    ),
+    topic(
+      'Light and dark',
+      p('Press ', b('Dark mode'), ' at the top of the page for a darker screen that is easier on the eyes at night. Press ', b('Light mode'), ' to switch back. Your choice is remembered on that device.'),
+    ),
+    topic(
+      'Signing out',
+      p('On a shared or borrowed device, press ', b('Sign out'), ' when you finish, so the next person cannot see donor details. On your own phone you can stay signed in.'),
+    ),
+  ];
+}
+
+function theScreens(): Child[] {
+  return [
+    p('Move between screens with the tabs at the top: ', b('Summary'), ', ', b('Pledges'), ', ', b('Payments'), ', ', b('Find donor'), ' and ', b('Help'), '.'),
+    topic(
+      'Summary',
+      bullets(
+        [b('Goal'), ' — how much has been received against the fundraiser goal, with a progress bar. ', b('Edit goal'), ' changes the target.'],
+        [b('The four totals'), ' — Total pledged, Total received, Balance outstanding, and Overpaid / credit. ', b('Understanding the numbers'), ' explains each one.'],
+        [b('Donors'), ' — how many donors have pledged, and how many are Fully paid, Partial, Pending or Overpaid.'],
+        [b('Reconciliation'), ' — Payments logged (every payment typed in) next to Unmatched payments (money not counted toward any pledge). Unmatched should be $0.00; the card turns amber when it is not.'],
+        [b('Data health'), ' — six checks that should all read 0. ', said(SAID.healthIntro), ' Tap ', b('Show'), ' next to a check to see just the rows it found.'],
+        [b('Collected by payment method'), ' — a chart and table of money by Cash, Card and so on. Payments with no method appear as ', b('No method recorded'), '. The last row, ', said(SAID.methodTotal), ', should equal Payments logged.'],
+        [b('Download .xlsx'), ' — saves a copy of everything as an Excel file.'],
+      ),
+    ),
+    topic(
+      'Pledges',
+      p('One row per donor. You type the ', b('Phone Number'), ', ', b('Donor Name'), ', ', b('Date Pledged'), ', ', b('Amount Pledged'), ' and ', b('Notes'), '. The tracker works out the rest from the Payments screen: ', b('Last Payment'), ', ', b('Received'), ', ', b('Balance Due'), ', ', b('# Payments'), ' and ', b('Status'), '.'),
+      bullets(
+        ['The line above the table shows the running totals: pledged, received, outstanding and number of payments.'],
+        [b('Red rows'), ' are donors listed more than once. Their payments are being counted twice until you fix it.'],
+        ['A faded row is still being saved. Wait a moment before tapping it.'],
+        ['Tap any row to edit or delete it.'],
+      ),
+    ),
+    topic(
+      'Payments',
+      p('One row per payment. You type the ', b('Phone Number'), ', ', b('Date Received'), ', ', b('Amount'), ', ', b('Method'), ' and ', b('Notes'), '. The ', b('Donor Name'), ' is filled in for you by matching the phone number to a pledge.'),
+      bullets(
+        [b('Red rows'), ' with a ', b('⚠'), ' in Donor Name are payments that are not being counted. ', b('Warnings and data health'), ' explains why and how to fix them.'],
+        [b('An amber date'), ' is a date in the future, which is usually a typo.'],
+        ['The coloured label in the Method column shows how the money was paid.'],
+      ),
+    ),
+    topic(
+      'Find donor',
+      p('Type a donor’s full phone number, in any format, or part of their name. A phone number takes you straight to the donor; a name shows a list to choose from.'),
+      p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made.'),
+    ),
+    topic(
+      'Search and sort',
+      bullets(
+        ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too.'],
+        ['Tap a column heading to sort by it. Tap it again to reverse the order.'],
+      ),
+    ),
+    topic(
+      'On a phone',
+      p('On a narrow screen each row becomes a small card, with the column name on the left of every value. Everything works the same way: tap a card to open it.'),
+    ),
+  ];
+}
+
+function howTo(): Child[] {
+  return [
+    topic(
+      'Record a new pledge',
+      steps(
+        ['Go to ', b('Pledges'), ' and press ', b('Add pledge'), '.'],
+        ['Fill in the form. What goes in each box is listed below, and the same hint shows under the box.'],
+        ['Press ', b('Save'), '. A “Saved.” message appears at the bottom of the screen.'],
+      ),
+      terms(
+        ['Phone number', PLEDGE_HELP.phone],
+        ['Donor name', PLEDGE_HELP.name],
+        ['Date pledged', PLEDGE_HELP.datePledged],
+        ['Amount pledged ($)', PLEDGE_HELP.amountPledged],
+        ['Notes', PLEDGE_HELP.notes],
+      ),
+      note('If the phone number is already on another pledge, an amber note appears: ', said(`${SAID.duplicateHint} …`), ' Do not save a second pledge for the same donor — edit the existing one instead.'),
+    ),
+    topic(
+      'Log a payment',
+      steps(
+        ['Go to ', b('Payments'), ' and press ', b('Log a payment'), '.'],
+        ['Type the donor’s phone number. Just under it, the tracker shows who it found, for example “Donor: Aisha Rahman”. If it shows a ⚠ warning instead, the payment will not be counted — check the number before saving.'],
+        ['Check the date (it starts as today), type the amount, and pick the payment method. The boxes are explained below.'],
+        ['Press ', b('Save'), '.'],
+      ),
+      terms(
+        ['Phone number', PAYMENT_HELP.phone],
+        ['Date received', PAYMENT_HELP.dateReceived],
+        ['Amount received ($)', PAYMENT_HELP.amountReceived],
+        ['Payment method', PAYMENT_HELP.method],
+        ['Notes', PAYMENT_HELP.notes],
+      ),
+      note('Log each installment as its own payment. Do not edit an old payment to add a new amount to it — the tracker adds up the installments for you.'),
+    ),
+    topic(
+      'Record a pledge when the amount isn’t known yet',
+      p('Sometimes a donor promises to give but has not said how much. Enter ', b('0'), ' in Amount pledged — do not leave it blank.'),
+      bullets(
+        [b('With 0'), ', the donor’s payments are counted in every total. Once they pay, their status shows Overpaid until you type in the real amount. That is expected.'],
+        [b('Left blank'), ', the donor’s payments show ', said(WARN_NO_AMOUNT), ' and are left out of every total until the amount is filled in.'],
+      ),
+      p('When you learn the amount, edit the pledge and replace the 0.'),
+    ),
+    topic(
+      'Edit a pledge or payment',
+      steps(['Find the row on Pledges or Payments (use the search box).'], ['Tap the row. The form opens with its current values.'], ['Change what you need and press ', b('Save'), '.']),
+    ),
+    topic(
+      'Delete a pledge or payment',
+      steps(['Tap the row to open it.'], ['Press ', b('Delete'), ' at the bottom left of the form.'], ['Read the question and press ', b('Delete'), ' again to confirm.']),
+      bullets(
+        ['Deleting a payment asks: ', said(SAID.deletePayment)],
+        ['Deleting a pledge asks: ', said(SAID.deletePledge)],
+      ),
+      note('There is no undo. If you delete something by mistake, add it again.'),
+    ),
+    topic(
+      'Fix a payment typed with the wrong phone number',
+      p('The payment shows ', said(WARN_NOT_IN_PLEDGES), ' and a red row.'),
+      steps(
+        ['On ', b('Payments'), ', tap the red row.'],
+        ['Correct the phone number. The line under it should now show “Donor:” and the right name.'],
+        ['Press ', b('Save'), '. The row turns normal and the money counts again.'],
+      ),
+      p('If the phone number was right but the donor has no pledge yet, add a pledge for them with that number instead.'),
+    ),
+    topic(
+      'Handle a donor who paid more than they pledged',
+      p('Their status shows ', b(STATUS.overpaid), ' and their Balance Due is shown in brackets, for example ($50.00).'),
+      steps(
+        ['First check their payments for a typo, such as 500 typed instead of 50. Fix it if so.'],
+        ['If the donor really did give more, you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
+      ),
+      p('The extra money is shown under ', b('Overpaid / credit'), ' on the Summary. It never hides what other donors still owe.'),
+    ),
+    topic(
+      'Fix a donor entered twice',
+      p('Both rows turn red on Pledges, and Data health shows ', said(HEALTH_LABELS.duplicates), '. Until you fix it, that donor’s payments are counted twice.'),
+      steps(
+        ['On ', b('Summary'), ', tap ', b('Show'), ' next to ', b(HEALTH_LABELS.duplicates), ' to see just those rows.'],
+        ['Decide which row to keep. Open it and make it complete: the correct amount (add the two together if they really were two separate promises), the name, and any notes from the other row. Save.'],
+        ['Open the other row and delete it.'],
+      ),
+      note('You do not need to move any payments. They match by phone number, so they stay with the pledge you kept — even though the delete question says they will show as not matched.'),
+    ),
+    topic(
+      'Change the fundraiser goal',
+      steps(['On ', b('Summary'), ', press ', b('Edit goal'), ' in the Goal card.'], ['Type the new goal and press ', b('Save'), '.']),
+    ),
+    topic(
+      'Download a copy',
+      steps(
+        ['On ', b('Summary'), ', press ', b('Download .xlsx'), '.'],
+        ['Your device saves a file named like ICG-Fundraiser-2026-09-24.xlsx, with Pledges, Payments and Summary sheets.'],
+      ),
+      p('The file is a snapshot of that moment. Changes made afterwards are not in it.'),
+    ),
+    topic(
+      'Search and sort',
+      steps(['Type in the search box on Pledges or Payments. The list narrows as you type.'], ['Tap a column heading to sort by it; tap again to reverse.'], ['Clear the search box to see everything again.']),
+    ),
+    topic(
+      'See only the problem rows',
+      steps(
+        ['On ', b('Summary'), ', look at Data health. Any check above 0 has a ', b('Show'), ' button.'],
+        ['Tap ', b('Show'), '. The tracker opens Pledges or Payments showing only those rows, with a “Showing: …” label at the top.'],
+        ['Fix the rows. When you are done, tap the “Showing: … ×” label to see the full list again.'],
+      ),
+    ),
+  ];
+}
+
+function theNumbers(): Child[] {
+  return [
+    topic('Status', terms(...STATUS_ORDER.map((status): [Node, ...Inline] => [b(status), STATUS_HELP[status]])), p('A pledge with no amount has no status until the amount is filled in.')),
+    topic(
+      'Balance Due',
+      p('Amount Pledged minus Received, for one donor. A negative balance is a credit: the donor has given more than they pledged. The tracker shows negative money in brackets, so ($50.00) means a $50 credit.'),
+    ),
+    topic(
+      'The Summary totals',
+      terms(
+        [b('Total pledged'), 'Every Amount Pledged added together.'],
+        [b('Total received'), 'Money matched to a pledge. Payments with a ⚠ warning are not included.'],
+        [b('Balance outstanding'), 'Only the money donors still owe. A donor’s credit is never subtracted from another donor’s debt.'],
+        [b('Overpaid / credit'), 'All the extra money from donors who gave more than they pledged, shown separately.'],
+        [b('Donors: Pledged'), 'Donors with an Amount Pledged above 0.'],
+      ),
+    ),
+    topic(
+      'Payments logged and Unmatched payments',
+      p(b('Payments logged'), ' is every amount on the Payments screen. ', b('Total received'), ' is the part of that money matched to a pledge. The difference is ', b('Unmatched payments'), ', and it should be $0.00.'),
+      bullets(
+        ['Above $0.00 means some payments are not counted toward any pledge — look for ⚠ rows.'],
+        ['Below $0.00 usually means a donor is listed twice, so their payments are counted twice.'],
+      ),
+    ),
+    topic(
+      '% of goal received',
+      p('Total received divided by the goal. Only money matched to a pledge counts, so fixing ⚠ payments can raise it.'),
+    ),
+    topic(
+      'Phone numbers',
+      p('The phone number is how a payment finds its donor. Dashes, spaces, brackets, dots and the + sign are ignored, so 555-010-0101, (555) 010 0101 and 5550100101 are the same donor.'),
+      p('Digits are never ignored. ', b('0551234'), ' and ', b('551234'), ' are different numbers, and so are ', b('+1 555 010 0101'), ' and ', b('555 010 0101'), '. Type a donor’s number the same way every time.'),
+    ),
+  ];
+}
+
+function warningsAndHealth(): Child[] {
+  return [
+    topic(
+      'The two warnings',
+      p('A payment that is not being counted shows a warning in its Donor Name, and its row turns red.'),
+      terms(
+        [said(WARN_NOT_IN_PLEDGES), 'No pledge has this phone number. Usually the number was mistyped on the payment or the pledge. Correct it — or, if the donor has no pledge yet, add one.'],
+        [said(WARN_NO_AMOUNT), 'The donor’s pledge has a blank Amount Pledged. Open the pledge and enter the amount, or 0 if it is not known yet.'],
+      ),
+    ),
+    topic(
+      'Colours on the lists',
+      terms(
+        [b('Red row on Pledges'), 'The donor is listed more than once.'],
+        [b('Red row on Payments'), 'The payment is not counted (it has a ⚠ warning).'],
+        [b('Amber date on Payments'), 'The payment is dated in the future.'],
+      ),
+    ),
+    topic(
+      'The six data-health checks',
+      p('Each check should read 0. When one does not, tap ', b('Show'), ' to see the rows, then fix them as described below.'),
+      h(
+        'dl',
+        { class: 'help-terms' },
+        ...(Object.keys(HEALTH_LABELS) as HealthId[]).flatMap((id) => [
+          h('dt', { 'data-health': id }, b(HEALTH_LABELS[id])),
+          h('dd', {}, p(HEALTH_HELP[id].meaning), p(b('Fix: '), ...HEALTH_HELP[id].fix)),
+        ]),
+      ),
+      note('The “predate” check only compares each donor’s latest payment with their pledge date. One wrong date among several payments may not be caught, so it is worth a glance when you enter old payments.'),
+    ),
+  ];
+}
+
+function workingTogether(): Child[] {
+  return [
+    bullets(
+      ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
+      ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
+      ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away.'],
+    ),
+    topic(
+      'When two people change the same row',
+      p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, your save stops and you see:'),
+      p(said(SAID.conflict)),
+      steps(['Press ', b('Reload'), '.'], ['Open the row again and look at what changed.'], ['Make your change again if it is still needed.']),
+      p('If you press Save again after a save that seemed to fail, the tracker checks whether the first one actually went through. If it did, nothing is added twice. If the saved values differ from what you are sending, you see the same message — reload and check the row.'),
+    ),
+  ];
+}
+
+function whenSomethingGoesWrong(): Child[] {
+  return [
+    p('Most problems are a dropped connection. Your typing stays in the form until the save succeeds, so you rarely need to start again.'),
+    problemTable(),
+    topic(
+      'Messages inside a form',
+      p('These appear in red under a box when something in it needs fixing. Correct the box and press Save again.'),
+      bullets([said(SAID.notANumber)], [said(SAID.negative)], [said(SAID.decimals)], [said(SAID.noPhone)], [said(SAID.pickMethod)]),
+    ),
+  ];
+}
+
+function forTheOrganiser(): Child[] {
+  return [
+    p('These tasks happen in the Google Sheet behind the tracker, not in the app.'),
+    topic(
+      'Volunteers',
+      p('Add each volunteer’s Google email address to the ', b('Allowlist'), ' tab, one per row. To remove someone, delete their row. The change takes effect the next time they do anything in the tracker.'),
+    ),
+    topic(
+      'Payment methods and the goal',
+      p('The ', b('Settings'), ' tab has one setting per row. ', b('paymentMethods'), ' is the list volunteers pick from, separated by commas — for example Cash,Bank Transfer,Card,Check,Online,Other. ', b('goal'), ' is the fundraiser target; volunteers can also change it with ', b('Edit goal'), ' on the Summary.'),
+      p('Volunteers see changes to Settings after pressing Refresh. Payments that use a method you removed are grouped as “Other / unlisted” on the Summary, and must be given a listed method the next time someone edits them.'),
+    ),
+    topic(
+      'Keeping the sheet healthy',
+      bullets(
+        ['Do not format the Pledges or Payments columns as ', b('Plain text'), '. Leave them on Automatic, or phone numbers and dates get corrupted.'],
+        ['Add pledges and payments through the app. Rows typed directly into the sheet have no id and are ignored.'],
+        ['Take a backup now and then with ', b('Download .xlsx'), ' on the Summary. Google Sheets also keeps its own version history.'],
+      ),
+    ),
+    topic('Setup and troubleshooting', p('Setting the tracker up, and fixing setup problems, is covered in docs/SETUP.md in the project’s GitHub repository.')),
+  ];
+}
+
+export const HELP_SECTIONS = [
+  { id: 'help-start', title: 'Getting started', body: gettingStarted },
+  { id: 'help-screens', title: 'The screens', body: theScreens },
+  { id: 'help-how-to', title: 'How to…', body: howTo },
+  { id: 'help-numbers', title: 'Understanding the numbers', body: theNumbers },
+  { id: 'help-warnings', title: 'Warnings and data health', body: warningsAndHealth },
+  { id: 'help-together', title: 'Working together', body: workingTogether },
+  { id: 'help-problems', title: 'When something goes wrong', body: whenSomethingGoesWrong },
+  { id: 'help-organiser', title: 'For the organiser', body: forTheOrganiser },
+] as const;
+
+export function createHelpView(): HTMLElement {
+  const sections = HELP_SECTIONS.map((section, index) =>
+    h('details', { class: 'help-section', id: section.id, open: index === 0 }, h('summary', { class: 'help-summary' }, h('h2', { class: 'help-heading' }, section.title)), h('div', { class: 'help-body' }, ...section.body())),
+  );
+
+  const toc = h(
+    'nav',
+    { class: 'help-toc', 'aria-label': 'Contents' },
+    h('p', { class: 'eyebrow' }, 'Contents'),
+    h(
+      'ol',
+      {},
+      ...HELP_SECTIONS.map((section, index) => {
+        const link = h('a', { href: `#${section.id}` }, section.title);
+        // The URL hash is the app's router; following the anchor would leave the Help screen.
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          const target = sections[index];
+          target.open = true;
+          target.scrollIntoView({ block: 'start' });
+          target.querySelector('summary')?.focus({ preventScroll: true });
+        });
+        return h('li', {}, link);
+      }),
+    ),
+  );
+
+  const view = h(
+    'section',
+    { class: 'view help-guide' },
+    h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'User guide'), h('h1', { class: 'display-md' }, 'How to use the tracker'))),
+    h('p', { class: 'help-lede' }, 'Plain answers for volunteers. Tap a heading to open it, or jump straight to a topic below.'),
+    toc,
+    ...sections,
+  );
+
+  // Closed <details> print as a bare heading; open them all for paper, then put them back.
+  let openBeforePrint: boolean[] | null = null;
+  window.addEventListener('beforeprint', () => {
+    if (!view.isConnected) return;
+    openBeforePrint = sections.map((section) => section.open);
+    sections.forEach((section) => { section.open = true; });
+  });
+  window.addEventListener('afterprint', () => {
+    if (!openBeforePrint) return;
+    const previous = openBeforePrint;
+    sections.forEach((section, index) => { section.open = previous[index]; });
+    openBeforePrint = null;
+  });
+  return view;
+}

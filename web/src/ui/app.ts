@@ -5,19 +5,21 @@ import { h } from './dom';
 import { createErrorReporter } from './errors';
 import { downloadWorkbook } from './export';
 import type { ListFilter } from './filter';
+import { createHelpView } from './helpView';
 import { createLookupView } from './lookupView';
 import { drawMethodChart } from './methodChart';
 import { createPaymentsView } from './paymentsView';
 import { createPledgesView } from './pledgesView';
 import { renderSummary } from './summaryView';
 
-export type ViewName = 'summary' | 'pledges' | 'payments' | 'find';
+export type ViewName = 'summary' | 'pledges' | 'payments' | 'find' | 'help';
 
 const VIEWS: ReadonlyArray<{ name: ViewName; label: string }> = [
   { name: 'summary', label: 'Summary' },
   { name: 'pledges', label: 'Pledges' },
   { name: 'payments', label: 'Payments' },
   { name: 'find', label: 'Find donor' },
+  { name: 'help', label: 'Help' },
 ];
 const LAST_VIEW_KEY = 'icg-last-view';
 const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
@@ -55,6 +57,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   const pledgesView = createPledgesView({ store: deps.store, reportError });
   const paymentsView = createPaymentsView({ store: deps.store, reportError });
   const lookupView = createLookupView();
+  // Built once and reattached, so the sections a volunteer opened survive store re-renders.
+  const helpView = createHelpView();
 
   const tabs = new Map<ViewName, HTMLAnchorElement>();
   const nav = h(
@@ -146,6 +150,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
       view === 'pledges' ? pledgesView(state, filter, clearFilter)
       : view === 'payments' ? paymentsView(state, filter, clearFilter)
       : view === 'find' ? lookupView(state)
+      : view === 'help' ? helpView
       : renderSummary(state, {
           store: deps.store,
           reportError,
