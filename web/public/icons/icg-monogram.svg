@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect x="0" y="0" width="512" height="512" fill="#fbf9f3" />
+  <g fill="#1a2e1f">
+    <!-- I: stem with top and bottom serifs -->
+    <rect x="60" y="166" width="36" height="160" />
+    <rect x="43" y="166" width="70" height="20" />
+    <rect x="43" y="306" width="70" height="20" />
+
+    <!-- C: ring, radius 80/44, gap open to the east -->
+    <path d="M267.57,302.57 A80,80 0 1 1 267.57,189.43 L242.11,214.89 A44,44 0 1 0 242.11,277.11 Z" />
+
+    <!-- G: ring, radius 80/44, narrower gap, plus crossbar and stub -->
+    <path d="M454.54,291.89 A80,80 0 1 1 454.54,200.11 L425.04,220.76 A44,44 0 1 0 425.04,271.24 Z" />
+    <rect x="389" y="228" width="80" height="36" />
+    <rect x="389" y="264" width="36" height="36" />
+  </g>
+  <rect x="166" y="350" width="180" height="12" fill="#a87c0a" />
+</svg>
