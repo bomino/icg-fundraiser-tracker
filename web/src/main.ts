@@ -41,6 +41,7 @@ async function startDemo(root: HTMLElement) {
   const { createDemoApi } = await import('./demo');
   const auth: Auth = {
     getToken: async () => 'demo-token',
+    refreshIfStale: () => undefined,
     signOut() {
       const url = new URL(window.location.href);
       url.searchParams.delete('demo');

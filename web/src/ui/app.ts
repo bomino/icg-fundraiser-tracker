@@ -83,6 +83,12 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   window.addEventListener('offline', () => { offline.hidden = false; });
 
   const main = h('main', { class: 'container', id: 'main' });
+  // Capture phase runs before the view opens a form, so a nearly expired sign-in is renewed
+  // up front instead of interrupting the Save.
+  main.addEventListener('click', () => deps.auth.refreshIfStale(), { capture: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') deps.auth.refreshIfStale();
+  });
   root.replaceChildren(
     h('header', { class: 'nav-bar' }, h('div', { class: 'nav-inner' }, h('a', { href: '#summary', class: 'wordmark' }, 'ICG Fundraiser Tracker'), nav, h('div', { class: 'nav-actions' }, me, themeButton, signOut))),
     offline,

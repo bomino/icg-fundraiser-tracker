@@ -44,6 +44,17 @@ describe('createApi', () => {
     expect(getToken.mock.calls).toEqual([[false], [true]]);
   });
 
+  it('does not reopen sign-in when the volunteer dismissed it', async () => {
+    const getToken = vi.fn(async () => {
+      throw new ApiError('UNAUTHENTICATED', 'Sign-in was cancelled.');
+    });
+    const fetchImpl = vi.fn(async () => json({ ok: true, data: {} }));
+    const api = createApi(URL, getToken, fetchImpl);
+    await expect(api.load()).rejects.toMatchObject({ code: 'UNAUTHENTICATED', message: 'Sign-in was cancelled.' });
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('reports a network failure plainly', async () => {
     const api = createApi(URL, async () => 'tok', async () => { throw new TypeError('Failed to fetch'); });
     await expect(api.load()).rejects.toMatchObject({ code: 'NETWORK' });

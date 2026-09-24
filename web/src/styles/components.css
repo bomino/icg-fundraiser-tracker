@@ -172,7 +172,8 @@ textarea.input { resize: vertical; }
 .match-list { display: grid; gap: var(--space-xs); }
 .match { all: unset; cursor: pointer; display: block; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); transition: background-color 150ms ease; }
 .match:hover, .match:focus-visible { background: var(--color-surface-soft); }
-.signin { max-width: 440px; margin: var(--space-3xl) auto; display: grid; gap: var(--space-md); text-align: center; justify-items: center; }
+.signin-dialog { width: min(440px, calc(100vw - 32px)); }
+.signin { margin: 0 auto; display: grid; gap: var(--space-md); text-align: center; justify-items: center; }
 .signin-button { min-height: 44px; }
 .container[aria-busy='true'] { display: grid; gap: var(--space-md); }
 .skeleton { height: 120px; border-radius: var(--radius-md); background: var(--color-surface-sunken); }

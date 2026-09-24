@@ -44,8 +44,7 @@ type ApiResponse<T> =
   | { ok: false; error: { code: ApiErrorCode; message: string; field?: string; current?: unknown } };
 
 export function createApi(scriptUrl: string, getToken: TokenSource, fetchImpl: typeof fetch = (input, init) => fetch(input, init)): Api {
-  async function send<T>(op: string, payload: unknown, forceRefresh: boolean): Promise<T> {
-    const idToken = await getToken(forceRefresh);
+  async function send<T>(op: string, payload: unknown, idToken: string): Promise<T> {
     let response: Response;
     try {
       // text/plain keeps this a "simple" request; Apps Script cannot answer a CORS preflight.
@@ -70,10 +69,12 @@ export function createApi(scriptUrl: string, getToken: TokenSource, fetchImpl: t
   }
 
   async function call<T>(op: string, payload: unknown): Promise<T> {
+    // Outside the try: a sign-in the volunteer dismissed must not be retried by reopening it.
+    const idToken = await getToken(false);
     try {
-      return await send<T>(op, payload, false);
+      return await send<T>(op, payload, idToken);
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'UNAUTHENTICATED') return send<T>(op, payload, true);
+      if (err instanceof ApiError && err.code === 'UNAUTHENTICATED') return send<T>(op, payload, await getToken(true));
       throw err;
     }
   }
