@@ -9,6 +9,7 @@ const DEMO_USER = 'demo@example.com';
 const SEEDED_BY = 'organiser@example.com';
 const SEEDED_AT = '2026-09-01T12:00:00.000Z';
 const DEFAULT_LATENCY_MS = 300;
+const VERSION_FIELDS = new Set(['id', 'updatedAt', 'updatedBy']);
 const METHODS = ['Cash', 'Bank Transfer', 'Card', 'Check', 'Online', 'Other'];
 
 type PledgeSeed = [phone: string, name: string, datePledged: string, amountPledged: number | null, notes?: string];
@@ -115,7 +116,12 @@ export function createDemoApi(latencyMs: number = DEFAULT_LATENCY_MS): Api {
     const record = { ...draft, id: row.id, updatedAt: stamp(), updatedBy: DEMO_USER } as T;
     if (row.updatedAt === undefined) {
       const already = rows.find((candidate) => candidate.id === row.id);
-      if (already) return { rows: [...rows], saved: already };
+      if (already) {
+        const entryFields = Object.keys(draft).filter((field) => !VERSION_FIELDS.has(field)) as Array<keyof T>;
+        const same = entryFields.every((field) => already[field] === record[field]);
+        if (!same) throw new ApiError('CONFLICT', 'This entry was already saved with different values. Reopen it to check.', undefined, { ...already });
+        return { rows: [...rows], saved: already };
+      }
       return { rows: [...rows, record], saved: record };
     }
     assertUnchanged(rows, row);

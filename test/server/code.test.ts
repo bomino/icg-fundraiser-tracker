@@ -130,11 +130,19 @@ describe('writes', () => {
     expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
   });
 
-  it('treats a repeated create with the same id as the same row', () => {
+  it('treats an identical repeated create with the same id as the same row', () => {
+    const draft = newRow({ ...paymentDraft, phone: '0551234', amountReceived: 0.1 + 0.2, dateReceived: '', method: '' });
+    const first = server.post('upsertPayment', draft, token).data;
+    const retry = server.post('upsertPayment', draft, token);
+    expect(retry).toEqual({ ok: true, data: first });
+    expect(server.post('load', {}, token).data.payments).toEqual([first]);
+  });
+
+  it('refuses a repeated create whose values differ, returning the saved row', () => {
     const draft = newRow(paymentDraft);
     const first = server.post('upsertPayment', draft, token).data;
     const retry = server.post('upsertPayment', { ...draft, amountReceived: 999 }, token);
-    expect(retry).toEqual({ ok: true, data: first });
+    expect(retry.error).toEqual({ code: 'CONFLICT', message: 'This entry was already saved with different values. Reopen it to check.', current: first });
     expect(server.post('load', {}, token).data.payments).toEqual([first]);
   });
 

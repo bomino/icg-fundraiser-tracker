@@ -35,9 +35,11 @@ describe('demo api', () => {
     const api = createDemoApi(0);
     const draft = { phone: '555-0103', dateReceived: '2026-09-20', amountReceived: 50, method: 'Cash', notes: '' };
     const first = await api.savePayment(draft, { id: 'demo-new-2' });
-    const retry = await api.savePayment({ ...draft, amountReceived: 99 }, { id: 'demo-new-2' });
+    const retry = await api.savePayment({ ...draft }, { id: 'demo-new-2' });
     expect(retry).toEqual(first);
-    expect((await api.load()).payments.filter((row) => row.id === 'demo-new-2')).toHaveLength(1);
+    const differing = api.savePayment({ ...draft, amountReceived: 99 }, { id: 'demo-new-2' });
+    await expect(differing).rejects.toMatchObject({ code: 'CONFLICT', message: 'This entry was already saved with different values. Reopen it to check.', current: first });
+    expect((await api.load()).payments.filter((row) => row.id === 'demo-new-2')).toEqual([first]);
   });
 
   it('rejects a write based on a stale version', async () => {

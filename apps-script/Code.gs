@@ -269,7 +269,13 @@ function upsert_(tab, payload, email) {
   if (payload.updatedAt === undefined || payload.updatedAt === null) {
     if (typeof payload.id !== 'string' || !UUID_PATTERN.test(payload.id)) throw invalid_('id', 'Missing or malformed row id.');
     const existing = findRow_(sheet, tab, payload.id);
-    if (existing) return existing.record;
+    if (existing) {
+      // Same id and same values is a retry of a create that already landed; different values
+      // must not be silently dropped in favour of the first copy.
+      const same = ENTRY_FIELDS[tab].every((field) => existing.record[field] === record[field]);
+      if (!same) throw new ApiError('CONFLICT', 'This entry was already saved with different values. Reopen it to check.', { current: existing.record });
+      return existing.record;
+    }
     record.id = payload.id;
     sheet.appendRow(toSheetRow_(tab, record));
     return record;
