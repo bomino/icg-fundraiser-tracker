@@ -307,7 +307,7 @@ function readSettings_() {
 function setSetting_(payload) {
   if (payload.key !== 'goal') throw invalid_('key', 'Only the goal can be changed from the app.');
   const value = payload.value;
-  if (typeof value !== 'number' || !isFinite(value) || value < 0 || value > MAX_AMOUNT) throw invalid_('value', 'Enter a goal of 0 or more.');
+  if (typeof value !== 'number' || !isFinite(value) || value < 0 || value > MAX_AMOUNT) throw invalid_('goal', 'Enter a goal of 0 or more.');
   const goal = Math.round(value * 100) / 100;
   const sheet = sheet_('Settings');
   const values = sheet.getDataRange().getValues();

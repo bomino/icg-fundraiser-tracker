@@ -4,6 +4,7 @@ import { ApiError } from '../../web/src/api';
 import { h } from '../../web/src/ui/dom';
 import { field } from '../../web/src/ui/field';
 import { runForm } from '../../web/src/ui/form';
+import { openGoalForm } from '../../web/src/ui/goalForm';
 
 afterEach(() => document.body.replaceChildren());
 
@@ -153,5 +154,16 @@ describe('runForm', () => {
     remove.click();
     const confirms = Array.from(document.querySelectorAll('.modal-title')).filter((el) => el.textContent === 'Please confirm');
     expect(confirms).toHaveLength(1);
+  });
+
+  it('shows a server goal error on the goal field', async () => {
+    const reportError = vi.fn();
+    openGoalForm(100, async () => { throw new ApiError('BAD_REQUEST', 'Enter a goal of 0 or more.', 'goal'); }, reportError);
+    const input = document.querySelector('input[name=goal]') as HTMLInputElement;
+    input.value = '5';
+    (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(input.getAttribute('aria-invalid')).toBe('true'));
+    expect(document.querySelector('.field-error:not([hidden])')?.textContent).toBe('Enter a goal of 0 or more.');
+    expect(reportError).not.toHaveBeenCalled();
   });
 });

@@ -227,9 +227,10 @@ describe('settings', () => {
   it('changes the goal', () => {
     expect(server.post('setSetting', { key: 'goal', value: 25000 }, token).data).toEqual({ goal: 25000, paymentMethods: METHODS });
   });
-  it('refuses a negative goal and any other key', () => {
-    expect(server.post('setSetting', { key: 'goal', value: -1 }, token).error?.code).toBe('BAD_REQUEST');
-    expect(server.post('setSetting', { key: 'paymentMethods', value: 'Cash' }, token).error?.code).toBe('BAD_REQUEST');
+  it('refuses a negative goal on the goal field and any other key on the key field', () => {
+    expect(server.post('setSetting', { key: 'goal', value: -1 }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
+    expect(server.post('setSetting', { key: 'goal', value: '5' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
+    expect(server.post('setSetting', { key: 'paymentMethods', value: 'Cash' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'key' });
   });
 });
 
