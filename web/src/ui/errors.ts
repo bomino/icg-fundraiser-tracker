@@ -1,5 +1,5 @@
 import { ApiError } from '../api';
-import { confirmDialog, whenNoDialogOpen } from './dialog';
+import { confirmDialog, whenSafeToAsk } from './dialog';
 import { showToast } from './toast';
 
 export function messageOf(err: unknown): string {
@@ -16,12 +16,12 @@ const STALE_EDIT_MESSAGE = 'Someone else changed this row since you opened it.';
 export type ErrorReporter = (err: unknown, context?: string) => Promise<void>;
 
 export function createErrorReporter(reload: () => Promise<void>): ErrorReporter {
-  // One reload question at a time, and never over a form: saves finish in the background, so the
-  // volunteer may already be typing the next entry, and a Reload there would redraw under it.
+  // One reload question at a time, never over a form (saves finish in the background, so the volunteer
+  // may already be typing the next entry, and a Reload there would redraw under it) and never on the projector.
   let queue: Promise<void> = Promise.resolve();
 
   async function askToReload(err: ApiError, context: string | undefined) {
-    await whenNoDialogOpen();
+    await whenSafeToAsk();
     const message =
       err.code === 'NOT_FOUND'
         ? 'Someone else deleted this row. Reload to see the latest list.'
@@ -35,7 +35,8 @@ export function createErrorReporter(reload: () => Promise<void>): ErrorReporter 
 
   return async (err, context) => {
     if (err instanceof ApiError && (err.code === 'CONFLICT' || err.code === 'NOT_FOUND')) {
-      queue = queue.then(() => askToReload(err, context));
+      // A failed question must not stall every later one behind it.
+      queue = queue.then(() => askToReload(err, context)).catch((askError: unknown) => console.error('A reload question could not be shown.', askError));
       return queue;
     }
     showToast(context ? `${context}. ${messageOf(err)}` : messageOf(err), 'error');

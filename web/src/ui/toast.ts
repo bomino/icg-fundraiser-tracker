@@ -29,10 +29,15 @@ function region(kind: 'info' | 'error'): HTMLElement {
 }
 
 // Removing a focused toast would drop keyboard focus onto <body>; the page's main area is the nearest sensible place.
+// The tabindex only exists to take this one focus; it goes once focus moves on, so #main never
+// becomes a lasting tab stop.
 function returnFocusToPage() {
   const main = document.getElementById('main');
   if (!main) return;
-  if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+  if (!main.hasAttribute('tabindex')) {
+    main.setAttribute('tabindex', '-1');
+    main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
+  }
   main.focus();
 }
 
@@ -48,10 +53,12 @@ export function showToast(message: string, kind: 'info' | 'error' = 'info', acti
   const toast = h('div', { class: `toast toast-${kind} toast-with-action` }, h('span', { class: 'toast-message' }, message), h('span', { class: 'toast-actions' }, run, dismiss));
   const ready = action.ready ?? (() => true);
   const syncReady = () => { run.disabled = !ready(); };
-  const readyCheck = setInterval(syncReady, READY_CHECK_MS);
+  const readyCheck = action.ready ? setInterval(syncReady, READY_CHECK_MS) : undefined;
   const close = () => {
+    const hadFocus = toast.contains(document.activeElement);
     clearInterval(readyCheck);
     toast.remove();
+    if (hadFocus) returnFocusToPage();
   };
   run.addEventListener('click', () => {
     if (!ready()) {
@@ -61,11 +68,7 @@ export function showToast(message: string, kind: 'info' | 'error' = 'info', acti
     close();
     action.run();
   });
-  dismiss.addEventListener('click', () => {
-    const hadFocus = toast.contains(document.activeElement);
-    close();
-    if (hadFocus) returnFocusToPage();
-  });
+  dismiss.addEventListener('click', close);
   syncReady();
   region(kind).append(toast);
   // An open modal makes the toast inert, and a volunteer carrying on with the next entry is exactly

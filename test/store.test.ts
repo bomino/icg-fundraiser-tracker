@@ -389,6 +389,29 @@ describe('store', () => {
     });
   });
 
+  it('ignores a reload that lands after a later-started one has already shown newer data', async () => {
+    // #given two overlapping reloads, the older of which answers last with older data
+    const answers: Array<(name: string) => void> = [];
+    const store = createStore(
+      fakeApi({
+        load: () =>
+          new Promise((resolve) => {
+            answers.push((name) => resolve({ pledges: [{ ...aisha, name }], payments: [], settings: SETTINGS, me: 'me@example.com' }));
+          }),
+      }),
+      () => TODAY,
+    );
+    const older = store.load();
+    const newer = store.load();
+    // #when the newer lands first, then the older
+    answers[1]('New');
+    await newer;
+    answers[0]('Old');
+    await older;
+    // #then the newer data stays
+    expect(store.state()?.pledges[0].name).toBe('New');
+  });
+
   it('restores a row whose delete failed to the version a reload fetched meanwhile', async () => {
     const deleting = deferred<void>();
     let serverName = 'Aisha';

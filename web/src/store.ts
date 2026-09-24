@@ -82,6 +82,9 @@ export function createStore(api: Api, today: () => string): Store {
   // Saves and deletes run in the background after their dialog closes, so reloads overlap them.
   const mutations = new Set<Mutation>();
   const runningLoads = new Set<object>();
+  // Loads can overlap (Refresh, the auto-refresh on return); the newest one started must win.
+  let loadsStarted = 0;
+  let newestPublishedLoad = 0;
 
   function publish(next: Base) {
     const state: State = { ...next, computed: compute(next.pledges, next.payments, next.settings, today()) };
@@ -204,9 +207,12 @@ export function createStore(api: Api, today: () => string): Store {
     },
     async load() {
       const token = {};
+      const order = ++loadsStarted;
       runningLoads.add(token);
       try {
         const result = await api.load();
+        if (order < newestPublishedLoad) return;
+        newestPublishedLoad = order;
         loadedAt = Date.now();
         const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me };
         const replay = [...mutations].filter((m) => !m.committed || m.staleLoads.has(token));

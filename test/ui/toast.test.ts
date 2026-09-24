@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { showToast } from '../../web/src/ui/toast';
 
@@ -57,6 +59,44 @@ describe('showToast', () => {
     expect(toasts()).toHaveLength(0);
     expect(run).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(main);
+  });
+
+  it('only polls readiness when the action has a readiness check', () => {
+    vi.useFakeTimers();
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    expect(vi.getTimerCount()).toBe(1);
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn(), ready: () => true });
+    expect(vi.getTimerCount()).toBe(3);
+  });
+
+  it('returns focus to the page when an action toast expires while focused', () => {
+    vi.useFakeTimers();
+    const main = document.createElement('main');
+    main.id = 'main';
+    document.body.append(main);
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    button('Reopen').focus();
+    vi.advanceTimersByTime(30_000);
+    expect(toasts()).toHaveLength(0);
+    expect(document.activeElement).toBe(main);
+  });
+
+  it('leaves no lasting focus stop on the page area once focus moves on', () => {
+    const main = document.createElement('main');
+    main.id = 'main';
+    const other = document.createElement('button');
+    document.body.append(main, other);
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    button('Dismiss').focus();
+    button('Dismiss').click();
+    expect(document.activeElement).toBe(main);
+    other.focus();
+    expect(main.hasAttribute('tabindex')).toBe(false);
+  });
+
+  it('draws no focus outline around the page area it moves focus to', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'components.css'), 'utf8');
+    expect(css).toMatch(/#main:focus \{ outline: none; \}/);
   });
 
   it('holds the action while it is not ready, and offers it once it is', () => {

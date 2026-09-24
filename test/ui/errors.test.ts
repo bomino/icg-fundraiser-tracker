@@ -5,7 +5,12 @@ import { openDialog } from '../../web/src/ui/dialog';
 import { h } from '../../web/src/ui/dom';
 import { createErrorReporter } from '../../web/src/ui/errors';
 
-afterEach(() => document.body.replaceChildren());
+afterEach(() => {
+  document.body.replaceChildren();
+  delete document.body.dataset.display;
+});
+
+const nextTask = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function dialogText() {
   return document.querySelector('dialog[open] p')?.textContent;
@@ -62,6 +67,55 @@ describe('createErrorReporter', () => {
     clickOpenDialogButton('Reload');
     await pending;
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds the question while the Friday display is on screen, so no donor name reaches the projector', async () => {
+    // #given the display mode is showing
+    document.body.dataset.display = 'friday';
+    const pending = createErrorReporter(vi.fn(async () => undefined))(new ApiError('NOT_FOUND', 'gone'), "Couldn't save Aisha");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // #then nothing opens until the display is left
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    delete document.body.dataset.display;
+    await vi.waitFor(() => expect(dialogText()).toContain('Aisha'));
+    clickOpenDialogButton('Cancel');
+    await pending;
+  });
+
+  it('does not open over a form that replaces a closing one in the next task, as "Log a payment" does', async () => {
+    // #given a pledge dialog whose open attribute drops before its close event, which then opens the payment form
+    const pledgeDialog = openDialog('Edit pledge', h('form'), []);
+    const pending = createErrorReporter(vi.fn(async () => undefined))(new ApiError('NOT_FOUND', 'gone'), "Couldn't save Aisha");
+    pledgeDialog.element.removeAttribute('open');
+    let paymentForm: ReturnType<typeof openDialog> | undefined;
+    setTimeout(() => {
+      pledgeDialog.element.remove();
+      paymentForm = openDialog('Log a payment', h('form'), []);
+    }, 0);
+    await nextTask();
+    await nextTask();
+    // #then the question waits behind the payment form
+    expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
+    expect(document.querySelector('dialog[open] .modal-title')?.textContent).toBe('Log a payment');
+    paymentForm?.close();
+    await vi.waitFor(() => expect(dialogText()).toContain('Aisha'));
+    clickOpenDialogButton('Cancel');
+    await pending;
+  });
+
+  it('keeps asking later questions after one of them fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const report = createErrorReporter(() => { throw new Error('reload broke'); });
+    const first = report(new ApiError('NOT_FOUND', 'gone'), "Couldn't save Aisha");
+    const second = report(new ApiError('NOT_FOUND', 'gone'), "Couldn't save Bilal");
+    await vi.waitFor(() => expect(dialogText()).toContain('Aisha'));
+    clickOpenDialogButton('Reload');
+    await first;
+    await vi.waitFor(() => expect(dialogText()).toContain('Bilal'));
+    expect(error).toHaveBeenCalled();
+    clickOpenDialogButton('Cancel');
+    await second;
+    error.mockRestore();
   });
 
   it('asks about one conflict at a time', async () => {
