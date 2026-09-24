@@ -61,4 +61,25 @@ describe('runForm', () => {
     await vi.waitFor(() => expect(reportError).toHaveBeenCalledWith(conflict));
     expect(dialog.element.open).toBe(false);
   });
+
+  it('does not open a second confirm dialog when Delete is activated twice quickly', () => {
+    const name = field({ name: 'name', label: 'Name', value: 'x' });
+    const form = h('form', { class: 'form' }, name.wrapper);
+    runForm({
+      title: 'Test',
+      form,
+      fields: { name },
+      read: () => ({ draft: { name: name.input.value }, errors: {} }),
+      validate: () => ({}),
+      onSave: async () => undefined,
+      onDelete: vi.fn(() => new Promise<void>(() => undefined)),
+      deleteMessage: 'Delete this?',
+      reportError: vi.fn(),
+    });
+    const remove = document.querySelector('.btn-danger') as HTMLButtonElement;
+    remove.click();
+    remove.click();
+    const confirms = Array.from(document.querySelectorAll('.modal-title')).filter((el) => el.textContent === 'Please confirm');
+    expect(confirms).toHaveLength(1);
+  });
 });

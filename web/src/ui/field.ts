@@ -22,6 +22,7 @@ let fieldCount = 0;
 export function field(options: FieldOptions): Field {
   const id = `field-${options.name}-${++fieldCount}`;
   const helpId = `${id}-help`;
+  const errorId = `${id}-error`;
   let input: Field['input'];
   if (options.type === 'textarea') {
     input = h('textarea', { id, name: options.name, class: 'input', rows: 3 });
@@ -34,8 +35,14 @@ export function field(options: FieldOptions): Field {
     input = h('input', { id, name: options.name, class: 'input', type: options.type ?? 'text', inputmode: options.inputmode, autocomplete: 'off' });
   }
   input.value = options.value;
-  if (options.help) input.setAttribute('aria-describedby', helpId);
-  const error = h('p', { class: 'field-error', role: 'alert', hidden: true });
+  if (options.required) input.setAttribute('aria-required', 'true');
+  const error = h('p', { class: 'field-error', id: errorId, role: 'alert', hidden: true });
+  const syncDescribedBy = () => {
+    const ids = [options.help ? helpId : null, error.hidden ? null : errorId].filter((value): value is string => value !== null);
+    if (ids.length > 0) input.setAttribute('aria-describedby', ids.join(' '));
+    else input.removeAttribute('aria-describedby');
+  };
+  syncDescribedBy();
   const wrapper = h(
     'div',
     { class: 'field' },
@@ -51,6 +58,7 @@ export function field(options: FieldOptions): Field {
       error.hidden = !message;
       error.textContent = message ?? '';
       input.setAttribute('aria-invalid', message ? 'true' : 'false');
+      syncDescribedBy();
     },
   };
 }

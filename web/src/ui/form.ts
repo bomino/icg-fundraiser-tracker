@@ -64,7 +64,13 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   if (remove && spec.onDelete) {
     const onDelete = spec.onDelete;
     remove.addEventListener('click', async () => {
-      if (!(await confirmDialog(spec.deleteMessage, 'Delete'))) return;
+      if (remove.disabled) return;
+      remove.disabled = true;
+      const confirmed = await confirmDialog(spec.deleteMessage, 'Delete');
+      if (!confirmed) {
+        remove.disabled = false;
+        return;
+      }
       setBusy(true, 'Deleting…');
       try {
         await onDelete();

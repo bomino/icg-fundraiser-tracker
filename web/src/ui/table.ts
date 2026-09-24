@@ -63,9 +63,12 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
     'tbody',
     {},
     ...options.rows.map((row) => {
+      const interactive = Boolean(options.onOpen);
       const tr = h(
         'tr',
-        { tabindex: 0, 'data-id': options.rowId(row), class: options.rowClass?.(row) },
+        interactive
+          ? { tabindex: 0, role: 'button', 'data-id': options.rowId(row), class: options.rowClass?.(row) }
+          : { 'data-id': options.rowId(row), class: options.rowClass?.(row) },
         ...options.columns.map((column) => {
           const classes = [column.numeric ? 'num' : '', column.derived ? 'derived' : '', column.cellClass?.(row) ?? ''].filter(Boolean).join(' ');
           const content = column.display ? column.display(row) : String(column.value(row) ?? '');
@@ -76,7 +79,13 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
         const open = options.onOpen;
         tr.addEventListener('click', () => open(row));
         tr.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter') open(row);
+          if (event.key === 'Enter') {
+            open(row);
+          } else if (event.key === ' ') {
+            // Space also scrolls the page by default; stop that since it opens the row here.
+            event.preventDefault();
+            open(row);
+          }
         });
       }
       return tr;

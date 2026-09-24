@@ -30,13 +30,24 @@ describe('table', () => {
     expect(nextSort({ key: 'name', direction: 'asc' }, 'name')).toEqual({ key: 'name', direction: 'desc' });
     expect(nextSort({ key: 'name', direction: 'desc' }, 'amount')).toEqual({ key: 'amount', direction: 'asc' });
   });
-  it('opens a row by click and by Enter', () => {
+  it('opens a row by click, Enter and Space, and marks interactive rows for screen readers', () => {
     const onOpen = vi.fn();
     const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen, empty: 'none' });
-    const [first, second] = table.querySelectorAll('tbody tr');
+    const [first, second, third] = table.querySelectorAll('tbody tr');
     (first as HTMLElement).click();
     second.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(onOpen.mock.calls.map((call) => call[0].id)).toEqual(['a', 'b']);
+    const spaceEvent = new KeyboardEvent('keydown', { key: ' ', cancelable: true });
+    third.dispatchEvent(spaceEvent);
+    expect(onOpen.mock.calls.map((call) => call[0].id)).toEqual(['a', 'b', 'c']);
+    expect(spaceEvent.defaultPrevented).toBe(true);
+    expect(first.getAttribute('role')).toBe('button');
+    expect(first.getAttribute('tabindex')).toBe('0');
+  });
+  it('leaves rows with no onOpen non-interactive', () => {
+    const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none' });
+    const [first] = table.querySelectorAll('tbody tr');
+    expect(first.getAttribute('role')).toBeNull();
+    expect(first.getAttribute('tabindex')).toBeNull();
   });
   it('shows the empty message when there are no rows', () => {
     expect(renderTable({ columns, rows: [], sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'No pledges yet.' }).textContent).toBe('No pledges yet.');
