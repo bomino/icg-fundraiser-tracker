@@ -95,4 +95,68 @@ describe('store', () => {
     await expect(attempt).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(store.state()?.settings.goal).toBe(SETTINGS.goal);
   });
+
+  it('does not overwrite a later edit when an earlier one fails', async () => {
+    // #given: two overlapping edits of the same pledge
+    const edit1 = deferred<Pledge>();
+    const edit2 = deferred<Pledge>();
+    let editCount = 0;
+    const store = createStore(
+      fakeApi({
+        savePledge: () => {
+          editCount++;
+          return editCount === 1 ? edit1.promise : edit2.promise;
+        },
+      }),
+      () => TODAY,
+    );
+    await store.load();
+
+    // #when: start edit1 (which will fail), then start edit2 (which succeeds first)
+    const saving1 = store.savePledge({ ...draftOf(aisha), name: 'Edit1' }, aisha);
+    const saving2 = store.savePledge({ ...draftOf(aisha), name: 'Edit2' }, aisha);
+
+    // resolve edit2 first (success)
+    edit2.resolve({ ...aisha, name: 'Edit2', updatedAt: 'v2' });
+    await saving2;
+
+    // then reject edit1
+    edit1.reject(new ApiError('CONFLICT', 'changed'));
+    await expect(saving1).rejects.toMatchObject({ code: 'CONFLICT' });
+
+    // #then: final state is edit2, not rolled back to original
+    expect(store.state()?.pledges[0].name).toBe('Edit2');
+  });
+
+  it('does not overwrite a later goal update when an earlier one fails', async () => {
+    // #given: two overlapping goal updates
+    const goal1 = deferred<typeof SETTINGS>();
+    const goal2 = deferred<typeof SETTINGS>();
+    let goalCount = 0;
+    const store = createStore(
+      fakeApi({
+        setGoal: () => {
+          goalCount++;
+          return goalCount === 1 ? goal1.promise : goal2.promise;
+        },
+      }),
+      () => TODAY,
+    );
+    await store.load();
+
+    // #when: start setGoal(1) (which will fail), then setGoal(2) (which succeeds first)
+    const attempt1 = store.setGoal(1);
+    const attempt2 = store.setGoal(2);
+
+    // resolve goal2 first (success)
+    goal2.resolve({ ...SETTINGS, goal: 2 });
+    await attempt2;
+
+    // then reject goal1
+    goal1.reject(new ApiError('BAD_REQUEST', 'no'));
+    await expect(attempt1).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // #then: final goal is 2, not rolled back to original
+    expect(store.state()?.settings.goal).toBe(2);
+  });
 });

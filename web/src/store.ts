@@ -61,11 +61,20 @@ export function createStore(api: Api, today: () => string): Store {
     publish(collection.with(loaded(), existing ? rows.map((r) => (r.id === existing.id ? provisional : r)) : [...rows, provisional]));
     try {
       const saved = await send();
-      publish(collection.with(loaded(), collection.get(loaded()).map((r) => (r.id === provisional.id ? saved : r))));
+      // Only swap in saved if the current row is still the exact provisional object (reference equality)
+      const current = collection.get(loaded());
+      const row = current.find((r) => r.id === provisional.id);
+      if (row === provisional) {
+        publish(collection.with(loaded(), current.map((r) => (r.id === provisional.id ? saved : r))));
+      }
     } catch (err) {
       const now = collection.get(loaded());
-      const rolledBack = existing ? now.map((r) => (r.id === existing.id ? existing : r)) : now.filter((r) => r.id !== provisional.id);
-      publish(collection.with(loaded(), rolledBack));
+      const row = now.find((r) => r.id === provisional.id);
+      // Only rollback if the row is still the exact provisional object (reference equality)
+      if (row === provisional) {
+        const rolledBack = existing ? now.map((r) => (r.id === existing.id ? existing : r)) : now.filter((r) => r.id !== provisional.id);
+        publish(collection.with(loaded(), rolledBack));
+      }
       throw err;
     }
   }
@@ -78,9 +87,13 @@ export function createStore(api: Api, today: () => string): Store {
     } catch (err) {
       // The row is already gone on the server, which is what the user asked for.
       if (err instanceof ApiError && err.code === 'NOT_FOUND') return;
-      const restored = [...collection.get(loaded())];
-      restored.splice(index < 0 ? restored.length : Math.min(index, restored.length), 0, row);
-      publish(collection.with(loaded(), restored));
+      // Only re-insert if no row with that id exists now
+      const now = collection.get(loaded());
+      if (!now.some((r) => r.id === row.id)) {
+        const restored = [...now];
+        restored.splice(index < 0 ? restored.length : Math.min(index, restored.length), 0, row);
+        publish(collection.with(loaded(), restored));
+      }
       throw err;
     }
   }
@@ -110,9 +123,15 @@ export function createStore(api: Api, today: () => string): Store {
       publish({ ...loaded(), settings: { ...previous, goal } });
       try {
         const settings = await api.setGoal(goal);
-        publish({ ...loaded(), settings });
+        // Only publish server settings if the current goal is still what this call set
+        if (loaded().settings.goal === goal) {
+          publish({ ...loaded(), settings });
+        }
       } catch (err) {
-        publish({ ...loaded(), settings: previous });
+        // Only rollback if the current goal still equals the optimistic goal this call set
+        if (loaded().settings.goal === goal) {
+          publish({ ...loaded(), settings: previous });
+        }
         throw err;
       }
     },
