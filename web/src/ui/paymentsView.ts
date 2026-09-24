@@ -17,7 +17,7 @@ const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'dateReceived', label: 'Date Received', value: (d) => d.payment.dateReceived, display: (d) => formatDate(d.payment.dateReceived), cellClass: (d) => (d.futureDate ? 'cell-warning' : undefined) },
   { key: 'amount', label: 'Amount', numeric: true, value: (d) => d.payment.amountReceived, display: (d) => formatCents(toCents(d.payment.amountReceived)) },
   { key: 'method', label: 'Method', value: (d) => d.payment.method, display: (d) => methodBadge(d.payment.method) },
-  { key: 'notes', label: 'Notes', value: (d) => d.payment.notes },
+  { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },
 ];
 
 export function createPaymentsView(deps: ListViewDeps) {

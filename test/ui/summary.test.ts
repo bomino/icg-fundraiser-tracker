@@ -49,4 +49,15 @@ describe('chartSlots', () => {
     expect(slots.get('A')).toBe(1);
     expect(slots.get('G')).toBe(1);
   });
+
+  it('gives money with no method the neutral slot without shifting the methods', () => {
+    const slots = chartSlots([
+      { label: 'Cash', cents: 1, kind: 'method' },
+      { label: 'No method recorded', cents: 1, kind: 'none' },
+      { label: 'Other / unlisted', cents: 1, kind: 'unlisted' },
+    ]);
+    expect(slots.get('Cash')).toBe(1);
+    expect(slots.get('Other / unlisted')).toBe(2);
+    expect(slots.get('No method recorded')).toBe(7);
+  });
 });

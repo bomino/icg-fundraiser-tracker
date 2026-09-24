@@ -102,6 +102,6 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
       totals.unmatchedCents !== 0 ? h('p', { class: 'body-md' }, 'Some logged money is not counted toward any pledge. The Data Health list below shows where.') : null,
     ),
     h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Data health'), h('p', { class: 'meta' }, 'Every figure below should read 0. Anything higher needs a look.'), h('ul', { class: 'health-list' }, ...health.map((check) => healthItem(check, deps)))),
-    h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Collected by payment method'), h('div', { class: 'method-grid' }, hasPayments ? canvas : h('p', { class: 'empty' }, 'No payments yet.'), methodTable(state))),
+    h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Collected by payment method'), h('div', { class: 'method-grid' }, hasPayments ? h('div', { class: 'chart-box' }, canvas) : h('p', { class: 'empty' }, 'No payments yet.'), methodTable(state))),
   );
 }

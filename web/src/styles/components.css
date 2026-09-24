@@ -10,13 +10,23 @@
   color: transparent;
 }
 .tabs { display: flex; gap: var(--space-xs); flex: 1; overflow-x: auto; }
-.tab { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); color: var(--color-ink-soft); text-decoration: none; font: 500 0.8125rem/1.4 var(--font-ui); white-space: nowrap; transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+.tab { padding: var(--space-sm) var(--space-md); border-bottom: 2px solid transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0; color: var(--color-ink-soft); text-decoration: none; font: 500 0.8125rem/1.4 var(--font-ui); white-space: nowrap; transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
 .tab:hover { background: var(--color-surface-soft); }
-.tab[aria-current='page'] { color: var(--color-ink); box-shadow: inset 0 -2px 0 var(--color-gold); }
+/* A real border, not an inset shadow: the shadow anti-aliased into faint side lines around the rounded tab. */
+.tab[aria-current='page'] { color: var(--color-ink); border-bottom-color: var(--color-gold); }
 .nav-actions { display: flex; align-items: center; gap: var(--space-sm); }
+/* On phones the header must stay short (it is sticky): brand and actions share one row, tabs take the full second row. */
+@media (max-width: 720px) {
+  .nav-inner { padding: var(--space-sm) var(--space-md) 0; gap: 0 var(--space-sm); }
+  .nav-actions { margin-left: auto; gap: 0; }
+  .nav-actions .meta { display: none; }
+  .nav-actions .btn { padding: 8px; }
+  .tabs { order: 3; flex-basis: 100%; justify-content: space-between; margin-top: var(--space-xs); }
+  .tab { padding: var(--space-sm); }
+}
 
 /* Buttons */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 10px 20px; font: 500 0.8125rem/1.4 var(--font-ui); letter-spacing: 0.01em; cursor: pointer; min-height: 40px; transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
+.btn { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 10px 20px; font: 500 0.8125rem/1.4 var(--font-ui); letter-spacing: 0.01em; cursor: pointer; min-height: 40px; transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
 .btn:disabled { opacity: 0.6; cursor: progress; }
 .btn-primary { background: var(--color-emerald); color: var(--color-surface); }
 .btn-primary:hover:not(:disabled) { background: var(--color-emerald-soft); }
@@ -47,6 +57,11 @@ textarea.input { resize: vertical; }
 .grid-stats { display: grid; gap: var(--space-lg); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .stat-card { padding: 20px 24px; display: grid; gap: var(--space-xs); }
 .stat-value { color: var(--color-gold); }
+@media (max-width: 720px) {
+  .grid-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
+  .stat-card { padding: var(--space-md); }
+  .stat-card .numeric-xl { font-size: 1.375rem; }
+}
 .progress-track { height: 6px; border-radius: var(--radius-full); background: var(--color-surface-sunken); overflow: hidden; }
 .progress-fill { height: 100%; border-radius: var(--radius-full); background: var(--color-emerald); transition: width 200ms ease; }
 .is-flagged { background: var(--color-warning-tint); border-color: var(--color-warning); }
@@ -68,17 +83,21 @@ textarea.input { resize: vertical; }
 /* Tables */
 .table-wrap { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-md); box-shadow: var(--shadow-rest); overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; }
-.data-table th { text-align: left; padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-rule-strong); }
+.data-table th { text-align: left; vertical-align: bottom; padding: var(--space-sm) 12px; border-bottom: 1px solid var(--color-rule-strong); }
 .data-table th button { all: unset; cursor: pointer; font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); }
 .data-table th[aria-sort] button { color: var(--color-ink); }
+.data-table th.num { text-align: right; white-space: normal; }
 /* `all: unset` above (and on .match, in Lookup) strips the global :focus-visible outline; restore it explicitly. */
 .data-table th button:focus-visible, .match:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
-.data-table td { padding: var(--space-sm) var(--space-md); min-height: 48px; border-bottom: 1px solid var(--color-rule); vertical-align: middle; }
+/* Table cells ignore min-height; height on a cell acts as its minimum. Phones and dates must not break mid-value. */
+.data-table td { height: 48px; white-space: nowrap; padding: var(--space-sm) 12px; border-bottom: 1px solid var(--color-rule); vertical-align: middle; }
 .data-table tbody tr { cursor: pointer; transition: background-color 150ms ease, opacity 150ms ease; }
 .data-table tbody tr:hover { background: var(--color-surface-soft); }
 .data-table tbody tr:last-child td { border-bottom: 0; }
-.row-danger { background: var(--color-danger-tint); }
-.row-danger:hover { background: var(--color-danger-tint) !important; }
+/* Cells sit on fractional x positions, so each tinted cell is snapped separately and hairline seams show between them;
+   the 1px shadow bleeds each cell's tint over the next seam. */
+.row-danger > td, .row-danger:hover > td { background: var(--color-danger-tint); box-shadow: 1px 0 0 var(--color-danger-tint); }
+.data-table td.cell-wrap { white-space: normal; min-width: 10rem; }
 .row-pending { opacity: 0.6; cursor: progress !important; }
 .cell-warning { background: var(--color-warning-tint); color: var(--color-ink); box-shadow: inset 3px 0 0 var(--color-warning); }
 .totals-band { font-size: 0.8125rem; color: var(--color-ink-soft); }
@@ -91,8 +110,13 @@ textarea.input { resize: vertical; }
   .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; }
   .data-table tr { padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-rule); }
-  .data-table td { height: auto; min-height: 0; border: 0; display: flex; justify-content: space-between; gap: var(--space-md); padding: var(--space-xs) var(--space-md); text-align: right; }
-  .data-table td::before { content: attr(data-label); font: 600 0.6875rem/1.8 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-muted); text-align: left; }
+  .data-table td { height: auto; min-height: 0; white-space: normal; border: 0; display: flex; justify-content: space-between; gap: var(--space-md); padding: var(--space-xs) var(--space-md); text-align: right; }
+  .data-table td:empty { display: none; }
+  /* Stacked rows have padding between cells, so the danger tint moves back onto the row itself. */
+  .data-table tr.row-danger { background: var(--color-danger-tint); }
+  .data-table tr.row-danger > td { background: none; box-shadow: none; }
+  .data-table td.cell-wrap { min-width: 0; }
+  .data-table td::before { flex-shrink: 0; content: attr(data-label); font: 600 0.6875rem/1.8 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-muted); text-align: left; }
 }
 
 /* Volunteers work from phones; interactive targets grow to the 44px touch minimum below desktop widths. */
@@ -107,7 +131,10 @@ textarea.input { resize: vertical; }
 .modal { border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); padding: 32px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-shadow: var(--shadow-lift); }
 .modal::backdrop { background: var(--color-scrim); }
 .modal-title { font: 500 2rem/1.2 var(--font-display); margin-bottom: var(--space-lg); }
-.modal-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-lg); flex-wrap: wrap; }
+/* Long forms scroll inside the dialog on short screens; the actions stay pinned so Save is always reachable. */
+.modal { scrollbar-width: thin; scrollbar-color: var(--color-rule-strong) transparent; }
+.modal-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-lg); flex-wrap: wrap; position: sticky; bottom: -32px; margin-bottom: -32px; padding: var(--space-md) 0 32px; background: var(--color-surface); border-top: 1px solid var(--color-rule); }
+@media (max-width: 720px) { .modal { padding: var(--space-lg); } .modal-actions { bottom: calc(-1 * var(--space-lg)); margin-bottom: calc(-1 * var(--space-lg)); padding-bottom: var(--space-lg); } }
 
 /* Toasts, banners, chips */
 .toasts { position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%); display: grid; gap: var(--space-sm); z-index: 50; width: min(480px, calc(100vw - 32px)); }
@@ -119,12 +146,25 @@ textarea.input { resize: vertical; }
 .chip { border: 1px solid var(--color-rule-strong); background: var(--color-gold-tint); color: var(--color-ink); border-radius: var(--radius-full); padding: 4px 12px; cursor: pointer; font-size: 0.8125rem; transition: border-color 150ms ease, background-color 150ms ease; }
 
 /* Summary */
-.health-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-rule); }
+.health-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); min-height: 48px; padding: var(--space-xs) 0 var(--space-xs) var(--space-md); border-bottom: 1px solid var(--color-rule); }
 .health-list li:last-child { border-bottom: 0; }
+/* A tinted block per row merged into one heavy slab when several checks fire; a warning rule per row keeps it calm. */
+.health-list li.is-flagged { background: none; box-shadow: inset 3px 0 0 var(--color-warning); }
+.chart-box { position: relative; width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; }
 .method-grid { display: grid; gap: var(--space-lg); grid-template-columns: minmax(180px, 240px) 1fr; align-items: center; }
-@media (max-width: 720px) { .method-grid { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  .method-grid { grid-template-columns: 1fr; }
+  /* Two short columns fit a phone, so the method table stays a table instead of the stacked-card layout. */
+  .method-grid .data-table { display: table; }
+  .method-grid .data-table tbody { display: table-row-group; }
+  .method-grid .data-table tr { display: table-row; padding: 0; }
+  .method-grid .data-table td { display: table-cell; height: 44px; border-bottom: 1px solid var(--color-rule); padding: var(--space-xs) var(--space-sm); }
+  .method-grid .data-table td:first-child { text-align: left; }
+  .method-grid .data-table td::before { content: none; }
+}
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); margin-right: var(--space-sm); background: var(--color-rule-strong); }
 .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-xl); }
+@media (max-width: 720px) { .stat-row { gap: var(--space-md) var(--space-lg); } }
 
 /* Lookup, sign-in, loading */
 .lookup-card dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-sm) var(--space-lg); }
@@ -134,4 +174,5 @@ textarea.input { resize: vertical; }
 .match:hover, .match:focus-visible { background: var(--color-surface-soft); }
 .signin { max-width: 440px; margin: var(--space-3xl) auto; display: grid; gap: var(--space-md); text-align: center; justify-items: center; }
 .signin-button { min-height: 44px; }
+.container[aria-busy='true'] { display: grid; gap: var(--space-md); }
 .skeleton { height: 120px; border-radius: var(--radius-md); background: var(--color-surface-sunken); }

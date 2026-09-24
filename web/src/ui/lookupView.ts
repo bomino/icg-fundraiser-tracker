@@ -10,7 +10,7 @@ const HISTORY: Column<DerivedPayment>[] = [
   { key: 'date', label: 'Date', value: (d) => d.payment.dateReceived, display: (d) => formatDate(d.payment.dateReceived) },
   { key: 'amount', label: 'Amount', numeric: true, value: (d) => d.payment.amountReceived, display: (d) => formatCents(toCents(d.payment.amountReceived)) },
   { key: 'method', label: 'Method', value: (d) => d.payment.method, display: (d) => methodBadge(d.payment.method) },
-  { key: 'notes', label: 'Notes', value: (d) => d.payment.notes },
+  { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },
 ];
 
 function donorCard(donor: DerivedPledge, payments: DerivedPayment[]): HTMLElement {

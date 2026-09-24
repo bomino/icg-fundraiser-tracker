@@ -29,6 +29,8 @@
   --chart-4: #8b2e2e;
   --chart-5: #6b4d8c;
   --chart-6: #a8651f;
+  /* "No method recorded" is not a method; a neutral slice keeps it from sharing a hue with a real one. */
+  --chart-7: var(--color-ink-muted);
   --color-scrim: rgba(26, 46, 31, 0.2);
   --shadow-rest: 0 1px 2px rgba(26, 46, 31, 0.04), 0 4px 16px rgba(26, 46, 31, 0.05);
   --shadow-lift: 0 4px 8px rgba(26, 46, 31, 0.06), 0 16px 40px rgba(26, 46, 31, 0.1);

@@ -25,7 +25,7 @@ const COLUMNS: Column<DerivedPledge>[] = [
   { key: 'balance', label: 'Balance Due', derived: true, numeric: true, value: (d) => d.balanceCents, display: (d) => formatCents(d.balanceCents) },
   { key: 'paymentCount', label: '# Payments', derived: true, numeric: true, value: (d) => d.paymentCount },
   { key: 'status', label: 'Status', derived: true, value: (d) => d.status, display: (d) => statusBadge(d.status) },
-  { key: 'notes', label: 'Notes', value: (d) => d.pledge.notes },
+  { key: 'notes', label: 'Notes', value: (d) => d.pledge.notes, cellClass: () => 'cell-wrap' },
 ];
 
 export function createPledgesView(deps: ListViewDeps) {
