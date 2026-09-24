@@ -1,0 +1,49 @@
+import { isIsoDate } from './dates';
+import { WARNING_MARK } from './engine/constants';
+import type { PaymentDraft, PledgeDraft } from './types';
+
+// Keep these rules identical to validateRow_ in apps-script/Code.gs; test/support/validationCases.ts runs against both.
+export const MAX_TEXT = 500;
+export const MAX_AMOUNT = 1_000_000_000;
+
+export type FieldErrors = Partial<Record<string, string>>;
+
+export function amountError(value: number | null): string | undefined {
+  if (value === null) return undefined;
+  if (!Number.isFinite(value) || value < 0) return 'Enter an amount of 0 or more.';
+  if (value > MAX_AMOUNT) return 'That amount is too large.';
+  if (Math.abs(Math.round(value * 100) - value * 100) > 1e-6) return 'Use at most 2 decimal places.';
+  return undefined;
+}
+
+function dateError(value: string): string | undefined {
+  return value === '' || isIsoDate(value) ? undefined : 'Enter a valid date.';
+}
+
+function textError(value: string): string | undefined {
+  return value.length > MAX_TEXT ? `Keep this under ${MAX_TEXT} characters.` : undefined;
+}
+
+function compact(errors: Record<string, string | undefined>): FieldErrors {
+  return Object.fromEntries(Object.entries(errors).filter((entry): entry is [string, string] => entry[1] !== undefined));
+}
+
+export function validatePledge(draft: PledgeDraft): FieldErrors {
+  return compact({
+    phone: textError(draft.phone),
+    name: textError(draft.name) ?? (draft.name.startsWith(WARNING_MARK) ? `A name cannot start with ${WARNING_MARK}.` : undefined),
+    datePledged: dateError(draft.datePledged),
+    amountPledged: amountError(draft.amountPledged),
+    notes: textError(draft.notes),
+  });
+}
+
+export function validatePayment(draft: PaymentDraft, methods: readonly string[]): FieldErrors {
+  return compact({
+    phone: draft.phone.trim() === '' ? "Enter the donor's phone number." : textError(draft.phone),
+    dateReceived: dateError(draft.dateReceived),
+    amountReceived: amountError(draft.amountReceived),
+    method: draft.method === '' || methods.includes(draft.method) ? undefined : 'Pick a method from the list.',
+    notes: textError(draft.notes),
+  });
+}
