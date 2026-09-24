@@ -1,0 +1,293 @@
+// ICG Fundraiser Tracker API. Bound to the data Sheet; deployed as a web app that executes as
+// the owner, so only this script ever touches the Sheet. Every request must carry a Google ID
+// token for an allowlisted, verified email.
+
+const HEADERS = {
+  Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
+  Payments: ['id', 'phone', 'dateReceived', 'amountReceived', 'method', 'notes', 'updatedAt', 'updatedBy'],
+};
+const ENTRY_FIELDS = {
+  Pledges: ['phone', 'name', 'datePledged', 'amountPledged', 'notes'],
+  Payments: ['phone', 'dateReceived', 'amountReceived', 'method', 'notes'],
+};
+const AMOUNT_FIELDS = ['amountPledged', 'amountReceived'];
+const DATE_FIELDS = ['datePledged', 'dateReceived'];
+const DEFAULT_SETTINGS = [['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other']];
+// Keep in step with web/src/validate.ts.
+const MAX_TEXT = 500;
+const MAX_AMOUNT = 1000000000;
+const WARNING_MARK = '⚠';
+const TOKEN_CACHE_SECONDS = 300;
+const LOCK_WAIT_MS = 10000;
+const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
+
+class ApiError extends Error {
+  constructor(code, message, extra) {
+    super(message);
+    this.code = code;
+    this.extra = extra || {};
+  }
+}
+
+function doPost(e) {
+  let body;
+  try {
+    const request = JSON.parse(e.postData.contents);
+    const email = verifyToken_(request.idToken);
+    body = { ok: true, data: dispatch_(request.op, request.payload || {}, email) };
+  } catch (err) {
+    body = { ok: false, error: errorBody_(err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function dispatch_(op, payload, email) {
+  switch (op) {
+    case 'load':
+      return { pledges: readRows_('Pledges'), payments: readRows_('Payments'), settings: readSettings_(), me: email };
+    case 'upsertPledge':
+      return withLock_(() => upsert_('Pledges', payload, email));
+    case 'upsertPayment':
+      return withLock_(() => upsert_('Payments', payload, email));
+    case 'deletePledge':
+      return withLock_(() => remove_('Pledges', payload));
+    case 'deletePayment':
+      return withLock_(() => remove_('Payments', payload));
+    case 'setSetting':
+      return withLock_(() => setSetting_(payload));
+    default:
+      throw new ApiError('BAD_REQUEST', 'Unknown operation: ' + op);
+  }
+}
+
+function errorBody_(err) {
+  if (err instanceof ApiError) return Object.assign({ code: err.code, message: err.message }, err.extra);
+  console.error(err);
+  return { code: 'INTERNAL', message: 'Something went wrong on the server. Try again.' };
+}
+
+function verifyToken_(token) {
+  if (typeof token !== 'string' || token === '') throw new ApiError('UNAUTHENTICATED', 'Please sign in.');
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'tok_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
+  let email = cache.get(cacheKey);
+  if (!email) {
+    const response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+    if (response.getResponseCode() !== 200) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
+    const info = JSON.parse(response.getContentText());
+    const clientId = PropertiesService.getScriptProperties().getProperty('CLIENT_ID');
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const expSeconds = Number(info.exp);
+    const valid = clientId && info.aud === clientId && info.email_verified === 'true' && GOOGLE_ISSUERS.indexOf(info.iss) >= 0 && expSeconds > nowSeconds && info.email;
+    if (!valid) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
+    email = String(info.email).toLowerCase();
+    cache.put(cacheKey, email, Math.min(TOKEN_CACHE_SECONDS, expSeconds - nowSeconds));
+  }
+  // Not cached, so removing someone from the Allowlist takes effect on their next request.
+  if (allowlist_().indexOf(email) < 0) throw new ApiError('FORBIDDEN', email + ' is not on the volunteer list.');
+  return email;
+}
+
+function allowlist_() {
+  return sheet_('Allowlist').getDataRange().getValues().slice(1)
+    .map((row) => String(row[0]).trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function sheet_(name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!sheet) throw new ApiError('INTERNAL', 'The "' + name + '" tab is missing. Run setup() in Apps Script.');
+  return sheet;
+}
+
+function withLock_(fn) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(LOCK_WAIT_MS)) throw new ApiError('BUSY', 'The tracker is busy. Try again in a moment.');
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function readRows_(tab) {
+  return sheet_(tab).getDataRange().getValues().slice(1)
+    .filter((row) => row[0] !== '')
+    .map((row) => toRecord_(tab, row));
+}
+
+function toRecord_(tab, row) {
+  const record = {};
+  HEADERS[tab].forEach((field, i) => {
+    record[field] = fromCell_(field, row[i]);
+  });
+  return record;
+}
+
+// Tolerates rows typed straight into the Sheet: real dates become ISO text, junk amounts become blank.
+function fromCell_(field, value) {
+  if (AMOUNT_FIELDS.indexOf(field) >= 0) {
+    if (value === '' || value === null || value === undefined) return null;
+    const amount = Number(value);
+    return isFinite(amount) ? amount : null;
+  }
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return DATE_FIELDS.indexOf(field) >= 0
+      ? Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+      : Utilities.formatDate(value, 'UTC', "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+  }
+  return value === null || value === undefined ? '' : String(value);
+}
+
+// The apostrophe forces Sheets to store text verbatim: it keeps leading zeros and '+', stops
+// dates being reinterpreted, and prevents a value like '=HYPERLINK(...)' running as a formula.
+function toSheetRow_(tab, record) {
+  return HEADERS[tab].map((field) => {
+    const value = record[field];
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string' && value !== '') return "'" + value;
+    return value;
+  });
+}
+
+function invalid_(field, message) {
+  return new ApiError('BAD_REQUEST', message, { field: field });
+}
+
+function isIsoDate_(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1900) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function amountProblem_(value) {
+  if (value === null) return '';
+  if (!isFinite(value) || value < 0) return 'Enter an amount of 0 or more.';
+  if (value > MAX_AMOUNT) return 'That amount is too large.';
+  if (Math.abs(Math.round(value * 100) - value * 100) > 1e-6) return 'Use at most 2 decimal places.';
+  return '';
+}
+
+function validateRow_(tab, payload, methods) {
+  const row = {};
+  ENTRY_FIELDS[tab].forEach((field) => {
+    const value = payload[field];
+    if (AMOUNT_FIELDS.indexOf(field) >= 0) {
+      if (value !== null && typeof value !== 'number') throw invalid_(field, 'Amount must be a number.');
+      const problem = amountProblem_(value);
+      if (problem) throw invalid_(field, problem);
+      row[field] = value === null ? null : Math.round(value * 100) / 100;
+      return;
+    }
+    if (typeof value !== 'string') throw invalid_(field, 'Expected text.');
+    if (value.length > MAX_TEXT) throw invalid_(field, 'Keep this under ' + MAX_TEXT + ' characters.');
+    if (DATE_FIELDS.indexOf(field) >= 0 && value !== '' && !isIsoDate_(value)) throw invalid_(field, 'Enter a valid date.');
+    row[field] = value;
+  });
+  if (tab === 'Pledges' && row.name.indexOf(WARNING_MARK) === 0) throw invalid_('name', 'A name cannot start with ' + WARNING_MARK + '.');
+  if (tab === 'Payments') {
+    if (row.phone.trim() === '') throw invalid_('phone', "Enter the donor's phone number.");
+    if (row.method !== '' && methods.indexOf(row.method) < 0) throw invalid_('method', 'Pick a method from the list.');
+  }
+  return row;
+}
+
+function findRow_(sheet, tab, id) {
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(id)) return { rowNumber: i + 1, record: toRecord_(tab, values[i]) };
+  }
+  return null;
+}
+
+function assertUnchanged_(found, updatedAt) {
+  if (!found) throw new ApiError('NOT_FOUND', 'Someone else deleted this row.');
+  if (found.record.updatedAt !== updatedAt) {
+    throw new ApiError('CONFLICT', 'Someone else changed this row since you opened it.', { current: found.record });
+  }
+}
+
+function upsert_(tab, payload, email) {
+  const methods = tab === 'Payments' ? readSettings_().paymentMethods : [];
+  const record = validateRow_(tab, payload, methods);
+  record.updatedAt = new Date().toISOString();
+  record.updatedBy = email;
+  const sheet = sheet_(tab);
+  if (!payload.id) {
+    record.id = Utilities.getUuid();
+    sheet.appendRow(toSheetRow_(tab, record));
+    return record;
+  }
+  const found = findRow_(sheet, tab, payload.id);
+  assertUnchanged_(found, payload.updatedAt);
+  record.id = payload.id;
+  sheet.getRange(found.rowNumber, 1, 1, HEADERS[tab].length).setValues([toSheetRow_(tab, record)]);
+  return record;
+}
+
+function remove_(tab, payload) {
+  const sheet = sheet_(tab);
+  const found = findRow_(sheet, tab, payload.id);
+  assertUnchanged_(found, payload.updatedAt);
+  sheet.deleteRow(found.rowNumber);
+  return { id: payload.id };
+}
+
+function readSettings_() {
+  const values = {};
+  sheet_('Settings').getDataRange().getValues().slice(1).forEach((row) => {
+    values[String(row[0]).trim()] = row[1];
+  });
+  const goal = values.goal === '' || values.goal === undefined ? null : Number(values.goal);
+  return {
+    goal: goal === null || isFinite(goal) ? goal : null,
+    paymentMethods: String(values.paymentMethods || '').split(',').map((method) => method.trim()).filter(Boolean),
+  };
+}
+
+function setSetting_(payload) {
+  if (payload.key !== 'goal') throw invalid_('key', 'Only the goal can be changed from the app.');
+  const value = payload.value;
+  if (typeof value !== 'number' || !isFinite(value) || value < 0 || value > MAX_AMOUNT) throw invalid_('value', 'Enter a goal of 0 or more.');
+  const goal = Math.round(value * 100) / 100;
+  const sheet = sheet_('Settings');
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim() === 'goal') {
+      sheet.getRange(i + 1, 2).setValue(goal);
+      return readSettings_();
+    }
+  }
+  sheet.appendRow(['goal', goal]);
+  return readSettings_();
+}
+
+// Run once from the Apps Script editor. Safe to re-run: existing tabs are left alone.
+function setup() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(HEADERS).forEach((tab) => {
+    ensureTab_(spreadsheet, tab, HEADERS[tab], (sheet) => {
+      HEADERS[tab].forEach((field, i) => {
+        if (AMOUNT_FIELDS.indexOf(field) < 0) sheet.getRange(1, i + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+      });
+    });
+  });
+  ensureTab_(spreadsheet, 'Settings', ['key', 'value'], (sheet) => DEFAULT_SETTINGS.forEach((row) => sheet.appendRow(row)));
+  ensureTab_(spreadsheet, 'Allowlist', ['email'], (sheet) => {
+    const owner = Session.getEffectiveUser().getEmail();
+    if (owner) sheet.appendRow([owner]);
+  });
+}
+
+function ensureTab_(spreadsheet, name, headers, initialise) {
+  if (spreadsheet.getSheetByName(name)) return;
+  const sheet = spreadsheet.insertSheet(name);
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+  initialise(sheet);
+}

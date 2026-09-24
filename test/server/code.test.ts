@@ -1,0 +1,160 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { OWNER, createServer } from '../support/appsScript';
+import { METHODS, VALIDATION_CASES } from '../support/validationCases';
+
+let server: ReturnType<typeof createServer>;
+let token: string;
+const pledgeDraft = { phone: '555-010-0101', name: 'Aisha Rahman', datePledged: '2025-01-10', amountPledged: 500, notes: '' };
+const paymentDraft = { phone: '555-010-0101', dateReceived: '2025-01-15', amountReceived: 200, method: 'Cash', notes: '' };
+
+beforeEach(() => {
+  server = createServer();
+  token = server.tokenFor(OWNER);
+});
+
+describe('setup', () => {
+  it('creates the four tabs with headers, defaults and the owner allowlisted', () => {
+    expect(server.sheet('Pledges').getDataRange().getValues()[0]).toEqual(['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy']);
+    expect(server.sheet('Payments').getDataRange().getValues()[0][3]).toBe('amountReceived');
+    expect(server.sheet('Settings').getDataRange().getValues()).toEqual([['key', 'value'], ['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other']]);
+    expect(server.sheet('Allowlist').getDataRange().getValues()).toEqual([['email'], [OWNER]]);
+  });
+  it('is safe to run twice', () => {
+    server.call('setup');
+    expect(server.sheet('Allowlist').getDataRange().getValues()).toHaveLength(2);
+    expect(server.sheet('Settings').getDataRange().getValues()).toHaveLength(3);
+  });
+});
+
+describe('authentication', () => {
+  it.each([
+    ['a missing token', ''],
+    ['an unknown token', 'forged'],
+  ])('rejects %s', (_label, idToken) => {
+    expect(server.post('load', {}, idToken).error?.code).toBe('UNAUTHENTICATED');
+  });
+  it.each([
+    ['another app’s token', { aud: 'someone-else' }],
+    ['an unverified email', { email_verified: 'false' }],
+    ['an expired token', { exp: String(Math.floor(Date.now() / 1000) - 5) }],
+    ['a foreign issuer', { iss: 'https://evil.example.com' }],
+  ])('rejects %s', (_label, overrides) => {
+    expect(server.post('load', {}, server.tokenFor(OWNER, overrides)).error?.code).toBe('UNAUTHENTICATED');
+  });
+  it('forbids accounts that are not on the allowlist', () => {
+    const response = server.post('load', {}, server.tokenFor('stranger@example.com'));
+    expect(response.error).toMatchObject({ code: 'FORBIDDEN', message: 'stranger@example.com is not on the volunteer list.' });
+  });
+  it('matches the allowlist case-insensitively', () => {
+    server.sheet('Allowlist').appendRow(['  Volunteer@Example.com ']);
+    expect(server.post('load', {}, server.tokenFor('volunteer@example.com')).ok).toBe(true);
+  });
+  it('verifies a token once, then trusts the cache', () => {
+    server.post('load', {}, token);
+    server.post('load', {}, token);
+    expect(server.state.fetchCount).toBe(1);
+  });
+  it('re-checks the allowlist on every call, even for a cached token', () => {
+    server.post('load', {}, token);
+    server.sheet('Allowlist').raw.splice(1, 1);
+    expect(server.post('load', {}, token).error?.code).toBe('FORBIDDEN');
+  });
+});
+
+describe('load', () => {
+  it('returns rows, settings and the caller', () => {
+    expect(server.post('load', {}, token)).toEqual({
+      ok: true,
+      data: { pledges: [], payments: [], settings: { goal: 10000, paymentMethods: METHODS }, me: OWNER },
+    });
+  });
+  it('cleans up rows that were edited by hand in the Sheet', () => {
+    const sheet = server.sheet('Pledges');
+    sheet.appendRow(['h1', 555, 'Hand Typed', new Date(Date.UTC(2025, 0, 10)), '12.5', '', '2025-01-01T00:00:00.000Z', OWNER]);
+    sheet.appendRow(['', '', '', '', '', '', '', '']);
+    sheet.appendRow(['h2', '1', 'Bad Amount', '', 'twelve', '', '2025-01-01T00:00:00.000Z', OWNER]);
+    const { pledges } = server.post('load', {}, token).data;
+    expect(pledges).toEqual([
+      { id: 'h1', phone: '555', name: 'Hand Typed', datePledged: '2025-01-10', amountPledged: 12.5, notes: '', updatedAt: '2025-01-01T00:00:00.000Z', updatedBy: OWNER },
+      { id: 'h2', phone: '1', name: 'Bad Amount', datePledged: '', amountPledged: null, notes: '', updatedAt: '2025-01-01T00:00:00.000Z', updatedBy: OWNER },
+    ]);
+  });
+});
+
+describe('writes', () => {
+  it('inserts a row with a server id and stamp', () => {
+    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    expect(saved).toMatchObject({ ...pledgeDraft, updatedBy: OWNER });
+    expect(saved.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
+  });
+
+  it.each(['+15550100101', '0551234', '=HYPERLINK("x")', '-5', '@me'])('stores the phone %s as literal text', (phone) => {
+    const saved = server.post('upsertPledge', { ...pledgeDraft, phone }, token).data;
+    expect(server.sheet('Pledges').raw[1][1]).toBe(`'${phone}`);
+    expect(server.post('load', {}, token).data.pledges[0].phone).toBe(saved.phone);
+    expect(saved.phone).toBe(phone);
+  });
+
+  it('rounds float dust to cents before storing', () => {
+    expect(server.post('upsertPayment', { ...paymentDraft, amountReceived: 0.1 + 0.2 }, token).data.amountReceived).toBe(0.3);
+  });
+
+  it('updates when the caller saw the latest version', () => {
+    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const updated = server.post('upsertPledge', { ...pledgeDraft, name: 'Aisha R.', id: saved.id, updatedAt: saved.updatedAt }, token);
+    expect(updated.data).toMatchObject({ id: saved.id, name: 'Aisha R.' });
+    expect(server.post('load', {}, token).data.pledges).toHaveLength(1);
+  });
+
+  it('refuses a stale update and returns the current row', () => {
+    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const response = server.post('upsertPledge', { ...pledgeDraft, id: saved.id, updatedAt: 'stale' }, token);
+    expect(response.error).toMatchObject({ code: 'CONFLICT', current: saved });
+  });
+
+  it('reports NOT_FOUND for a row someone deleted', () => {
+    expect(server.post('upsertPledge', { ...pledgeDraft, id: 'gone', updatedAt: 'x' }, token).error?.code).toBe('NOT_FOUND');
+    expect(server.post('deletePayment', { id: 'gone', updatedAt: 'x' }, token).error?.code).toBe('NOT_FOUND');
+  });
+
+  it('deletes with the same version check', () => {
+    const saved = server.post('upsertPayment', paymentDraft, token).data;
+    expect(server.post('deletePayment', { id: saved.id, updatedAt: 'stale' }, token).error?.code).toBe('CONFLICT');
+    expect(server.post('deletePayment', { id: saved.id, updatedAt: saved.updatedAt }, token)).toEqual({ ok: true, data: { id: saved.id } });
+    expect(server.post('load', {}, token).data.payments).toEqual([]);
+  });
+
+  it('rejects non-numeric amounts sent over the wire', () => {
+    expect(server.post('upsertPledge', { ...pledgeDraft, amountPledged: '12' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'amountPledged' });
+  });
+
+  it('answers BUSY instead of waiting forever for the lock', () => {
+    server.state.lockAvailable = false;
+    expect(server.post('upsertPledge', pledgeDraft, token).error?.code).toBe('BUSY');
+  });
+
+  it('rejects unknown operations', () => {
+    expect(server.post('dropTables', {}, token).error?.code).toBe('BAD_REQUEST');
+  });
+});
+
+describe('settings', () => {
+  it('changes the goal', () => {
+    expect(server.post('setSetting', { key: 'goal', value: 25000 }, token).data).toEqual({ goal: 25000, paymentMethods: METHODS });
+  });
+  it('refuses a negative goal and any other key', () => {
+    expect(server.post('setSetting', { key: 'goal', value: -1 }, token).error?.code).toBe('BAD_REQUEST');
+    expect(server.post('setSetting', { key: 'paymentMethods', value: 'Cash' }, token).error?.code).toBe('BAD_REQUEST');
+  });
+});
+
+describe('server validation matches the client', () => {
+  for (const testCase of VALIDATION_CASES) {
+    it(`${testCase.tab}: ${testCase.name}`, () => {
+      const response = server.post(testCase.tab === 'Pledges' ? 'upsertPledge' : 'upsertPayment', testCase.draft, token);
+      if (testCase.invalidField === null) expect(response.ok).toBe(true);
+      else expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: testCase.invalidField });
+    });
+  }
+});
