@@ -1,5 +1,7 @@
 # Fundraiser Tracker Web App — Design
 
+Note (2026-09-24): the Excel workbook referenced below is a separate project, not part of this app; parity is now checked against a frozen fixture (test/fixtures/).
+
 Date: 2026-09-23
 Status: awaiting review
 Source of truth for behaviour: `Masjid_Fundraiser_Tracker_v3.xlsx` (see repo `CLAUDE.md`)
