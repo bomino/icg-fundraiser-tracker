@@ -10,6 +10,8 @@ export interface Auth {
 const EXPIRY_MARGIN_SECONDS = 60;
 // Wide enough that a form opened now can still be saved on the current token.
 const EARLY_REFRESH_SECONDS = 300;
+// A volunteer who just dismissed sign-in should not have it pop up again on their next click.
+const DISMISSAL_COOLDOWN_MS = 60 * 1000;
 const GIS_LOAD_TIMEOUT_MS = 15000;
 
 export function decodeJwtPayload(token: string): Record<string, unknown> {
@@ -47,7 +49,12 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
   let token: string | null = null;
   let waiting: Waiter[] = [];
   let initialised = false;
+  // Browsers deliver the close event as a later task, so the waiters to settle are captured when
+  // the close is requested; anyone who asks for a token after that belongs to the next prompt.
+  let closing: { waiters: Waiter[]; dismissed: boolean } | null = null;
+  let dismissedAt = Number.NEGATIVE_INFINITY;
   const buttonSlot = h('div', { class: 'signin-button' });
+  const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Cancel');
   const panel = h(
     'div',
     { class: 'signin' },
@@ -55,15 +62,29 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
     h('h1', { class: 'display-md', id: 'signin-title' }, 'Fundraiser Tracker'),
     h('p', { class: 'body-md ink-soft' }, 'Sign in with the Google account the organiser added to the volunteer list.'),
     buttonSlot,
+    cancel,
   );
   // Its own modal, not an inline panel: showModal() makes everything else inert, so a sign-in
   // requested while a form dialog is open must sit above that form in the top layer.
   const dialog = h('dialog', { class: 'modal signin-dialog', 'aria-labelledby': 'signin-title' }, panel);
+
+  function requestClose(dismissed: boolean) {
+    closing = { waiters: waiting, dismissed };
+    dialog.close();
+  }
+
+  dialog.addEventListener('cancel', () => {
+    closing = { waiters: waiting, dismissed: true };
+  });
+  cancel.addEventListener('click', () => requestClose(true));
   dialog.addEventListener('close', () => {
+    if (dialog.open) return;
+    const settled = closing ?? { waiters: waiting, dismissed: true };
+    closing = null;
     host.hidden = true;
-    const dismissed = waiting;
-    waiting = [];
-    dismissed.forEach((waiter) => waiter.reject(new ApiError('UNAUTHENTICATED', 'Sign-in was cancelled.')));
+    if (settled.dismissed) dismissedAt = Date.now();
+    waiting = waiting.filter((waiter) => !settled.waiters.includes(waiter));
+    settled.waiters.forEach((waiter) => waiter.reject(new ApiError('UNAUTHENTICATED', 'Sign-in was cancelled.')));
   });
   host.append(dialog);
 
@@ -79,7 +100,7 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
         const resolved = waiting;
         waiting = [];
         resolved.forEach((waiter) => waiter.resolve(response.credential));
-        dialog.close();
+        requestClose(false);
       },
     });
     initialised = true;
@@ -91,7 +112,8 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
     initialise();
     return new Promise<string>((resolve, reject) => {
       waiting.push({ resolve, reject });
-      if (waiting.length > 1) return;
+      if (waiting.length > 1 && closing === null) return;
+      closing = null;
       host.hidden = false;
       if (!dialog.open) dialog.showModal();
       buttonSlot.replaceChildren();
@@ -103,7 +125,8 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
   return {
     getToken,
     refreshIfStale() {
-      if (token === null || waiting.length > 0 || isFresh(token, Date.now() / 1000, EARLY_REFRESH_SECONDS)) return;
+      if (token === null || waiting.length > 0 || Date.now() - dismissedAt < DISMISSAL_COOLDOWN_MS) return;
+      if (isFresh(token, Date.now() / 1000, EARLY_REFRESH_SECONDS)) return;
       getToken(true).catch((err: unknown) => console.warn('Early sign-in refresh did not complete; the next save will ask again.', err));
     },
     signOut() {

@@ -162,4 +162,89 @@ describe('createAuth', () => {
     expect(signInDialog(host).open).toBe(true);
     host.remove();
   });
+
+  it('has a Cancel button that dismisses the sign-in and rejects waiting callers', async () => {
+    const { renderButton } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+
+    const pending = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    const cancel = Array.from(signInDialog(host).querySelectorAll('button')).find((button) => button.textContent === 'Cancel') as HTMLButtonElement;
+    expect(cancel.type).toBe('button');
+    cancel.click();
+
+    await expect(pending).rejects.toMatchObject({ code: 'UNAUTHENTICATED', message: 'Sign-in was cancelled.' });
+    expect(signInDialog(host).open).toBe(false);
+    host.remove();
+  });
+
+  it('does not re-prompt from refreshIfStale for a minute after a dismissal, but a save still asks', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-23T12:00:00Z'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { renderButton, emitCredential } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+
+    const first = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    emitCredential(encode({ exp: nowSeconds() + 240 }));
+    await first;
+
+    auth.refreshIfStale();
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    signInDialog(host).close();
+    await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+
+    vi.setSystemTime(new Date('2026-09-23T12:00:59Z'));
+    auth.refreshIfStale();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(renderButton).toHaveBeenCalledTimes(2);
+
+    const save = auth.getToken(true);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(3));
+    signInDialog(host).close();
+    await expect(save).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+
+    vi.setSystemTime(new Date('2026-09-23T12:02:01Z'));
+    auth.refreshIfStale();
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(4));
+
+    warn.mockRestore();
+    vi.useRealTimers();
+    host.remove();
+  });
+
+  it('ignores a late close event from the previous sign-in when a new one has already opened', async () => {
+    const { renderButton, emitCredential } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+    const dialog = signInDialog(host);
+    // Browsers queue the close event as a task; the jsdom shim fires it synchronously.
+    const lateClose = vi.spyOn(dialog, 'close').mockImplementation(function (this: HTMLDialogElement) {
+      this.open = false;
+      setTimeout(() => this.dispatchEvent(new Event('close')), 0);
+    });
+
+    const first = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    emitCredential(encode({ exp: Math.floor(Date.now() / 1000) + 3600 }));
+    await first;
+    const next = auth.getToken(true);
+    let settled = false;
+    next.then(() => { settled = true; }, () => { settled = true; });
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(settled).toBe(false);
+    expect(dialog.open).toBe(true);
+    expect(host.hidden).toBe(false);
+    lateClose.mockRestore();
+    host.remove();
+  });
 });
