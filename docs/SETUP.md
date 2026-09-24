@@ -29,7 +29,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 2. Set **Execute as: Me** and **Who has access: Anyone**. "Anyone" only lets the request reach the script. The script itself rejects anyone who isn't signed in and on the Allowlist.
 3. Copy the **Web app URL**. It ends in `/exec`.
 
-When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL.
+When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL. Update `Code.gs` (as a new deployment version) and the website in the same sitting: if the two don't match, adding new pledges and payments breaks.
 
 ## 4. Publish the site
 
