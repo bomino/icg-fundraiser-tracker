@@ -42,10 +42,13 @@ export function formatDate(iso: string): string {
 
 // Plain unsigned decimals only: bars scientific notation, hex/octal/binary literals, "Infinity"
 // and "NaN" - every non-obvious string `Number()` would otherwise accept as a dollar amount.
-const AMOUNT_SHAPE = /^\d+(\.\d+)?$|^\.\d+$/;
+// Allows a trailing bare dot ("20.") alongside a trailing bare-dot leading form (".5").
+const AMOUNT_SHAPE = /^(\d+\.?\d*|\.\d+)$/;
 
 export function parseAmount(text: string): number | null | 'invalid' {
-  const cleaned = text.trim().replace(/[$,]/g, '');
+  // Strip currency punctuation before trimming: "$ 20" leaves an internal space behind the "$"
+  // that a trim done first would never reach.
+  const cleaned = text.replace(/[$,]/g, '').trim();
   if (cleaned === '') return null;
   return AMOUNT_SHAPE.test(cleaned) ? Number(cleaned) : 'invalid';
 }

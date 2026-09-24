@@ -35,10 +35,16 @@ describe('format', () => {
     expect(parseAmount('.5')).toBe(0.5);
     expect(parseAmount('')).toBeNull();
     expect(parseAmount('twelve')).toBe('invalid');
+    expect(parseAmount('$ 20')).toBe(20);
+    expect(parseAmount('20.')).toBe(20);
+    expect(parseAmount(' 20 ')).toBe(20);
+    expect(parseAmount('1,250.50')).toBe(1250.5);
+    expect(parseAmount('$20')).toBe(20);
+    expect(parseAmount('5.')).toBe(5);
   });
 
   it('rejects notations a volunteer never meant, even though Number() would parse them', () => {
-    for (const text of ['1e3', '0x10', '0b101', '0o17', '-5', '1.2.3', 'Infinity', 'NaN', '5.']) {
+    for (const text of ['1e3', '0x10', '0b101', '0o17', '-5', '1.2.3', 'Infinity', 'NaN']) {
       expect(parseAmount(text), text).toBe('invalid');
     }
   });

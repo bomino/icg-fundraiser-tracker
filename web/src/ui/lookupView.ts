@@ -66,7 +66,7 @@ export function createLookupView(deps: ListViewDeps) {
       const computed = state.computed;
       const text = query.trim();
       if (text === '') {
-        results.replaceChildren(h('p', { class: 'meta' }, 'Type a phone number (dashes and spaces do not matter) or part of a name.'));
+        results.replaceChildren(h('p', { class: 'meta' }, 'Type a phone number (dashes, spaces, brackets, dots and plus signs do not matter) or part of a name.'));
         return;
       }
       const chosen = chosenId ? (computed.pledges.find((d) => d.pledge.id === chosenId) ?? null) : null;
