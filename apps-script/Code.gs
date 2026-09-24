@@ -62,12 +62,14 @@ function dispatch_(op, payload, email) {
 
 function errorBody_(err) {
   if (err instanceof ApiError) return Object.assign({ code: err.code, message: err.message }, err.extra);
-  console.error(err);
+  // Never log err.message: for a JSON.parse failure it can echo the raw request body, idToken included.
+  console.error('Unhandled server error', err && err.name);
   return { code: 'INTERNAL', message: 'Something went wrong on the server. Try again.' };
 }
 
 function verifyToken_(token) {
   if (typeof token !== 'string' || token === '') throw new ApiError('UNAUTHENTICATED', 'Please sign in.');
+  assertPlausibleToken_(token);
   const cache = CacheService.getScriptCache();
   const cacheKey = 'tok_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
   let email = cache.get(cacheKey);
@@ -86,6 +88,22 @@ function verifyToken_(token) {
   // Not cached, so removing someone from the Allowlist takes effect on their next request.
   if (allowlist_().indexOf(email) < 0) throw new ApiError('FORBIDDEN', email + ' is not on the volunteer list.');
   return email;
+}
+
+// Rejects malformed tokens and tokens minted for a different app locally, before spending a
+// network call on them. Tokeninfo (in verifyToken_) remains the actual authority.
+function assertPlausibleToken_(token) {
+  const segments = token.split('.');
+  const malformed = segments.length !== 3 || segments.some((segment) => segment === '');
+  if (malformed) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
+  let payload;
+  try {
+    payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(segments[1])).getDataAsString());
+  } catch (err) {
+    throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
+  }
+  const clientId = PropertiesService.getScriptProperties().getProperty('CLIENT_ID');
+  if (!clientId || payload.aud !== clientId) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
 }
 
 function allowlist_() {
@@ -124,23 +142,40 @@ function toRecord_(tab, row) {
   return record;
 }
 
-// Tolerates rows typed straight into the Sheet: real dates become ISO text, junk amounts become blank.
+// Tolerates rows typed straight into the Sheet: real dates become ISO text (in the
+// spreadsheet's own zone, which is how Sheets built the Date cell in the first place), junk
+// amounts become blank, and a date-column cell holding non-ISO text reads as blank rather than
+// an unparseable string the engine would otherwise compare against real ISO dates.
 function fromCell_(field, value) {
-  if (AMOUNT_FIELDS.indexOf(field) >= 0) {
-    if (value === '' || value === null || value === undefined) return null;
-    const amount = Number(value);
-    return isFinite(amount) ? amount : null;
-  }
+  if (AMOUNT_FIELDS.indexOf(field) >= 0) return amountFromCell_(value);
   if (Object.prototype.toString.call(value) === '[object Date]') {
     return DATE_FIELDS.indexOf(field) >= 0
-      ? Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+      ? Utilities.formatDate(value, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd')
       : Utilities.formatDate(value, 'UTC', "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
   }
+  if (DATE_FIELDS.indexOf(field) >= 0) return typeof value === 'string' && isIsoDate_(value) ? value : '';
   return value === null || value === undefined ? '' : String(value);
 }
 
-// The apostrophe forces Sheets to store text verbatim: it keeps leading zeros and '+', stops
-// dates being reinterpreted, and prevents a value like '=HYPERLINK(...)' running as a formula.
+// A real number if finite, a non-blank string only if it parses to a finite number, otherwise
+// blank: a stray whitespace cell or a checkbox left in an amount column must not silently
+// become 0 (JS coerces '   ' and booleans to numbers) or a "twelve"-style typo.
+function amountFromCell_(value) {
+  if (typeof value === 'number') return isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    const amount = Number(trimmed);
+    return isFinite(amount) ? amount : null;
+  }
+  return null;
+}
+
+// The apostrophe is the only text-forcing mechanism — do not also format Pledges/Payments
+// columns as plain text ('@') in setup(): a '@'-formatted cell stores the apostrophe itself
+// instead of stripping it, corrupting every id/date/text value written this way.
+// It forces Sheets to store text verbatim: keeps leading zeros and '+', stops dates being
+// reinterpreted, and prevents a value like '=HYPERLINK(...)' running as a formula.
 function toSheetRow_(tab, record) {
   return HEADERS[tab].map((field) => {
     const value = record[field];
@@ -212,17 +247,22 @@ function assertUnchanged_(found, updatedAt) {
   }
 }
 
+function assertValidId_(id) {
+  if (typeof id !== 'string' || id === '') throw invalid_('id', 'Missing the row id.');
+}
+
 function upsert_(tab, payload, email) {
   const methods = tab === 'Payments' ? readSettings_().paymentMethods : [];
   const record = validateRow_(tab, payload, methods);
   record.updatedAt = new Date().toISOString();
   record.updatedBy = email;
   const sheet = sheet_(tab);
-  if (!payload.id) {
+  if (payload.id === undefined || payload.id === null) {
     record.id = Utilities.getUuid();
     sheet.appendRow(toSheetRow_(tab, record));
     return record;
   }
+  assertValidId_(payload.id);
   const found = findRow_(sheet, tab, payload.id);
   assertUnchanged_(found, payload.updatedAt);
   record.id = payload.id;
@@ -231,6 +271,8 @@ function upsert_(tab, payload, email) {
 }
 
 function remove_(tab, payload) {
+  assertValidId_(payload.id);
+  if (typeof payload.updatedAt !== 'string') throw invalid_('updatedAt', 'Missing the row version.');
   const sheet = sheet_(tab);
   const found = findRow_(sheet, tab, payload.id);
   assertUnchanged_(found, payload.updatedAt);
@@ -271,11 +313,7 @@ function setSetting_(payload) {
 function setup() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(HEADERS).forEach((tab) => {
-    ensureTab_(spreadsheet, tab, HEADERS[tab], (sheet) => {
-      HEADERS[tab].forEach((field, i) => {
-        if (AMOUNT_FIELDS.indexOf(field) < 0) sheet.getRange(1, i + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
-      });
-    });
+    ensureTab_(spreadsheet, tab, HEADERS[tab], () => {});
   });
   ensureTab_(spreadsheet, 'Settings', ['key', 'value'], (sheet) => DEFAULT_SETTINGS.forEach((row) => sheet.appendRow(row)));
   ensureTab_(spreadsheet, 'Allowlist', ['email'], (sheet) => {

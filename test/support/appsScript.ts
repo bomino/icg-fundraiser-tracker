@@ -29,7 +29,7 @@ export class FakeSheet {
     return 1000;
   }
   setFrozenRows(_rows: number) {}
-  getRange(row: number, column: number, numRows = 1, numColumns = 1) {
+  getRange(row: number, column: number, _numRows = 1, _numColumns = 1) {
     const write = (r: number, c: number, value: unknown) => {
       while (this.raw.length < r) this.raw.push([]);
       this.raw[r - 1][c - 1] = value;
@@ -37,7 +37,6 @@ export class FakeSheet {
     return {
       setValues: (values: unknown[][]) => values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value))),
       setValue: (value: unknown) => write(row, column, value),
-      setNumberFormat: (_format: string) => ({ numRows, numColumns }),
     };
   }
 }
@@ -60,6 +59,7 @@ export function createServer() {
       sheets.set(name, sheet);
       return sheet;
     },
+    getSpreadsheetTimeZone: () => 'UTC',
   };
 
   const context = vm.createContext({
@@ -90,6 +90,8 @@ export function createServer() {
       DigestAlgorithm: { SHA_256: 'SHA_256' },
       computeDigest: (_algorithm: string, text: string) => Array.from(createHash('sha256').update(text).digest()),
       base64EncodeWebSafe: (bytes: number[]) => Buffer.from(bytes).toString('base64url'),
+      base64DecodeWebSafe: (value: string) => Array.from(Buffer.from(value, 'base64url')),
+      newBlob: (bytes: number[]) => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }),
       getUuid: () => randomUUID(),
       formatDate: (date: Date, _tz: string, pattern: string) => (pattern === 'yyyy-MM-dd' ? date.toISOString().slice(0, 10) : date.toISOString()),
     },
@@ -98,12 +100,13 @@ export function createServer() {
   const call = <T>(name: string, ...args: unknown[]): T => (context[name] as (...a: unknown[]) => T)(...args);
   call('setup');
 
+  // A real-looking JWT (header.payload.sig), so Code.gs's cheap local decode of the payload
+  // segment sees the same aud/email/exp/iss claims that the (mocked) tokeninfo call would.
   function tokenFor(email: string, overrides: Record<string, string> = {}) {
-    const token = `token-${email}-${tokens.size}`;
-    tokens.set(token, {
-      status: 200,
-      body: { aud: CLIENT_ID, iss: 'https://accounts.google.com', email, email_verified: 'true', exp: String(Math.floor(Date.now() / 1000) + 3600), ...overrides },
-    });
+    const claims = { aud: CLIENT_ID, iss: 'https://accounts.google.com', email, email_verified: 'true', exp: String(Math.floor(Date.now() / 1000) + 3600), ...overrides };
+    const segment = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const token = `${segment({ alg: 'RS256', typ: 'JWT' })}.${segment(claims)}.sig${tokens.size}`;
+    tokens.set(token, { status: 200, body: claims });
     return token;
   }
 

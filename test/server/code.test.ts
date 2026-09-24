@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OWNER, createServer } from '../support/appsScript';
 import { METHODS, VALIDATION_CASES } from '../support/validationCases';
 
@@ -59,6 +59,15 @@ describe('authentication', () => {
     server.sheet('Allowlist').raw.splice(1, 1);
     expect(server.post('load', {}, token).error?.code).toBe('FORBIDDEN');
   });
+  it('rejects a token whose own payload names a foreign audience without calling tokeninfo', () => {
+    const foreign = server.tokenFor(OWNER, { aud: 'someone-else' });
+    expect(server.post('load', {}, foreign).error?.code).toBe('UNAUTHENTICATED');
+    expect(server.state.fetchCount).toBe(0);
+  });
+  it('rejects a token that is not three dot-separated segments without calling tokeninfo', () => {
+    expect(server.post('load', {}, 'forged').error?.code).toBe('UNAUTHENTICATED');
+    expect(server.state.fetchCount).toBe(0);
+  });
 });
 
 describe('load', () => {
@@ -78,6 +87,26 @@ describe('load', () => {
       { id: 'h1', phone: '555', name: 'Hand Typed', datePledged: '2025-01-10', amountPledged: 12.5, notes: '', updatedAt: '2025-01-01T00:00:00.000Z', updatedBy: OWNER },
       { id: 'h2', phone: '1', name: 'Bad Amount', datePledged: '', amountPledged: null, notes: '', updatedAt: '2025-01-01T00:00:00.000Z', updatedBy: OWNER },
     ]);
+  });
+  it('drops a hand-typed, non-ISO date string in a date column to blank', () => {
+    server.sheet('Pledges').appendRow(['h3', '555', 'US Format', '1/10/2025', '', '', '2025-01-01T00:00:00.000Z', OWNER]);
+    expect(server.post('load', {}, token).data.pledges[0].datePledged).toBe('');
+  });
+  it('still reads a real Date cell in a date column as an ISO string', () => {
+    server.sheet('Pledges').appendRow(['h4', '555', 'Real Date', new Date(Date.UTC(2025, 0, 10)), '', '', '2025-01-01T00:00:00.000Z', OWNER]);
+    expect(server.post('load', {}, token).data.pledges[0].datePledged).toBe('2025-01-10');
+  });
+  it('leaves an already-ISO date string in a date column unchanged', () => {
+    server.sheet('Pledges').appendRow(['h5', '555', 'Already ISO', '2025-01-10', '', '', '2025-01-01T00:00:00.000Z', OWNER]);
+    expect(server.post('load', {}, token).data.pledges[0].datePledged).toBe('2025-01-10');
+  });
+  it('treats a whitespace-only amount cell as blank rather than zero', () => {
+    server.sheet('Pledges').appendRow(['h6', '555', 'Whitespace Amount', '', '   ', '', '2025-01-01T00:00:00.000Z', OWNER]);
+    expect(server.post('load', {}, token).data.pledges[0].amountPledged).toBeNull();
+  });
+  it('treats a boolean amount cell as blank rather than 0 or 1', () => {
+    server.sheet('Pledges').appendRow(['h7', '555', 'Boolean Amount', '', true, '', '2025-01-01T00:00:00.000Z', OWNER]);
+    expect(server.post('load', {}, token).data.pledges[0].amountPledged).toBeNull();
   });
 });
 
@@ -136,6 +165,30 @@ describe('writes', () => {
 
   it('rejects unknown operations', () => {
     expect(server.post('dropTables', {}, token).error?.code).toBe('BAD_REQUEST');
+  });
+
+  it('rejects a delete with a blank id before touching the sheet', () => {
+    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const response = server.post('deletePledge', { id: '', updatedAt: '' }, token);
+    expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: 'id' });
+    expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
+  });
+
+  it('rejects an update with a non-string id before touching the sheet', () => {
+    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const response = server.post('upsertPledge', { ...pledgeDraft, id: 12345, updatedAt: saved.updatedAt }, token);
+    expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: 'id' });
+    expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
+  });
+
+  it('logs a fixed string and the error name for an unhandled error, never the raw message', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const output = server.call<{ text: string }>('doPost', { postData: { contents: 'super-secret-token-xyz' } });
+    const response = JSON.parse(output.text);
+    expect(response.error).toMatchObject({ code: 'INTERNAL' });
+    expect(errorSpy).toHaveBeenCalledWith('Unhandled server error', 'SyntaxError');
+    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('super-secret-token-xyz');
+    errorSpy.mockRestore();
   });
 });
 
