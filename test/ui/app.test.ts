@@ -302,4 +302,25 @@ describe('mountApp', () => {
     expect(redrawn.value).toBe('aish');
     expect([redrawn.selectionStart, redrawn.selectionEnd]).toEqual([2, 3]);
   });
+
+  it('keeps focus, text and caret in the Find donor search when the store publishes', () => {
+    history.replaceState(null, '', '#find');
+    const { store, publish } = fakeStore();
+    mountApp(root, { store, auth: fakeAuth() });
+    const search = root.querySelector('#lookup-input') as HTMLInputElement;
+    search.focus();
+    search.value = 'aish';
+    search.dispatchEvent(new Event('input'));
+    search.setSelectionRange(1, 2);
+
+    publish();
+
+    const redrawn = root.querySelector('#lookup-input') as HTMLInputElement;
+    expect({ replaced: redrawn !== search, focused: document.activeElement === redrawn, value: redrawn.value, caret: [redrawn.selectionStart, redrawn.selectionEnd] }).toEqual({
+      replaced: true,
+      focused: true,
+      value: 'aish',
+      caret: [1, 2],
+    });
+  });
 });

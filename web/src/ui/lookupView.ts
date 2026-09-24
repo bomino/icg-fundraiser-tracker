@@ -95,7 +95,7 @@ export function createLookupView(deps: ListViewDeps) {
         ),
       );
     };
-    const input = h('input', { type: 'search', class: 'input search', id: 'lookup-input', placeholder: 'Phone number or name', autocomplete: 'off' });
+    const input = h('input', { type: 'search', class: 'input search', id: 'lookup-input', placeholder: 'Phone number or name', autocomplete: 'off', 'data-focus-key': 'lookup-search' });
     input.value = query;
     input.addEventListener('input', () => {
       query = input.value;
