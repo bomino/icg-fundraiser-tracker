@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="data:," />
+    <title>ICG Fundraiser Tracker</title>
+    <script>
+      (function () {
+        var theme = null;
+        try { theme = localStorage.getItem('icg-theme'); } catch (e) { theme = null; }
+        if (theme !== 'light' && theme !== 'dark') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <div id="auth" hidden></div>
+    <div id="app"></div>
+  </body>
+</html>
