@@ -267,10 +267,33 @@ function theScreens(): Child[] {
     topic(
       'Search and sort',
       bullets(
-        ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too.'],
+        ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too. Clear the box to see everything again.'],
         ['Tap a column heading to sort by it. Tap it again to reverse the order.'],
+        [
+          'On Pledges, the ',
+          b('Pending'),
+          ', ',
+          b('Partial'),
+          ', ',
+          b('Paid'),
+          ' and ',
+          b('Overpaid'),
+          ' chips filter to that status. ',
+          b('Needs follow-up'),
+          ' finds Pending or Partial donors with no pledge or payment activity in the last 30 days, biggest balance first.',
+        ],
+        [
+          'On Payments, ',
+          b('From'),
+          ' and ',
+          b('To'),
+          ' filter to payments received in that range; either can stay blank. Payments with no date drop out once a bound is set. ',
+          b('Clear dates'),
+          ' removes the range.',
+        ],
         ['Search, the status chips (Pledges) and the date range (Payments) all narrow the list together. A “Showing N of M” line appears whenever any of them is doing something.'],
         ['A long list only shows the first 100 rows at a time, with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row back within the first 100 even if you have not pressed Show more.'],
+        ['Tapping ', b('Show'), ' next to a Data-health check on Summary clears any active status chips or date range first, so the flagged rows it found are never hidden behind a filter left over from before.'],
       ),
     ),
     topic(
@@ -404,10 +427,6 @@ function howTo(): Child[] {
         ['Your device saves a file named like ICG-Fundraiser-2026-09-24.xlsx, with Pledges, Payments and Summary sheets.'],
       ),
       p('The file is a snapshot of that moment. Changes made afterwards are not in it.'),
-    ),
-    topic(
-      'Search and sort',
-      steps(['Type in the search box on Pledges or Payments. The list narrows as you type.'], ['Tap a column heading to sort by it; tap again to reverse.'], ['Clear the search box to see everything again.']),
     ),
     topic(
       'See only the problem rows',
