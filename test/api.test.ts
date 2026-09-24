@@ -17,14 +17,17 @@ describe('createApi', () => {
     expect(JSON.parse(String(init.body))).toEqual({ idToken: 'tok', op: 'load', payload: {} });
   });
 
-  it('sends id and version when editing, and neither when adding', async () => {
+  it('sends id and version when editing, and only the client-chosen id when adding', async () => {
     const fetchImpl = vi.fn(async () => json({ ok: true, data: {} }));
     const api = createApi(URL, async () => 'tok', fetchImpl);
-    await api.savePledge(draft);
+    await api.savePledge(draft, { id: 'new-id' });
     await api.savePledge(draft, { id: 'p1', updatedAt: 'v1' });
+    await api.savePayment({ phone: '1', dateReceived: '', amountReceived: 5, method: '', notes: '' }, { id: 'new-pay' });
     const bodies = fetchImpl.mock.calls.map((call) => JSON.parse(String((call as unknown as [string, RequestInit])[1].body)));
-    expect(bodies[0].payload).toEqual(draft);
+    expect(bodies[0].payload).toEqual({ ...draft, id: 'new-id' });
+    expect(bodies[0].payload).not.toHaveProperty('updatedAt');
     expect(bodies[1].payload).toEqual({ ...draft, id: 'p1', updatedAt: 'v1' });
+    expect(bodies[2].payload).toEqual({ phone: '1', dateReceived: '', amountReceived: 5, method: '', notes: '', id: 'new-pay' });
   });
 
   it('turns an error body into an ApiError with its details', async () => {

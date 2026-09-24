@@ -21,13 +21,23 @@ describe('demo api', () => {
 
   it('round-trips a save and stamps the demo user', async () => {
     const api = createDemoApi(0);
-    const saved = await api.savePayment({ phone: '555-0103', dateReceived: '2026-09-20', amountReceived: 50, method: 'Cash', notes: '' });
+    const saved = await api.savePayment({ phone: '555-0103', dateReceived: '2026-09-20', amountReceived: 50, method: 'Cash', notes: '' }, { id: 'demo-new-1' });
     expect(saved.updatedBy).toBe('demo@example.com');
+    expect(saved.id).toBe('demo-new-1');
     const edited = await api.savePayment({ ...saved, amountReceived: 75 }, saved);
     expect(edited.id).toBe(saved.id);
     expect(edited.updatedAt).not.toBe(saved.updatedAt);
     const reloaded = await api.load();
     expect(reloaded.payments.find((row) => row.id === saved.id)?.amountReceived).toBe(75);
+  });
+
+  it('answers a repeated create with the row it already made', async () => {
+    const api = createDemoApi(0);
+    const draft = { phone: '555-0103', dateReceived: '2026-09-20', amountReceived: 50, method: 'Cash', notes: '' };
+    const first = await api.savePayment(draft, { id: 'demo-new-2' });
+    const retry = await api.savePayment({ ...draft, amountReceived: 99 }, { id: 'demo-new-2' });
+    expect(retry).toEqual(first);
+    expect((await api.load()).payments.filter((row) => row.id === 'demo-new-2')).toHaveLength(1);
   });
 
   it('rejects a write based on a stale version', async () => {

@@ -18,8 +18,8 @@ const aisha = pledge({ id: 'p1', phone: '1', name: 'Aisha', amountPledged: 100 }
 function fakeApi(overrides: Partial<Api> = {}): Api {
   return {
     load: async () => ({ pledges: [aisha], payments: [payment({ id: 'y1', phone: '1', amountReceived: 40 })], settings: SETTINGS, me: 'me@example.com' }),
-    savePledge: async (draft, existing) => ({ ...aisha, ...draft, id: existing?.id ?? 'server-id', updatedAt: 'v2' }),
-    savePayment: async (draft) => ({ ...payment(), ...draft, id: 'server-pay' }),
+    savePledge: async (draft, row) => ({ ...aisha, ...draft, id: row.id, updatedAt: 'v2' }),
+    savePayment: async (draft, row) => ({ ...payment(), ...draft, id: row.id }),
     deletePledge: async () => undefined,
     deletePayment: async () => undefined,
     setGoal: async (goal) => ({ ...SETTINGS, goal }),
@@ -66,12 +66,38 @@ describe('store', () => {
     const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);
     await store.load();
     const saving = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' });
-    const provisional = store.state()?.pledges.at(-1);
-    expect(provisional?.name).toBe('Bilal');
-    expect(provisional && isPending(provisional)).toBe(true);
-    pending.resolve({ ...aisha, id: 'server-id', phone: '2', name: 'Bilal', updatedAt: 'v1' });
+    const provisional = store.state()?.pledges.at(-1) as Pledge;
+    expect(provisional.name).toBe('Bilal');
+    expect(provisional.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(isPending(provisional)).toBe(true);
+    pending.resolve({ ...aisha, id: provisional.id, phone: '2', name: 'Bilal', updatedAt: 'v1' });
     await saving;
-    expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', 'server-id']);
+    const saved = store.state()?.pledges.at(-1) as Pledge;
+    expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', provisional.id]);
+    expect(isPending(saved)).toBe(false);
+  });
+
+  it('creates under the id it was given and sends no version, so a retry reuses the row', async () => {
+    const savePledge = vi.fn<Api['savePledge']>(async () => { throw new ApiError('NETWORK', 'offline'); });
+    const store = createStore(fakeApi({ savePledge }), () => TODAY);
+    await store.load();
+    const draft = { ...draftOf(aisha), phone: '2', name: 'Bilal' };
+    await expect(store.savePledge(draft, undefined, '11111111-2222-4333-8444-555555555555')).rejects.toMatchObject({ code: 'NETWORK' });
+    savePledge.mockImplementationOnce(async (d, row) => ({ ...aisha, ...d, id: row.id, updatedAt: 'v1' }));
+    await store.savePledge(draft, undefined, '11111111-2222-4333-8444-555555555555');
+    expect(savePledge.mock.calls.map((call) => call[1])).toEqual([{ id: '11111111-2222-4333-8444-555555555555' }, { id: '11111111-2222-4333-8444-555555555555' }]);
+    expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', '11111111-2222-4333-8444-555555555555']);
+    expect(store.state()?.pledges.some(isPending)).toBe(false);
+  });
+
+  it('never marks an edited row as pending', async () => {
+    const pending = deferred<Pledge>();
+    const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);
+    await store.load();
+    const saving = store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha);
+    expect(isPending(store.state()?.pledges[0] as Pledge)).toBe(false);
+    pending.resolve({ ...aisha, name: 'Changed', updatedAt: 'v2' });
+    await saving;
   });
 
   it('rolls an edit back and rethrows when the server refuses it', async () => {

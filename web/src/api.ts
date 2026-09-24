@@ -28,10 +28,13 @@ export interface Versioned {
   updatedAt: string;
 }
 
+/** A new row carries only the id the client chose; an existing row also carries the version it was read at. */
+export type RowRef = { id: string; updatedAt?: undefined } | Versioned;
+
 export interface Api {
   load(): Promise<LoadResult>;
-  savePledge(draft: PledgeDraft, existing?: Versioned): Promise<Pledge>;
-  savePayment(draft: PaymentDraft, existing?: Versioned): Promise<Payment>;
+  savePledge(draft: PledgeDraft, row: RowRef): Promise<Pledge>;
+  savePayment(draft: PaymentDraft, row: RowRef): Promise<Payment>;
   deletePledge(row: Versioned): Promise<void>;
   deletePayment(row: Versioned): Promise<void>;
   setGoal(goal: number): Promise<Settings>;
@@ -79,12 +82,13 @@ export function createApi(scriptUrl: string, getToken: TokenSource, fetchImpl: t
     }
   }
 
-  const withVersion = <D extends object>(draft: D, existing?: Versioned) => (existing ? { ...draft, id: existing.id, updatedAt: existing.updatedAt } : draft);
+  // The server treats a payload without updatedAt as a create, so it must be absent, not undefined-valued.
+  const withRow = <D extends object>(draft: D, row: RowRef) => (row.updatedAt === undefined ? { ...draft, id: row.id } : { ...draft, id: row.id, updatedAt: row.updatedAt });
 
   return {
     load: () => call<LoadResult>('load', {}),
-    savePledge: (draft, existing) => call<Pledge>('upsertPledge', withVersion(draft, existing)),
-    savePayment: (draft, existing) => call<Payment>('upsertPayment', withVersion(draft, existing)),
+    savePledge: (draft, row) => call<Pledge>('upsertPledge', withRow(draft, row)),
+    savePayment: (draft, row) => call<Payment>('upsertPayment', withRow(draft, row)),
     deletePledge: async (row) => {
       await call<unknown>('deletePledge', { id: row.id, updatedAt: row.updatedAt });
     },

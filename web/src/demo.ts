@@ -1,4 +1,4 @@
-import { ApiError, type Api, type LoadResult, type Versioned } from './api';
+import { ApiError, type Api, type LoadResult, type RowRef, type Versioned } from './api';
 import { todayIso } from './dates';
 import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
 
@@ -95,7 +95,6 @@ export function createDemoApi(latencyMs: number = DEFAULT_LATENCY_MS): Api {
   let payments = seedPayments();
   let settings: Settings = { goal: 25000, paymentMethods: METHODS };
   let lastStamp = 0;
-  let nextId = 0;
 
   const delay = () => new Promise<void>((resolve) => setTimeout(resolve, latencyMs));
   // The store's conflict check compares updatedAt by equality, so two saves in the same millisecond must still differ.
@@ -111,34 +110,34 @@ export function createDemoApi(latencyMs: number = DEFAULT_LATENCY_MS): Api {
     return found;
   }
 
-  function upsert<T extends Pledge | Payment>(rows: readonly T[], record: T, existing?: Versioned): T[] {
-    if (!existing) return [...rows, record];
-    assertUnchanged(rows, existing);
-    return rows.map((row) => (row.id === existing.id ? record : row));
+  // Mirrors Code.gs upsert_: no version means a create, and a create repeated under the same id returns the first copy.
+  function upsert<T extends Pledge | Payment>(rows: readonly T[], draft: Omit<T, keyof Versioned | 'updatedBy'>, row: RowRef): { rows: T[]; saved: T } {
+    const record = { ...draft, id: row.id, updatedAt: stamp(), updatedBy: DEMO_USER } as T;
+    if (row.updatedAt === undefined) {
+      const already = rows.find((candidate) => candidate.id === row.id);
+      if (already) return { rows: [...rows], saved: already };
+      return { rows: [...rows, record], saved: record };
+    }
+    assertUnchanged(rows, row);
+    return { rows: rows.map((candidate) => (candidate.id === row.id ? record : candidate)), saved: record };
   }
-
-  const versionOf = (existing: Versioned | undefined, prefix: string) => ({
-    id: existing?.id ?? `demo-${prefix}-new-${++nextId}`,
-    updatedAt: stamp(),
-    updatedBy: DEMO_USER,
-  });
 
   return {
     async load(): Promise<LoadResult> {
       await delay();
       return { pledges: pledges.map((row) => ({ ...row })), payments: payments.map((row) => ({ ...row })), settings: { ...settings, paymentMethods: [...settings.paymentMethods] }, me: DEMO_USER };
     },
-    async savePledge(draft: PledgeDraft, existing?: Versioned): Promise<Pledge> {
+    async savePledge(draft: PledgeDraft, row: RowRef): Promise<Pledge> {
       await delay();
-      const record: Pledge = { ...draft, ...versionOf(existing, 'pledge') };
-      pledges = upsert(pledges, record, existing);
-      return { ...record };
+      const result = upsert<Pledge>(pledges, draft, row);
+      pledges = result.rows;
+      return { ...result.saved };
     },
-    async savePayment(draft: PaymentDraft, existing?: Versioned): Promise<Payment> {
+    async savePayment(draft: PaymentDraft, row: RowRef): Promise<Payment> {
       await delay();
-      const record: Payment = { ...draft, ...versionOf(existing, 'payment') };
-      payments = upsert(payments, record, existing);
-      return { ...record };
+      const result = upsert<Payment>(payments, draft, row);
+      payments = result.rows;
+      return { ...result.saved };
     },
     async deletePledge(row: Versioned): Promise<void> {
       await delay();

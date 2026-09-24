@@ -26,15 +26,18 @@ export function createPaymentsView(deps: ListViewDeps) {
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
-    const openEditor = (existing?: Payment) =>
+    const openEditor = (existing?: Payment) => {
+      // One id per opened form: a Save retried after a lost response must name the same row.
+      const newId = existing ? undefined : crypto.randomUUID();
       openPaymentForm({
         existing,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
-        onSave: (draft) => deps.store.savePayment(draft, existing),
+        onSave: (draft) => deps.store.savePayment(draft, existing, newId),
         onDelete: existing ? () => deps.store.deletePayment(existing) : undefined,
         reportError: deps.reportError,
       });
+    };
     const tableSlot = h('div');
     const drawTable = () => {
       const rows = state.computed.payments.filter(

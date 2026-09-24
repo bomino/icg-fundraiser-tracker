@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OWNER, createServer } from '../support/appsScript';
 import { METHODS, VALIDATION_CASES } from '../support/validationCases';
@@ -6,6 +7,8 @@ let server: ReturnType<typeof createServer>;
 let token: string;
 const pledgeDraft = { phone: '555-010-0101', name: 'Aisha Rahman', datePledged: '2025-01-10', amountPledged: 500, notes: '' };
 const paymentDraft = { phone: '555-010-0101', dateReceived: '2025-01-15', amountReceived: 200, method: 'Cash', notes: '' };
+// The client names new rows itself so a retried create cannot add a second copy.
+const newRow = <T extends object>(draft: T) => ({ ...draft, id: randomUUID() });
 
 beforeEach(() => {
   server = createServer();
@@ -111,33 +114,53 @@ describe('load', () => {
 });
 
 describe('writes', () => {
-  it('inserts a row with a server id and stamp', () => {
-    const saved = server.post('upsertPledge', pledgeDraft, token).data;
-    expect(saved).toMatchObject({ ...pledgeDraft, updatedBy: OWNER });
-    expect(saved.id).toMatch(/^[0-9a-f-]{36}$/);
+  it('inserts a row under the id the client chose, with a server stamp', () => {
+    const draft = newRow(pledgeDraft);
+    const saved = server.post('upsertPledge', draft, token).data;
+    expect(saved).toMatchObject({ ...draft, updatedBy: OWNER });
+    expect(typeof saved.updatedAt).toBe('string');
     expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
   });
 
+  it('treats a repeated create with the same id as the same row', () => {
+    const draft = newRow(paymentDraft);
+    const first = server.post('upsertPayment', draft, token).data;
+    const retry = server.post('upsertPayment', { ...draft, amountReceived: 999 }, token);
+    expect(retry).toEqual({ ok: true, data: first });
+    expect(server.post('load', {}, token).data.payments).toEqual([first]);
+  });
+
+  it.each([
+    ['no id', undefined],
+    ['a blank id', ''],
+    ['a non-UUID id', 'row-1'],
+    ['a numeric id', 12345],
+  ])('refuses a create with %s', (_label, id) => {
+    const response = server.post('upsertPledge', { ...pledgeDraft, id }, token);
+    expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: 'id' });
+    expect(server.post('load', {}, token).data.pledges).toEqual([]);
+  });
+
   it.each(['+15550100101', '0551234', '=HYPERLINK("x")', '-5', '@me'])('stores the phone %s as literal text', (phone) => {
-    const saved = server.post('upsertPledge', { ...pledgeDraft, phone }, token).data;
+    const saved = server.post('upsertPledge', newRow({ ...pledgeDraft, phone }), token).data;
     expect(server.sheet('Pledges').raw[1][1]).toBe(`'${phone}`);
     expect(server.post('load', {}, token).data.pledges[0].phone).toBe(saved.phone);
     expect(saved.phone).toBe(phone);
   });
 
   it('rounds float dust to cents before storing', () => {
-    expect(server.post('upsertPayment', { ...paymentDraft, amountReceived: 0.1 + 0.2 }, token).data.amountReceived).toBe(0.3);
+    expect(server.post('upsertPayment', newRow({ ...paymentDraft, amountReceived: 0.1 + 0.2 }), token).data.amountReceived).toBe(0.3);
   });
 
   it('updates when the caller saw the latest version', () => {
-    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
     const updated = server.post('upsertPledge', { ...pledgeDraft, name: 'Aisha R.', id: saved.id, updatedAt: saved.updatedAt }, token);
     expect(updated.data).toMatchObject({ id: saved.id, name: 'Aisha R.' });
     expect(server.post('load', {}, token).data.pledges).toHaveLength(1);
   });
 
   it('refuses a stale update and returns the current row', () => {
-    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
     const response = server.post('upsertPledge', { ...pledgeDraft, id: saved.id, updatedAt: 'stale' }, token);
     expect(response.error).toMatchObject({ code: 'CONFLICT', current: saved });
   });
@@ -148,19 +171,19 @@ describe('writes', () => {
   });
 
   it('deletes with the same version check', () => {
-    const saved = server.post('upsertPayment', paymentDraft, token).data;
+    const saved = server.post('upsertPayment', newRow(paymentDraft), token).data;
     expect(server.post('deletePayment', { id: saved.id, updatedAt: 'stale' }, token).error?.code).toBe('CONFLICT');
     expect(server.post('deletePayment', { id: saved.id, updatedAt: saved.updatedAt }, token)).toEqual({ ok: true, data: { id: saved.id } });
     expect(server.post('load', {}, token).data.payments).toEqual([]);
   });
 
   it('rejects non-numeric amounts sent over the wire', () => {
-    expect(server.post('upsertPledge', { ...pledgeDraft, amountPledged: '12' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'amountPledged' });
+    expect(server.post('upsertPledge', newRow({ ...pledgeDraft, amountPledged: '12' }), token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'amountPledged' });
   });
 
   it('answers BUSY instead of waiting forever for the lock', () => {
     server.state.lockAvailable = false;
-    expect(server.post('upsertPledge', pledgeDraft, token).error?.code).toBe('BUSY');
+    expect(server.post('upsertPledge', newRow(pledgeDraft), token).error?.code).toBe('BUSY');
   });
 
   it('rejects unknown operations', () => {
@@ -168,14 +191,14 @@ describe('writes', () => {
   });
 
   it('rejects a delete with a blank id before touching the sheet', () => {
-    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
     const response = server.post('deletePledge', { id: '', updatedAt: '' }, token);
     expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: 'id' });
     expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
   });
 
   it('rejects an update with a non-string id before touching the sheet', () => {
-    const saved = server.post('upsertPledge', pledgeDraft, token).data;
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
     const response = server.post('upsertPledge', { ...pledgeDraft, id: 12345, updatedAt: saved.updatedAt }, token);
     expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: 'id' });
     expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
@@ -205,7 +228,7 @@ describe('settings', () => {
 describe('server validation matches the client', () => {
   for (const testCase of VALIDATION_CASES) {
     it(`${testCase.tab}: ${testCase.name}`, () => {
-      const response = server.post(testCase.tab === 'Pledges' ? 'upsertPledge' : 'upsertPayment', testCase.draft, token);
+      const response = server.post(testCase.tab === 'Pledges' ? 'upsertPledge' : 'upsertPayment', newRow(testCase.draft), token);
       if (testCase.invalidField === null) expect(response.ok).toBe(true);
       else expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: testCase.invalidField });
     });

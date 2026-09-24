@@ -20,6 +20,7 @@ const WARNING_MARK = '⚠';
 const TOKEN_CACHE_SECONDS = 300;
 const LOCK_WAIT_MS = 10000;
 const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class ApiError extends Error {
   constructor(code, message, extra) {
@@ -257,8 +258,13 @@ function upsert_(tab, payload, email) {
   record.updatedAt = new Date().toISOString();
   record.updatedBy = email;
   const sheet = sheet_(tab);
-  if (payload.id === undefined || payload.id === null) {
-    record.id = Utilities.getUuid();
+  // No version means a create. The client names the row, so a create retried after a lost
+  // response finds its own row instead of appending a duplicate.
+  if (payload.updatedAt === undefined || payload.updatedAt === null) {
+    if (typeof payload.id !== 'string' || !UUID_PATTERN.test(payload.id)) throw invalid_('id', 'Missing or malformed row id.');
+    const existing = findRow_(sheet, tab, payload.id);
+    if (existing) return existing.record;
+    record.id = payload.id;
     sheet.appendRow(toSheetRow_(tab, record));
     return record;
   }

@@ -34,14 +34,17 @@ export function createPledgesView(deps: ListViewDeps) {
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
-    const openEditor = (existing?: Pledge) =>
+    const openEditor = (existing?: Pledge) => {
+      // One id per opened form: a Save retried after a lost response must name the same row.
+      const newId = existing ? undefined : crypto.randomUUID();
       openPledgeForm({
         existing,
         pledges: state.pledges,
-        onSave: (draft) => deps.store.savePledge(draft, existing),
+        onSave: (draft) => deps.store.savePledge(draft, existing, newId),
         onDelete: existing ? () => deps.store.deletePledge(existing) : undefined,
         reportError: deps.reportError,
       });
+    };
     const tableSlot = h('div');
     const drawTable = () => {
       const rows = state.computed.pledges.filter(

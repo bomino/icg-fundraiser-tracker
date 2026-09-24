@@ -20,17 +20,20 @@ export interface Store {
   load(): Promise<void>;
   /** Epoch ms of the last successful load, or null before the first one. */
   lastLoadedAt(): number | null;
-  savePledge(draft: PledgeDraft, existing?: Pledge): Promise<void>;
-  savePayment(draft: PaymentDraft, existing?: Payment): Promise<void>;
+  /** newId names a created row; pass the same one when retrying so the server can spot the repeat. */
+  savePledge(draft: PledgeDraft, existing?: Pledge, newId?: string): Promise<void>;
+  savePayment(draft: PaymentDraft, existing?: Payment, newId?: string): Promise<void>;
   deletePledge(row: Pledge): Promise<void>;
   deletePayment(row: Payment): Promise<void>;
   setGoal(goal: number): Promise<void>;
 }
 
-const PENDING_PREFIX = 'pending-';
+// Ids of created rows the server has not confirmed yet. Module-level because the views ask
+// about a row without a handle on the store; UUIDs cannot collide across stores.
+const pendingIds = new Set<string>();
 
 export function isPending(row: { id: string }): boolean {
-  return row.id.startsWith(PENDING_PREFIX);
+  return pendingIds.has(row.id);
 }
 
 interface Collection<T extends Row> {
@@ -45,7 +48,6 @@ const paymentRows: Collection<Payment> = { get: (s) => s.payments, with: (s, row
 export function createStore(api: Api, today: () => string): Store {
   let current: State | null = null;
   let loadedAt: number | null = null;
-  let pendingCount = 0;
   const listeners = new Set<Listener>();
 
   function publish(next: Base) {
@@ -61,9 +63,11 @@ export function createStore(api: Api, today: () => string): Store {
 
   async function save<T extends Row>(collection: Collection<T>, provisional: T, existing: T | undefined, send: () => Promise<T>) {
     const rows = collection.get(loaded());
+    if (!existing) pendingIds.add(provisional.id);
     publish(collection.with(loaded(), existing ? rows.map((r) => (r.id === existing.id ? provisional : r)) : [...rows, provisional]));
     try {
       const saved = await send();
+      if (!existing) pendingIds.delete(provisional.id);
       // Only swap in saved if the current row is still the exact provisional object (reference equality)
       const current = collection.get(loaded());
       const row = current.find((r) => r.id === provisional.id);
@@ -71,6 +75,7 @@ export function createStore(api: Api, today: () => string): Store {
         publish(collection.with(loaded(), current.map((r) => (r.id === provisional.id ? saved : r))));
       }
     } catch (err) {
+      if (!existing) pendingIds.delete(provisional.id);
       const now = collection.get(loaded());
       const row = now.find((r) => r.id === provisional.id);
       // Only rollback if the row is still the exact provisional object (reference equality)
@@ -101,8 +106,8 @@ export function createStore(api: Api, today: () => string): Store {
     }
   }
 
-  const provisionalFields = (existing: Row | undefined) => ({
-    id: existing?.id ?? `${PENDING_PREFIX}${++pendingCount}`,
+  const provisionalFields = (existing: Row | undefined, newId: string) => ({
+    id: existing?.id ?? newId,
     updatedAt: existing?.updatedAt ?? '',
     updatedBy: existing?.updatedBy ?? loaded().me,
   });
@@ -119,8 +124,10 @@ export function createStore(api: Api, today: () => string): Store {
       loadedAt = Date.now();
       publish({ pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me });
     },
-    savePledge: (draft, existing) => save(pledgeRows, { ...provisionalFields(existing), ...draft }, existing, () => api.savePledge(draft, existing)),
-    savePayment: (draft, existing) => save(paymentRows, { ...provisionalFields(existing), ...draft }, existing, () => api.savePayment(draft, existing)),
+    savePledge: (draft, existing, newId = crypto.randomUUID()) =>
+      save(pledgeRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePledge(draft, existing ?? { id: newId })),
+    savePayment: (draft, existing, newId = crypto.randomUUID()) =>
+      save(paymentRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePayment(draft, existing ?? { id: newId })),
     deletePledge: (row) => remove(pledgeRows, row, () => api.deletePledge(row)),
     deletePayment: (row) => remove(paymentRows, row, () => api.deletePayment(row)),
     async setGoal(goal) {
