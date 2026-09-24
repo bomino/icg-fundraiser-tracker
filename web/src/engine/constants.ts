@@ -14,3 +14,18 @@ export const STATUSES: readonly Status[] = [STATUS.paid, STATUS.partial, STATUS.
 export const WARNING_MARK = '⚠';
 export const WARN_NOT_IN_PLEDGES = '⚠ phone not in Pledges';
 export const WARN_NO_AMOUNT = '⚠ no amount on Pledges';
+
+export type HealthId = 'notMatched' | 'duplicates' | 'pledgeNoPhone' | 'paymentIncomplete' | 'futureDated' | 'predatesPledge';
+
+// Labels are the workbook's Summary A21:A26 text, verbatim.
+export const HEALTH_LABELS: Record<HealthId, string> = {
+  notMatched: 'Payments not matched to a pledge',
+  duplicates: 'Donors listed more than once',
+  pledgeNoPhone: 'Pledges missing a phone number',
+  paymentIncomplete: 'Payments missing a date or amount',
+  futureDated: 'Payments dated in the future',
+  predatesPledge: 'Donors whose payments predate their pledge',
+};
+
+export const NO_METHOD_LABEL = 'No method recorded';
+export const UNLISTED_METHOD_LABEL = 'Other / unlisted';
