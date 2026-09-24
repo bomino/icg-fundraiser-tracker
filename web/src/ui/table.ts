@@ -101,10 +101,43 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
       return tr;
     }),
   );
-  const table = h('div', { class: 'table-wrap' }, h('table', { class: 'data-table' }, h('thead', {}, head), body));
+  // Focusable but out of tab order: a fallback landing spot if "Show more" can't find the row it revealed.
+  const table = h('div', { class: 'table-wrap', tabindex: -1 }, h('table', { class: 'data-table' }, h('thead', {}, head), body));
   const remaining = options.rows.length - visibleRows.length;
   if (remaining <= 0 || !options.onShowMore) return table;
   const showMore = h('button', { type: 'button', class: 'btn btn-ghost show-more' }, `Show more (${remaining} left)`);
-  showMore.addEventListener('click', () => options.onShowMore?.());
+  showMore.addEventListener('click', () => {
+    // The first row this click reveals, so focus can follow it once onShowMore's redraw lands -
+    // otherwise a keyboard/screen-reader user loses their place every time they page further in.
+    const revealedRow = options.rows[visibleCount];
+    const revealedRowId = revealedRow ? options.rowId(revealedRow) : undefined;
+    options.onShowMore?.();
+    focusAfterShowMore(revealedRowId);
+  });
   return h('div', { class: 'table-pager' }, table, showMore);
+}
+
+/** Escapes an id for use in a CSS attribute selector; ids here are UUIDs, so this never actually needs to escape anything, but a stray id character should not throw. */
+function escapeForSelector(id: string): string {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
+}
+
+/**
+ * Called synchronously right after onShowMore(), which - via the calling view's drawTable() -
+ * has already replaced the table currently in the DOM with a new one. Moves focus to the open
+ * button of the first newly revealed row (found by id, since the old DOM subtree is gone), or a
+ * fallback if that row can't be found: the new "Show more" button, then the table itself.
+ */
+function focusAfterShowMore(revealedRowId: string | undefined): void {
+  const nextButton = revealedRowId !== undefined ? document.querySelector<HTMLButtonElement>(`tr[data-id="${escapeForSelector(revealedRowId)}"] .row-open`) : null;
+  if (nextButton) {
+    nextButton.focus();
+    return;
+  }
+  const fallbackShowMore = document.querySelector<HTMLButtonElement>('.table-pager .show-more');
+  if (fallbackShowMore) {
+    fallbackShowMore.focus();
+    return;
+  }
+  document.querySelector<HTMLElement>('.table-wrap')?.focus();
 }

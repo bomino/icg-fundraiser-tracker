@@ -63,8 +63,10 @@ function stopDevServer(child: ChildProcess): void {
   if (!child.pid) return;
   try {
     execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  } catch {
-    // Already exited; nothing to do.
+  } catch (err) {
+    // Most likely already exited on its own, but this is the one place this script stops a
+    // process it started - a silently swallowed failure here could leave it running unnoticed.
+    console.warn(`Could not stop the dev server (PID ${child.pid}); stop it manually.`, err);
   }
 }
 

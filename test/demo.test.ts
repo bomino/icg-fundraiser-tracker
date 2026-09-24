@@ -66,8 +66,10 @@ describe('demo api', () => {
 
   it('the big seed leaves the normal demo seed unchanged', async () => {
     const data = await createDemoApi(0).load();
-    expect(data.pledges.length).toBeGreaterThanOrEqual(12);
-    expect(data.pledges.length).toBeLessThan(20);
-    expect(data.payments.length).toBeLessThan(30);
+    // The small seed's exact, hand-authored counts (also asserted as 27 payments in
+    // e2e/payments-date-range.spec.ts) - not just "still small", so a future edit to either seed
+    // that accidentally cross-contaminates the other is caught here, not just bounded loosely.
+    expect(data.pledges).toHaveLength(16);
+    expect(data.payments).toHaveLength(27);
   });
 });

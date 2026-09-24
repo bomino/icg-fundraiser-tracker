@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column } from '../../web/src/ui/table';
 import { matchesQuery } from '../../web/src/ui/search';
+
+afterEach(() => document.body.replaceChildren());
 
 interface Row { id: string; name: string; amount: number | null }
 const columns: Column<Row>[] = [
@@ -115,6 +117,49 @@ describe('table', () => {
       const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE });
       expect(wrap.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
       expect(wrap.querySelector('.show-more')).toBeNull();
+    });
+
+    it('moves focus to the newly revealed row\'s open button, so a keyboard/screen-reader user keeps their place', () => {
+      let visibleCount = TABLE_PAGE_SIZE;
+      const draw = () => {
+        document.body.replaceChildren(
+          renderTable({
+            columns,
+            rows: many,
+            sort: null,
+            rowId: (r) => r.id,
+            onSort: () => undefined,
+            onOpen: vi.fn(),
+            empty: 'none',
+            visibleCount,
+            onShowMore: () => {
+              visibleCount += TABLE_PAGE_SIZE;
+              draw();
+            },
+          }),
+        );
+      };
+      draw();
+      const showMore = document.querySelector('.show-more') as HTMLButtonElement;
+      showMore.focus();
+      // Space/Enter on a focused <button> fires a click, same as this - "keyboard-style activation".
+      showMore.click();
+      const row101Button = document.querySelector('tr[data-id="p100"] .row-open');
+      expect(row101Button).not.toBeNull();
+      expect(document.activeElement).toBe(row101Button);
+    });
+
+    it('falls back to the (still present) "Show more" button when the click did not actually reveal a new row', () => {
+      // A pathological onShowMore that redraws without growing visibleCount - row 101 never appears.
+      const rerenderWithoutGrowing = () => {
+        document.body.replaceChildren(
+          renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: rerenderWithoutGrowing }),
+        );
+      };
+      rerenderWithoutGrowing();
+      (document.querySelector('.show-more') as HTMLButtonElement).click();
+      expect(document.querySelector('tr[data-id="p100"]')).toBeNull();
+      expect(document.activeElement).toBe(document.querySelector('.show-more'));
     });
   });
 });

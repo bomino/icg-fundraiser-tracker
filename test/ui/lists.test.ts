@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
 import type { PaymentDraft } from '../../web/src/types';
+import type { ListFilter } from '../../web/src/ui/filter';
 import { openPaymentForm } from '../../web/src/ui/paymentForm';
 import { openPledgeForm } from '../../web/src/ui/pledgeForm';
 import { createPaymentsView } from '../../web/src/ui/paymentsView';
@@ -232,6 +233,26 @@ describe('pledges view: paging at event scale', () => {
     // "Donor 1", "Donor 10"-"Donor 19", "Donor 100"-"Donor 199" all match - more than one page's worth - so the reset is visible as a "Show more" button again, not the full match set.
     expect(ids(view).length).toBe(TABLE_PAGE_SIZE);
     expect(view.querySelector('.show-more')).not.toBeNull();
+  });
+
+  it('arriving with a drill-down (Data-health) filter resets to page 1; a flagged row beyond it is reachable via Show more', () => {
+    // The filter matches the first 120 of the 240 rows - more than one page - so a flagged row
+    // past index 100 (big105) needs its own "Show more" click within the filtered set to reach.
+    const filterIds = new Set(manyPledges.slice(0, 120).map((p) => p.id));
+    const filter: ListFilter = { label: 'Flagged for review', ids: filterIds };
+    const view = createPledgesView({ store, reportError: vi.fn() });
+
+    const unfiltered = view(manyState, null, () => undefined);
+    document.body.append(unfiltered);
+    showMore(unfiltered).click(); // visibleCount now 200, well past where the filter's 120 rows would fit on one page
+
+    document.body.replaceChildren(view(manyState, filter, () => undefined));
+    expect(ids(document.body)).toHaveLength(TABLE_PAGE_SIZE);
+    expect(document.querySelector('tr[data-id="big105"]')).toBeNull();
+    expect(showMore(document.body).textContent).toBe(`Show more (${120 - TABLE_PAGE_SIZE} left)`);
+
+    showMore(document.body).click();
+    expect(document.querySelector('tr[data-id="big105"]')).not.toBeNull();
   });
 });
 
