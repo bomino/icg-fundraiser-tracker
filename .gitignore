@@ -7,3 +7,4 @@ coverage/
 *.docx
 ~$*
 .claude/settings.local.json
+.clasp.json
