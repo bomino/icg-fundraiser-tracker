@@ -21,15 +21,31 @@ export function formatPercent(fraction: number): string {
   return percent.format(fraction);
 }
 
+// Floored, not rounded, and worked in integer cents: rounding could show 100% before the goal is
+// actually met, and flooring `receivedCents / goalCents * 1000` directly (rather than flooring the
+// fraction itself) avoids dropping a tenth of a percent to float error. Shared by every reading of
+// "share of goal" - the Summary card, the Friday display and the .xlsx export - so they can never
+// disagree with each other or with formatWholeDollars' same never-claim-more-than-came-in rule.
+export function flooredGoalFraction(receivedCents: number, goalCents: number): number {
+  return goalCents > 0 ? Math.floor((receivedCents * 1000) / goalCents) / 1000 : 0;
+}
+
+export function formatFlooredPercent(receivedCents: number, goalCents: number): string {
+  return formatPercent(flooredGoalFraction(receivedCents, goalCents));
+}
+
 export function formatDate(iso: string): string {
   if (iso === '') return '';
   const [year, month, day] = iso.split('-').map(Number);
   return dateFormat.format(Date.UTC(year, month - 1, day));
 }
 
+// Plain unsigned decimals only: bars scientific notation, hex/octal/binary literals, "Infinity"
+// and "NaN" - every non-obvious string `Number()` would otherwise accept as a dollar amount.
+const AMOUNT_SHAPE = /^\d+(\.\d+)?$|^\.\d+$/;
+
 export function parseAmount(text: string): number | null | 'invalid' {
   const cleaned = text.trim().replace(/[$,]/g, '');
   if (cleaned === '') return null;
-  const amount = Number(cleaned);
-  return Number.isFinite(amount) ? amount : 'invalid';
+  return AMOUNT_SHAPE.test(cleaned) ? Number(cleaned) : 'invalid';
 }
