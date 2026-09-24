@@ -88,18 +88,22 @@ textarea.input { resize: vertical; }
 .data-table th button { all: unset; cursor: pointer; font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); }
 .data-table th[aria-sort] button { color: var(--color-ink); }
 .data-table th.num { text-align: right; white-space: normal; }
-/* `all: unset` above (and on .match, in Lookup) strips the global :focus-visible outline; restore it explicitly. */
-.data-table th button:focus-visible, .match:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+/* `all: unset` above (and on .match, in Lookup, and .row-open below) strips the global :focus-visible outline; restore it explicitly. */
+.data-table th button:focus-visible, .match:focus-visible, .row-open:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
 /* Table cells ignore min-height; height on a cell acts as its minimum. Phones and dates must not break mid-value. */
 .data-table td { height: 48px; white-space: nowrap; padding: var(--space-sm) 12px; border-bottom: 1px solid var(--color-rule); vertical-align: middle; }
 .data-table tbody tr { cursor: pointer; transition: background-color 150ms ease, opacity 150ms ease; }
 .data-table tbody tr:hover { background: var(--color-surface-soft); }
 .data-table tbody tr:last-child td { border-bottom: 0; }
+/* The first cell's open button reads as the cell's own text, not as a button. */
+.row-open { all: unset; cursor: pointer; }
 /* Cells sit on fractional x positions, so each tinted cell is snapped separately and hairline seams show between them;
    the 1px shadow bleeds each cell's tint over the next seam. */
 .row-danger > td, .row-danger:hover > td { background: var(--color-danger-tint); box-shadow: 1px 0 0 var(--color-danger-tint); }
 .data-table td.cell-wrap { white-space: normal; min-width: 10rem; }
 .row-pending { opacity: 0.6; cursor: progress !important; }
+/* .row-open sets its own cursor, which would otherwise win over the row's !important progress cursor. */
+.row-pending .row-open { cursor: progress; }
 .cell-warning { background: var(--color-warning-tint); color: var(--color-ink); box-shadow: inset 3px 0 0 var(--color-warning); }
 .totals-band { font-size: 0.8125rem; color: var(--color-ink-soft); }
 

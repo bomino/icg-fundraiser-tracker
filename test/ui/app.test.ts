@@ -37,6 +37,27 @@ function setVisibility(state: 'visible' | 'hidden') {
   document.dispatchEvent(new Event('visibilitychange'));
 }
 
+// mountApp attaches its window/document listeners for the page's lifetime, which in real use is
+// the whole session; a test only gets one mountApp's worth of page, so it must undo the attaching
+// itself or the next test's dispatch (e.g. setVisibility) also runs every earlier test's handlers.
+function trackListeners(target: EventTarget): () => void {
+  const original = target.addEventListener.bind(target);
+  const added: Array<{ type: string; listener: EventListenerOrEventListenerObject | null; options?: boolean | AddEventListenerOptions }> = [];
+  const spy = vi.spyOn(target, 'addEventListener').mockImplementation((type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) => {
+    added.push({ type, listener, options });
+    original(type, listener, options);
+  });
+  return () => {
+    spy.mockRestore();
+    for (const { type, listener, options } of added) target.removeEventListener(type, listener, options);
+  };
+}
+
+// setVisibility overrides the property with its own getter; undo that so later tests see jsdom's own value.
+function restoreVisibility() {
+  Reflect.deleteProperty(document, 'visibilityState');
+}
+
 describe('parseRoute', () => {
   it('maps hashes to views and falls back to the summary', () => {
     expect(parseRoute('#payments')).toBe('payments');
@@ -57,16 +78,46 @@ describe('message screen', () => {
   });
 });
 
+describe('test hygiene helpers', () => {
+  it('trackListeners removes only the listeners it captured, leaving others untouched', () => {
+    const target = document.createElement('div');
+    const heardBefore: string[] = [];
+    target.addEventListener('click', () => heardBefore.push('untracked'));
+    const stop = trackListeners(target);
+    const heardAfter: string[] = [];
+    target.addEventListener('click', () => heardAfter.push('tracked'));
+    stop();
+    target.dispatchEvent(new Event('click'));
+    expect(heardAfter).toEqual([]);
+    expect(heardBefore).toEqual(['untracked']);
+  });
+
+  it('restoreVisibility removes an overridden visibilityState so it falls back to jsdom’s own value', () => {
+    const original = document.visibilityState;
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    expect(document.visibilityState).toBe('hidden');
+    restoreVisibility();
+    expect(document.visibilityState).toBe(original);
+  });
+});
+
 describe('mountApp', () => {
   let root: HTMLElement;
+  let untrackWindow: () => void;
+  let untrackDocument: () => void;
   beforeEach(() => {
     history.replaceState(null, '', '#pledges');
     root = document.createElement('div');
     document.body.append(root);
+    untrackWindow = trackListeners(window);
+    untrackDocument = trackListeners(document);
   });
   afterEach(() => {
     vi.useRealTimers();
     document.body.replaceChildren();
+    untrackWindow();
+    untrackDocument();
+    restoreVisibility();
   });
 
   it('checks the sign-in before a form opens and when the tab comes back', () => {

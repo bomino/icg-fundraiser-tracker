@@ -1,5 +1,6 @@
 import type { DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
+import { newId as makeId } from '../id';
 import { toCents } from '../money';
 import { isPending, type State, type Store } from '../store';
 import type { Pledge } from '../types';
@@ -36,7 +37,7 @@ export function createPledgesView(deps: ListViewDeps) {
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
     const openEditor = (existing?: Pledge) => {
       // One id per opened form: a Save retried after a lost response must name the same row.
-      const newId = existing ? undefined : crypto.randomUUID();
+      const newId = existing ? undefined : makeId();
       openPledgeForm({
         existing,
         pledges: state.pledges,

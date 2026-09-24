@@ -1,5 +1,6 @@
 import { ApiError, type Api } from './api';
 import { compute, type Computed } from './engine';
+import { newId as makeId } from './id';
 import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
 
 export interface State {
@@ -124,9 +125,9 @@ export function createStore(api: Api, today: () => string): Store {
       loadedAt = Date.now();
       publish({ pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me });
     },
-    savePledge: (draft, existing, newId = crypto.randomUUID()) =>
+    savePledge: (draft, existing, newId = makeId()) =>
       save(pledgeRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePledge(draft, existing ?? { id: newId })),
-    savePayment: (draft, existing, newId = crypto.randomUUID()) =>
+    savePayment: (draft, existing, newId = makeId()) =>
       save(paymentRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePayment(draft, existing ?? { id: newId })),
     deletePledge: (row) => remove(pledgeRows, row, () => api.deletePledge(row)),
     deletePayment: (row) => remove(paymentRows, row, () => api.deletePayment(row)),

@@ -59,35 +59,32 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
       return h('th', { scope: 'col', class: column.numeric ? 'num' : undefined, 'aria-sort': sorted === null ? undefined : sorted === 'asc' ? 'ascending' : 'descending' }, button);
     }),
   );
+  const open = options.onOpen;
   const body = h(
     'tbody',
     {},
     ...options.rows.map((row) => {
-      const interactive = Boolean(options.onOpen);
       const tr = h(
         'tr',
-        interactive
-          ? { tabindex: 0, role: 'button', 'data-id': options.rowId(row), class: options.rowClass?.(row) }
-          : { 'data-id': options.rowId(row), class: options.rowClass?.(row) },
-        ...options.columns.map((column) => {
+        { 'data-id': options.rowId(row), class: options.rowClass?.(row) },
+        ...options.columns.map((column, index) => {
           const classes = [column.numeric ? 'num' : '', column.derived ? 'derived' : '', column.cellClass?.(row) ?? ''].filter(Boolean).join(' ');
           const content = column.display ? column.display(row) : String(column.value(row) ?? '');
+          // The first cell is the row's open control: a real button for keyboard and screen-reader
+          // users. Clicking anywhere else in the row still opens it, as a mouse convenience below.
+          if (open && index === 0) {
+            const button = h('button', { type: 'button', class: 'row-open' }, content);
+            button.addEventListener('click', (event) => {
+              // Otherwise the click also bubbles to the row's own listener and opens it twice.
+              event.stopPropagation();
+              open(row);
+            });
+            return h('td', { 'data-label': column.label, class: classes || undefined }, button);
+          }
           return h('td', { 'data-label': column.label, class: classes || undefined }, content);
         }),
       );
-      if (options.onOpen) {
-        const open = options.onOpen;
-        tr.addEventListener('click', () => open(row));
-        tr.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter') {
-            open(row);
-          } else if (event.key === ' ') {
-            // Space also scrolls the page by default; stop that since it opens the row here.
-            event.preventDefault();
-            open(row);
-          }
-        });
-      }
+      if (open) tr.addEventListener('click', () => open(row));
       return tr;
     }),
   );

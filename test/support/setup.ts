@@ -13,3 +13,12 @@ if (typeof HTMLDialogElement !== 'undefined') {
     };
   }
 }
+
+// jsdom has no scrollIntoView at all; form.ts calls it whenever an inline error is shown. A test
+// that needs to assert on it wraps this no-op with vi.spyOn and restores the spy afterwards.
+// Guarded like HTMLDialogElement above: plain-Node test files load this same setup file too.
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = function scrollIntoView() {
+    // no-op: jsdom has no layout, so there is nothing to scroll to.
+  };
+}

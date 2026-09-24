@@ -1,5 +1,6 @@
 import type { DerivedPayment } from '../engine';
 import { formatCents, formatDate } from '../format';
+import { newId as makeId } from '../id';
 import { toCents } from '../money';
 import { isPending, type State } from '../store';
 import type { Payment } from '../types';
@@ -28,7 +29,7 @@ export function createPaymentsView(deps: ListViewDeps) {
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
     const openEditor = (existing?: Payment) => {
       // One id per opened form: a Save retried after a lost response must name the same row.
-      const newId = existing ? undefined : crypto.randomUUID();
+      const newId = existing ? undefined : makeId();
       openPaymentForm({
         existing,
         methods: state.settings.paymentMethods,

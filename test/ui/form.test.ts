@@ -6,7 +6,11 @@ import { field } from '../../web/src/ui/field';
 import { runForm } from '../../web/src/ui/form';
 import { openGoalForm } from '../../web/src/ui/goalForm';
 
-afterEach(() => document.body.replaceChildren());
+afterEach(() => {
+  document.body.replaceChildren();
+  // Restores the scrollIntoView spy some tests install (see setup.ts) back to the shared no-op.
+  vi.restoreAllMocks();
+});
 
 function setup(onSave: (draft: { name: string }) => Promise<void>, reportError = vi.fn()) {
   const name = field({ name: 'name', label: 'Name', value: '' });
@@ -67,8 +71,7 @@ describe('runForm', () => {
     ['NETWORK', 'Could not reach the tracker. Check your connection and try again.'],
     ['BUSY', 'The tracker is busy. Try again in a moment.'],
   ] as const)('keeps the dialog and the typed values after a %s failure so Save can be retried', async (code, message) => {
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
     const onSave = vi.fn(async (): Promise<void> => { throw new ApiError(code, message); });
     const { name, submit, reportError, dialog } = setup(onSave);
     name.input.value = 'Aisha';
@@ -94,7 +97,7 @@ describe('runForm', () => {
   });
 
   it('clears the form-level error on the next submit, even one stopped by validation', async () => {
-    Element.prototype.scrollIntoView = vi.fn();
+    vi.spyOn(Element.prototype, 'scrollIntoView');
     const { name, submit, dialog } = setup(async () => { throw new ApiError('BUSY', 'The tracker is busy. Try again in a moment.'); });
     name.input.value = 'Aisha';
     submit();
