@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OWNER, createServer } from '../support/appsScript';
 import { METHODS, VALIDATION_CASES } from '../support/validationCases';
@@ -78,6 +78,49 @@ describe('authentication', () => {
   it('rejects a token that is not three dot-separated segments without calling tokeninfo', () => {
     expect(server.post('load', {}, 'forged').error?.code).toBe('UNAUTHENTICATED');
     expect(server.state.fetchCount).toBe(0);
+  });
+  it('rejects a token when tokeninfo itself answers non-200', () => {
+    const t = server.tokenFor(OWNER);
+    server.setTokenResponse(t, 500, { error: 'server_error' });
+    expect(server.post('load', {}, t).error?.code).toBe('UNAUTHENTICATED');
+    expect(server.state.fetchCount).toBe(1);
+  });
+  it('answers UNAUTHENTICATED for a non-200 tokeninfo response even if the body is not JSON', () => {
+    const t = server.tokenFor(OWNER);
+    server.setTokenResponse(t, 400, 'not json at all');
+    expect(server.post('load', {}, t).error?.code).toBe('UNAUTHENTICATED');
+  });
+  it('answers INTERNAL when a 200 tokeninfo response body is not JSON', () => {
+    const t = server.tokenFor(OWNER);
+    server.setTokenResponse(t, 200, 'not json at all');
+    expect(server.post('load', {}, t).error?.code).toBe('INTERNAL');
+  });
+  it('answers INTERNAL without logging the token when the tokeninfo fetch itself throws', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    server.state.fetchThrows = true;
+    const response = server.post('load', {}, token);
+    expect(response.error).toMatchObject({ code: 'INTERNAL' });
+    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain(token);
+    errorSpy.mockRestore();
+  });
+  it('re-verifies via tokeninfo instead of trusting a cache entry keyed without the current clientId', () => {
+    const t = server.tokenFor(OWNER);
+    // Simulates what a cache key that ignored clientId (the pre-hardening scheme) would have
+    // stored: reachable by token hash alone, for any clientId.
+    const legacyKey = 'tok_' + createHash('sha256').update(t).digest('base64url');
+    server.cache.set(legacyKey, 'someone-else@example.com');
+    const response = server.post('load', {}, t);
+    expect(response.data.me).toBe(OWNER);
+    expect(server.state.fetchCount).toBe(1);
+  });
+});
+
+describe('non-UTC spreadsheet time zones', () => {
+  it("reads a hand-typed Date cell in the spreadsheet's own time zone, not UTC", () => {
+    server.state.timeZone = 'America/New_York';
+    // Midnight UTC on 2025-01-10 is still 2025-01-09 evening in America/New_York (UTC-5).
+    server.sheet('Pledges').appendRow(['h9', '555', 'TZ Aware', new Date(Date.UTC(2025, 0, 10)), '', '', '2025-01-01T00:00:00.000Z', OWNER]);
+    expect(server.post('load', {}, token).data.pledges[0].datePledged).toBe('2025-01-09');
   });
 });
 
@@ -200,6 +243,13 @@ describe('writes', () => {
   it('answers BUSY instead of waiting forever for the lock', () => {
     server.state.lockAvailable = false;
     expect(server.post('upsertPledge', newRow(pledgeDraft), token).error?.code).toBe('BUSY');
+  });
+
+  it('acquires the lock after waiting, rather than answering BUSY immediately', () => {
+    server.state.lockAvailable = false;
+    server.state.lockDelayMsUntilAvailable = 5000; // frees up well within the 10s tryLock timeout
+    const response = server.post('upsertPledge', newRow(pledgeDraft), token);
+    expect(response.ok).toBe(true);
   });
 
   it('rejects unknown operations', () => {

@@ -41,16 +41,30 @@ export class FakeSheet {
   }
 }
 
+// The status/body Code.gs's real tokeninfo call would answer with; `body` is stringified as
+// JSON unless it's already a string, which lets a test simulate a non-JSON response body.
 interface TokenInfo {
   status: number;
-  body: Record<string, string>;
+  body: Record<string, string> | string;
 }
 
 export function createServer() {
   const sheets = new Map<string, FakeSheet>();
   const tokens = new Map<string, TokenInfo>();
   const cache = new Map<string, string>();
-  const state: { fetchCount: number; lockAvailable: boolean; clientId: string | null } = { fetchCount: 0, lockAvailable: true, clientId: CLIENT_ID };
+  const state: {
+    fetchCount: number;
+    // Throws on the *next* fetch call only, then resets itself, mimicking a one-off transient
+    // network failure rather than a permanently broken connection.
+    fetchThrows: boolean;
+    lockAvailable: boolean;
+    // How long (ms) it takes the lock to free up while `lockAvailable` is false. `tryLock(ms)`
+    // then succeeds once `ms` covers that wait, modelling the real blocking-then-succeeding path
+    // instead of only "free" or "busy forever".
+    lockDelayMsUntilAvailable: number;
+    clientId: string | null;
+    timeZone: string;
+  } = { fetchCount: 0, fetchThrows: false, lockAvailable: true, lockDelayMsUntilAvailable: Infinity, clientId: CLIENT_ID, timeZone: 'UTC' };
 
   const spreadsheet = {
     getSheetByName: (name: string) => sheets.get(name) ?? null,
@@ -59,7 +73,7 @@ export function createServer() {
       sheets.set(name, sheet);
       return sheet;
     },
-    getSpreadsheetTimeZone: () => 'UTC',
+    getSpreadsheetTimeZone: () => state.timeZone,
   };
 
   const context = vm.createContext({
@@ -71,10 +85,15 @@ export function createServer() {
     },
     UrlFetchApp: {
       fetch: (url: string) => {
+        if (state.fetchThrows) {
+          state.fetchThrows = false;
+          throw new Error('Simulated network failure calling tokeninfo');
+        }
         state.fetchCount += 1;
         const token = decodeURIComponent(new URL(url).searchParams.get('id_token') ?? '');
         const info = tokens.get(token) ?? { status: 400, body: { error: 'invalid_token' } };
-        return { getResponseCode: () => info.status, getContentText: () => JSON.stringify(info.body) };
+        const text = typeof info.body === 'string' ? info.body : JSON.stringify(info.body);
+        return { getResponseCode: () => info.status, getContentText: () => text };
       },
     },
     CacheService: {
@@ -83,7 +102,12 @@ export function createServer() {
         put: (key: string, value: string) => cache.set(key, value),
       }),
     },
-    LockService: { getScriptLock: () => ({ tryLock: () => state.lockAvailable, releaseLock: () => undefined }) },
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: (ms: number) => state.lockAvailable || state.lockDelayMsUntilAvailable <= ms,
+        releaseLock: () => undefined,
+      }),
+    },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (key: string) => (key === 'CLIENT_ID' ? state.clientId : null) }) },
     Session: { getScriptTimeZone: () => 'UTC', getEffectiveUser: () => ({ getEmail: () => OWNER }) },
     Utilities: {
@@ -93,7 +117,12 @@ export function createServer() {
       base64DecodeWebSafe: (value: string) => Array.from(Buffer.from(value, 'base64url')),
       newBlob: (bytes: number[]) => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }),
       getUuid: () => randomUUID(),
-      formatDate: (date: Date, _tz: string, pattern: string) => (pattern === 'yyyy-MM-dd' ? date.toISOString().slice(0, 10) : date.toISOString()),
+      // Real Utilities.formatDate is genuinely timezone-aware; 'yyyy-MM-dd' is the one pattern
+      // Code.gs formats in a caller-supplied (non-UTC) zone, via getSpreadsheetTimeZone().
+      // Intl's 'en-CA' locale happens to format as yyyy-MM-dd. The other call site always
+      // passes tz 'UTC' with a fixed millisecond-ISO pattern, so toISOString() already matches.
+      formatDate: (date: Date, tz: string, pattern: string) =>
+        pattern === 'yyyy-MM-dd' ? new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date) : date.toISOString(),
     },
   });
   vm.runInContext(readFileSync(new URL('../../apps-script/Code.gs', import.meta.url), 'utf8'), context, { filename: 'Code.gs' });
@@ -110,11 +139,17 @@ export function createServer() {
     return token;
   }
 
+  // Overrides what the (mocked) tokeninfo call answers for an already-minted token, to
+  // exercise a non-200 status or a body that isn't JSON at all.
+  function setTokenResponse(token: string, status: number, body: Record<string, string> | string) {
+    tokens.set(token, { status, body });
+  }
+
   // Wire payloads are asserted structurally against the shared validation-case table, not by type.
   function post(op: string, payload: unknown, idToken: string) {
     const output = call<{ text: string }>('doPost', { postData: { contents: JSON.stringify({ idToken, op, payload }) } });
     return JSON.parse(output.text) as { ok: boolean; data?: any; error?: { code: string; message: string; field?: string; current?: any } };
   }
 
-  return { sheets, state, call, tokenFor, post, sheet: (name: string) => sheets.get(name) as FakeSheet };
+  return { sheets, cache, state, call, tokenFor, setTokenResponse, post, sheet: (name: string) => sheets.get(name) as FakeSheet };
 }

@@ -80,7 +80,10 @@ function verifyToken_(token) {
   const clientId = clientId_();
   assertPlausibleToken_(token, clientId);
   const cache = CacheService.getScriptCache();
-  const cacheKey = 'tok_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
+  // clientId is folded into the key (defense in depth): assertPlausibleToken_'s aud check above
+  // already re-verifies on a CLIENT_ID rotation, but a cache entry keyed on the token alone
+  // would otherwise be reachable regardless of which clientId it was verified under.
+  const cacheKey = 'tok_' + clientId + '_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
   let email = cache.get(cacheKey);
   if (!email) {
     const response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
