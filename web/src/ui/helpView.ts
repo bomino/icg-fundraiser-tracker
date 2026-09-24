@@ -524,7 +524,7 @@ function workingTogether(): Child[] {
     ),
     topic(
       'When two people change the same row',
-      p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, your save stops and you see:'),
+      p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, your save stops and you see the message below, starting with what you were saving. If you are already typing in another form, it waits until you close that form:'),
       p(said(SAID.conflict)),
       steps(['Press ', b('Reload'), '.'], ['Open the row again and look at what changed.'], ['Make your change again if it is still needed.']),
       p('If you reopen a save that seemed to fail and press Save again, the tracker checks whether the first one actually went through. If it did, nothing is added twice. If the saved values differ from what you are sending, you see the same message — reload and check the row.'),
@@ -534,8 +534,8 @@ function workingTogether(): Child[] {
 
 function whenSomethingGoesWrong(): Child[] {
   return [
-    p('Most problems are a dropped connection. When a save fails, a red message appears at the bottom of the screen, starting ', said(`${SAID.couldNotSave} …`), ' and naming the donor, followed by one of the messages below. The row goes back to how it was.'),
-    p('Press ', b('Reopen'), ' on that message: the form comes back with everything you typed, and you can press ', b('Save'), ' again. Nothing you typed is lost, and saving it again never adds the row twice. The message stays for 30 seconds (longer while you have another form open), or until you press ', b('Dismiss'), '.'),
+    p('Most problems are a dropped connection. When a save fails, a red message appears at the bottom of the screen, starting ', said(`${SAID.couldNotSave} …`), ' and saying what was being saved — the donor’s name (or phone number) for a pledge, “the payment from” and the phone number for a payment, or “the goal” — followed by one of the messages below. The row goes back to how it was.'),
+    p('Press ', b('Reopen'), ' on that message: the form comes back with everything you typed, and you can press ', b('Save'), ' again; saving it this way never adds the row twice. Press Reopen before the message goes: it stays for 30 seconds (longer while you have another form open), or until you press ', b('Dismiss'), '. If it has gone, check the list first — do not add the row again from scratch without looking, or it may end up there twice.'),
     p('A delete that fails shows ', said(`${SAID.couldNotDelete} …`), ' and the row comes back. Open it and delete it again.'),
     problemTable(),
     topic(

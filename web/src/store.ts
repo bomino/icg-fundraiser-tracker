@@ -56,18 +56,32 @@ const paymentRows: Collection<Payment> = { get: (s) => s.payments, with: (s, row
 const withRow = <T extends Row>(rows: readonly T[], row: T): T[] => (rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [...rows, row]);
 
 /**
- * Re-applies a change still in flight on top of freshly loaded data. `loaded` is the server's copy,
- * untouched by other overlays; `onto` is the state being built.
+ * Re-applies a change on top of freshly loaded data. `loaded` is the server's copy, untouched by
+ * other overlays; `onto` is the state being built.
  */
 type Overlay = (loaded: Base, onto: Base) => Base;
+
+/**
+ * A save or delete as seen by reloads. While in flight its overlay shows the optimistic change.
+ * Once it commits, the overlay switches to the server's result and stays alive only for the reloads
+ * that were already running (`staleLoads`): their snapshot was read before the commit, so without it
+ * a committed create would vanish (and be typed in twice) or a committed edit revert.
+ */
+interface Mutation {
+  overlay: Overlay;
+  committed: boolean;
+  staleLoads: Set<object>;
+}
+
+type Outcome<R> = { ok: true; value: R } | { ok: false; error: unknown };
 
 export function createStore(api: Api, today: () => string): Store {
   let current: State | null = null;
   let loadedAt: number | null = null;
   const listeners = new Set<Listener>();
-  // Saves and deletes run in the background after their dialog closes, so a reload can land
-  // mid-flight; without these it would briefly resurrect a deleted row or drop a new one for good.
-  const overlays = new Set<Overlay>();
+  // Saves and deletes run in the background after their dialog closes, so reloads overlap them.
+  const mutations = new Set<Mutation>();
+  const runningLoads = new Set<object>();
 
   function publish(next: Base) {
     const state: State = { ...next, computed: compute(next.pledges, next.payments, next.settings, today()) };
@@ -75,17 +89,41 @@ export function createStore(api: Api, today: () => string): Store {
     listeners.forEach((listener) => listener(state));
   }
 
+  // After a change has already reached the server, a view failing to redraw is a bug to log, not a failed save.
+  function publishSettled(next: Base) {
+    try {
+      publish(next);
+    } catch (err) {
+      console.error('A view failed to redraw after a change was saved.', err);
+    }
+  }
+
   function loaded(): Base {
     if (!current) throw new Error('The tracker has not finished loading.');
     return base(current);
   }
 
-  async function inFlight<R>(overlay: Overlay, run: () => Promise<R>): Promise<R> {
-    overlays.add(overlay);
+  function begin(overlay: Overlay): Mutation {
+    const mutation: Mutation = { overlay, committed: false, staleLoads: new Set() };
+    mutations.add(mutation);
+    return mutation;
+  }
+
+  function settle(mutation: Mutation, committed: Overlay | null) {
+    if (!committed || runningLoads.size === 0) {
+      mutations.delete(mutation);
+      return;
+    }
+    mutation.overlay = committed;
+    mutation.committed = true;
+    mutation.staleLoads = new Set(runningLoads);
+  }
+
+  async function attempt<R>(run: () => Promise<R>): Promise<Outcome<R>> {
     try {
-      return await run();
-    } finally {
-      overlays.delete(overlay);
+      return { ok: true, value: await run() };
+    } catch (error) {
+      return { ok: false, error };
     }
   }
 
@@ -93,48 +131,62 @@ export function createStore(api: Api, today: () => string): Store {
     const id = provisional.id;
     // What the row falls back to if the save fails: the version it replaced, refreshed by any reload meanwhile.
     let fallback = existing ?? collection.get(loaded()).find((r) => r.id === id);
-    const overlay: Overlay = (fresh, onto) => {
+    const mutation = begin((fresh, onto) => {
       fallback = collection.get(fresh).find((r) => r.id === id);
       return collection.with(onto, withRow(collection.get(onto), provisional));
-    };
+    });
     markPending(id, 1);
-    publish(collection.with(loaded(), withRow(collection.get(loaded()), provisional)));
+    let outcome: Outcome<T>;
     try {
-      const saved = await inFlight(overlay, send);
+      outcome = await attempt(() => {
+        publish(collection.with(loaded(), withRow(collection.get(loaded()), provisional)));
+        return send();
+      });
+    } finally {
       markPending(id, -1);
-      // Only swap in saved if the current row is still the exact provisional object (reference equality)
-      const now = collection.get(loaded());
-      if (now.find((r) => r.id === id) === provisional) publish(collection.with(loaded(), now.map((r) => (r.id === id ? saved : r))));
-    } catch (err) {
-      markPending(id, -1);
-      const now = collection.get(loaded());
-      const restore = fallback;
-      // Only rollback if the row is still the exact provisional object (reference equality)
-      if (now.find((r) => r.id === id) === provisional) {
-        publish(collection.with(loaded(), restore ? now.map((r) => (r.id === id ? restore : r)) : now.filter((r) => r.id !== id)));
-      }
-      throw err;
     }
+    const now = collection.get(loaded());
+    // Only touch the row if it is still the exact provisional object (reference equality): a later change wins.
+    const untouched = now.find((r) => r.id === id) === provisional;
+    if (!outcome.ok) {
+      settle(mutation, null);
+      const restore = fallback;
+      if (untouched) publish(collection.with(loaded(), restore ? now.map((r) => (r.id === id ? restore : r)) : now.filter((r) => r.id !== id)));
+      throw outcome.error;
+    }
+    const saved = outcome.value;
+    settle(mutation, (_fresh, onto) => collection.with(onto, withRow(collection.get(onto), saved)));
+    if (untouched) publishSettled(collection.with(loaded(), now.map((r) => (r.id === id ? saved : r))));
   }
 
   async function remove<T extends Row>(collection: Collection<T>, row: T, send: () => Promise<void>) {
     const index = collection.get(loaded()).findIndex((r) => r.id === row.id);
-    const withoutRow = (state: Base) => collection.with(state, collection.get(state).filter((r) => r.id !== row.id));
-    publish(withoutRow(loaded()));
-    try {
-      await inFlight((_fresh, onto) => withoutRow(onto), send);
-    } catch (err) {
-      // The row is already gone on the server, which is what the user asked for.
-      if (err instanceof ApiError && err.code === 'NOT_FOUND') return;
-      // Only re-insert if no row with that id exists now
-      const now = collection.get(loaded());
-      if (!now.some((r) => r.id === row.id)) {
-        const restored = [...now];
-        restored.splice(index < 0 ? restored.length : Math.min(index, restored.length), 0, row);
-        publish(collection.with(loaded(), restored));
-      }
-      throw err;
+    const withoutRow: Overlay = (_fresh, onto) => collection.with(onto, collection.get(onto).filter((r) => r.id !== row.id));
+    // What comes back if the delete fails: the row, refreshed by any reload meanwhile (or nothing, if that reload no longer has it).
+    let fallback: T | undefined = row;
+    const mutation = begin((fresh, onto) => {
+      fallback = collection.get(fresh).find((r) => r.id === row.id);
+      return withoutRow(fresh, onto);
+    });
+    const outcome = await attempt(() => {
+      publish(withoutRow(loaded(), loaded()));
+      return send();
+    });
+    // NOT_FOUND: the row is already gone on the server, which is what the user asked for.
+    if (outcome.ok || (outcome.error instanceof ApiError && outcome.error.code === 'NOT_FOUND')) {
+      settle(mutation, withoutRow);
+      return;
     }
+    settle(mutation, null);
+    const now = collection.get(loaded());
+    const restore = fallback;
+    // Only re-insert if no row with that id exists now
+    if (restore && !now.some((r) => r.id === row.id)) {
+      const restored = [...now];
+      restored.splice(index < 0 ? restored.length : Math.min(index, restored.length), 0, restore);
+      publish(collection.with(loaded(), restored));
+    }
+    throw outcome.error;
   }
 
   const provisionalFields = (existing: Row | undefined, newId: string) => ({
@@ -151,10 +203,21 @@ export function createStore(api: Api, today: () => string): Store {
       return () => listeners.delete(listener);
     },
     async load() {
-      const result = await api.load();
-      loadedAt = Date.now();
-      const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me };
-      publish([...overlays].reduce((onto, overlay) => overlay(fresh, onto), fresh));
+      const token = {};
+      runningLoads.add(token);
+      try {
+        const result = await api.load();
+        loadedAt = Date.now();
+        const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me };
+        const replay = [...mutations].filter((m) => !m.committed || m.staleLoads.has(token));
+        publish(replay.reduce((onto, m) => m.overlay(fresh, onto), fresh));
+      } finally {
+        runningLoads.delete(token);
+        for (const m of mutations) {
+          m.staleLoads.delete(token);
+          if (m.committed && m.staleLoads.size === 0) mutations.delete(m);
+        }
+      }
     },
     savePledge: (draft, existing, newId = makeId()) =>
       save(pledgeRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePledge(draft, existing ?? { id: newId })),
@@ -164,24 +227,24 @@ export function createStore(api: Api, today: () => string): Store {
     deletePayment: (row) => remove(paymentRows, row, () => api.deletePayment(row)),
     async setGoal(goal) {
       let previous = loaded().settings;
-      publish({ ...loaded(), settings: { ...previous, goal } });
-      const overlay: Overlay = (fresh, onto) => {
+      const mutation = begin((fresh, onto) => {
         previous = fresh.settings;
         return { ...onto, settings: { ...onto.settings, goal } };
-      };
-      try {
-        const settings = await inFlight(overlay, () => api.setGoal(goal));
-        // Only publish server settings if the current goal is still what this call set
-        if (loaded().settings.goal === goal) {
-          publish({ ...loaded(), settings });
-        }
-      } catch (err) {
-        // Only rollback if the current goal still equals the optimistic goal this call set
-        if (loaded().settings.goal === goal) {
-          publish({ ...loaded(), settings: previous });
-        }
-        throw err;
+      });
+      const outcome = await attempt(() => {
+        publish({ ...loaded(), settings: { ...previous, goal } });
+        return api.setGoal(goal);
+      });
+      // Only touch the goal if it is still what this call set: a later change wins.
+      const untouched = loaded().settings.goal === goal;
+      if (!outcome.ok) {
+        settle(mutation, null);
+        if (untouched) publish({ ...loaded(), settings: previous });
+        throw outcome.error;
       }
+      const settings = outcome.value;
+      settle(mutation, (_fresh, onto) => ({ ...onto, settings }));
+      if (untouched) publishSettled({ ...loaded(), settings });
     },
   };
 }

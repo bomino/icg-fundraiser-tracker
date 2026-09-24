@@ -5,7 +5,7 @@ import { field } from './field';
 import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER } from './help';
 
-export function openGoalForm(goal: number | null, onSave: (goal: number) => Promise<void>, reportError: (err: unknown) => void, restore?: FormRestore): void {
+export function openGoalForm(goal: number | null, onSave: (goal: number) => Promise<void>, reportError: (err: unknown, context?: string) => void, restore?: FormRestore): void {
   const goalField = field({ name: 'goal', label: 'Fundraiser goal ($)', inputmode: 'decimal', value: goal?.toString() ?? '', help: '% of goal received is measured against this figure.' });
   runForm<{ goal: number | null }>({
     title: 'Edit goal',

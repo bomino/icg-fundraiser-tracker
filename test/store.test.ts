@@ -302,4 +302,148 @@ describe('store', () => {
     // #then: final goal is 2, not rolled back to original
     expect(store.state()?.settings.goal).toBe(2);
   });
+
+  describe('a reload that started before a change settled but lands after it', () => {
+    function withSlowLoad(overrides: Partial<Api>, rows: () => Pledge[]) {
+      const loads: Array<ReturnType<typeof deferred<void>>> = [];
+      const api = fakeApi({
+        ...overrides,
+        load: async () => {
+          const snapshot = rows();
+          const gate = deferred<void>();
+          loads.push(gate);
+          await gate.promise;
+          return { pledges: snapshot, payments: [], settings: SETTINGS, me: 'me@example.com' };
+        },
+      });
+      return { api, loads };
+    }
+
+    it('keeps a committed create instead of hiding it, so it is never typed in twice', async () => {
+      // #given a create that commits while a reload holding a pre-commit snapshot is in flight
+      const saving = deferred<Pledge>();
+      const { api, loads } = withSlowLoad({ savePledge: () => saving.promise }, () => [aisha]);
+      const store = createStore(api, () => TODAY);
+      const first = store.load();
+      loads[0].resolve();
+      await first;
+      const save = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' }, undefined, 'new-1');
+      const stale = store.load();
+      saving.resolve({ ...aisha, id: 'new-1', phone: '2', name: 'Bilal', updatedAt: 'v1' });
+      await save;
+      // #when the stale reload lands
+      loads[1].resolve();
+      await stale;
+      // #then the saved row is still there, as the server saved it
+      expect(store.state()?.pledges.find((p) => p.id === 'new-1')?.updatedAt).toBe('v1');
+    });
+
+    it('keeps a committed edit instead of reverting it to the old version', async () => {
+      const saving = deferred<Pledge>();
+      const { api, loads } = withSlowLoad({ savePledge: () => saving.promise }, () => [aisha]);
+      const store = createStore(api, () => TODAY);
+      const first = store.load();
+      loads[0].resolve();
+      await first;
+      const save = store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha);
+      const stale = store.load();
+      saving.resolve({ ...aisha, name: 'Changed', updatedAt: 'v2' });
+      await save;
+      loads[1].resolve();
+      await stale;
+      expect(store.state()?.pledges[0]).toMatchObject({ name: 'Changed', updatedAt: 'v2' });
+    });
+
+    it('keeps a committed delete instead of resurrecting the row', async () => {
+      const deleting = deferred<void>();
+      const { api, loads } = withSlowLoad({ deletePledge: () => deleting.promise }, () => [aisha]);
+      const store = createStore(api, () => TODAY);
+      const first = store.load();
+      loads[0].resolve();
+      await first;
+      const remove = store.deletePledge(aisha);
+      const stale = store.load();
+      deleting.resolve();
+      await remove;
+      loads[1].resolve();
+      await stale;
+      expect(store.state()?.pledges).toEqual([]);
+    });
+
+    it('does not replay a settled change over a reload that started after it', async () => {
+      // #given a committed edit, then another volunteer's newer edit of the same row
+      let serverRows = [aisha];
+      const { api, loads } = withSlowLoad({ savePledge: async (draft) => ({ ...aisha, ...draft, updatedAt: 'v2' }) }, () => serverRows);
+      const store = createStore(api, () => TODAY);
+      const first = store.load();
+      loads[0].resolve();
+      await first;
+      await store.savePledge({ ...draftOf(aisha), name: 'Mine' }, aisha);
+      serverRows = [{ ...aisha, name: 'Theirs', updatedAt: 'v3' }];
+      // #when a fresh reload lands
+      const fresh = store.load();
+      loads[1].resolve();
+      await fresh;
+      // #then it shows their newer version
+      expect(store.state()?.pledges[0].name).toBe('Theirs');
+    });
+  });
+
+  it('restores a row whose delete failed to the version a reload fetched meanwhile', async () => {
+    const deleting = deferred<void>();
+    let serverName = 'Aisha';
+    const store = createStore(
+      fakeApi({
+        load: async () => ({ pledges: [{ ...aisha, name: serverName }], payments: [], settings: SETTINGS, me: 'me@example.com' }),
+        deletePledge: () => deleting.promise,
+      }),
+      () => TODAY,
+    );
+    await store.load();
+    const remove = store.deletePledge(store.state()?.pledges[0] as Pledge);
+    serverName = 'Theirs';
+    await store.load();
+    deleting.reject(new ApiError('BUSY', 'busy'));
+    await expect(remove).rejects.toMatchObject({ code: 'BUSY' });
+    expect(store.state()?.pledges.map((p) => p.name)).toEqual(['Theirs']);
+  });
+
+  it('clears the pending mark when a view throws while drawing the optimistic row', async () => {
+    const store = createStore(fakeApi(), () => TODAY);
+    await store.load();
+    let throwOnce = true;
+    store.subscribe(() => {
+      if (throwOnce) {
+        throwOnce = false;
+        throw new Error('render failed');
+      }
+    });
+    await expect(store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha)).rejects.toThrow('render failed');
+    expect(isPending(aisha)).toBe(false);
+  });
+
+  it('treats a save as done when only the redraw after it throws, and unmarks the row exactly once', async () => {
+    // #given an earlier save of the row still in flight, and a later one that the server accepts at once
+    const earlier = deferred<Pledge>();
+    let call = 0;
+    const store = createStore(
+      fakeApi({ savePledge: async (draft) => (++call === 1 ? earlier.promise : { ...aisha, ...draft, updatedAt: 'v3' }) }),
+      () => TODAY,
+    );
+    await store.load();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const pendingEarlier = store.savePledge({ ...draftOf(aisha), name: 'One' }, aisha);
+    const later = store.savePledge({ ...draftOf(aisha), name: 'Two' }, aisha);
+    const unsubscribe = store.subscribe(() => { throw new Error('render failed'); });
+    // #when the later save's success redraw throws
+    await expect(later).resolves.toBeUndefined();
+    unsubscribe();
+    // #then the earlier save still holds the row pending, and the failure was logged rather than reported as a failed save
+    expect(isPending(aisha)).toBe(true);
+    expect(error).toHaveBeenCalled();
+    earlier.resolve({ ...aisha, name: 'One', updatedAt: 'v2' });
+    await pendingEarlier;
+    expect(isPending(aisha)).toBe(false);
+    error.mockRestore();
+  });
 });

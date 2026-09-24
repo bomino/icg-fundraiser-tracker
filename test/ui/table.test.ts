@@ -82,6 +82,8 @@ describe('table', () => {
     expect(onOpen).not.toHaveBeenCalled();
     expect(first.className).toBe('row-pending');
     expect(first.querySelector('td:first-child .row-saving')?.textContent).toBe('Saving…');
+    // The button's own name already says it, so screen readers should not hear it twice.
+    expect(first.querySelector('.row-saving')?.getAttribute('aria-hidden')).toBe('true');
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(button.getAttribute('aria-label')).toBe('Bilal — Saving…');
     expect(second.className).toBe('row-danger');
@@ -92,6 +94,7 @@ describe('table', () => {
     const third = table.querySelectorAll('tbody tr')[2];
     expect(third.className).toBe('row-pending');
     expect(third.querySelector('td:first-child .row-saving')?.textContent).toBe('Saving…');
+    expect(third.querySelector('.row-saving')?.getAttribute('aria-hidden')).toBeNull();
   });
   it('no longer marks the row itself as a button for screen readers', () => {
     const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none' });

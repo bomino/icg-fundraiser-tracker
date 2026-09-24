@@ -417,20 +417,25 @@ describe('instant save from the lists', () => {
     expect(second[0]).toEqual(first[0]);
   });
 
-  it('reopens a failed payment edit with the edited values against the same row', async () => {
+  it('reopens a failed payment edit with the edited values, saving against the row as it is now', async () => {
+    // #given a failed edit, after which a reload fetched a newer version of the same payment
     const savePayment = vi.fn<Store['savePayment']>(async () => { throw new ApiError('BUSY', 'The tracker is busy. Try again in a moment.'); });
-    const view = createPaymentsView({ store: { ...store, savePayment } as Store, reportError: vi.fn() })(state, null, () => undefined);
+    const refreshed = { ...payments[0], updatedAt: 'v9' };
+    const liveState = { ...state, payments: [refreshed] };
+    const view = createPaymentsView({ store: { ...store, savePayment, state: () => liveState } as Store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);
     (view.querySelector('tr[data-id="y1"] .row-open') as HTMLButtonElement).click();
     fillAndSave({ amountReceived: '36' });
     await vi.waitFor(() => expect(document.querySelector('.toast-error .toast-message')?.textContent).toBe("Couldn't save the payment from 555-999-0000. The tracker is busy. Try again in a moment."));
+    // #when it is reopened and saved again
     button('Reopen').click();
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit payment');
     expect((document.querySelector('dialog[open] [name=amountReceived]') as HTMLInputElement).value).toBe('36');
     savePayment.mockImplementationOnce(async () => undefined);
     fillAndSave({});
+    // #then the retry carries the current version, not the one the first form opened with
     await vi.waitFor(() => expect(savePayment).toHaveBeenCalledTimes(2));
-    expect(savePayment.mock.calls[1][1]).toBe(payments[0]);
+    expect(savePayment.mock.calls[1][1]).toBe(refreshed);
   });
 
   it('shows an edit that is still saving as "Saving…" and does not open it until the save settles', async () => {

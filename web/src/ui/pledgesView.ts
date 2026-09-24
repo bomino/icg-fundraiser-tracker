@@ -15,7 +15,7 @@ import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type Sor
 
 export interface ListViewDeps {
   store: Store;
-  reportError(err: unknown): void;
+  reportError(err: unknown, context?: string): void;
 }
 
 const COLUMNS: Column<DerivedPledge>[] = [
@@ -68,8 +68,9 @@ export function createPledgesView(deps: ListViewDeps) {
       openPledgeForm({
         existing,
         pledges: state.pledges,
-        onSave: (draft) => deps.store.savePledge(draft, existing, newId),
-        onDelete: existing ? () => deps.store.deletePledge(existing) : undefined,
+        onSave: (draft, current) => deps.store.savePledge(draft, current, newId),
+        onDelete: (current) => deps.store.deletePledge(current),
+        latest: () => deps.store.state()?.pledges.find((p) => p.id === existing?.id),
         onLogPayment: existing ? () => openPaymentFor(existing) : undefined,
         reportError: deps.reportError,
       });

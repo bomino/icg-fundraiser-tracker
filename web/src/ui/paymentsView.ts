@@ -48,8 +48,9 @@ export function createPaymentsView(deps: ListViewDeps) {
         existing,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
-        onSave: (draft) => deps.store.savePayment(draft, existing, newId),
-        onDelete: existing ? () => deps.store.deletePayment(existing) : undefined,
+        onSave: (draft, current) => deps.store.savePayment(draft, current, newId),
+        onDelete: (current) => deps.store.deletePayment(current),
+        latest: () => deps.store.state()?.payments.find((p) => p.id === existing?.id),
         reportError: deps.reportError,
       });
     };

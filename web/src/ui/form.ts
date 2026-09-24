@@ -25,7 +25,8 @@ export interface FormSpec<D> {
   deleteMessage: string;
   /** A secondary footer action (e.g. "Log a payment"). Disabled once Save is pressed. */
   secondary?: { label: string; run(): void };
-  reportError(err: unknown): void;
+  /** `context` names the interrupted change, e.g. "Couldn't save Aisha", because the form has already closed by then. */
+  reportError(err: unknown, context: string): void;
   /**
    * Opens this same form again after a failed background save. It must keep the options the form
    * was opened with, above all the per-open id of a new row, so a retry names the same row.
@@ -33,6 +34,8 @@ export interface FormSpec<D> {
   reopen(restore: FormRestore): void;
   /** Set when this form is itself a reopen: its fields are refilled and the failure is shown. */
   restore?: FormRestore;
+  /** True while a newer save of the same row is in flight; Reopen waits for it, as the form would open on a version about to change. */
+  busy?: () => boolean;
 }
 
 let formCount = 0;
@@ -80,6 +83,8 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
     const fieldName = fieldErrorOf(error, spec.fields);
     if (fieldName) spec.fields[fieldName].setError(messageOf(error));
     else showFormError(messageOf(error));
+    // Reopen is pressed in a toast outside the dialog; land the volunteer where the fix is needed.
+    (fieldName ? spec.fields[fieldName] : Object.values(spec.fields)[0])?.input.focus();
   }
 
   cancel.addEventListener('click', () => dialog.close());
@@ -111,11 +116,17 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
     saving.then(
       () => showToast('Saved.'),
       (err: unknown) => {
+        const context = `Couldn't save ${spec.describe(draft)}`;
         if (needsReload(err)) {
-          spec.reportError(err);
+          spec.reportError(err, context);
           return;
         }
-        showToast(`Couldn't save ${spec.describe(draft)}. ${messageOf(err)}`, 'error', { label: 'Reopen', run: () => spec.reopen({ values, error: err }) });
+        const busy = spec.busy;
+        showToast(`${context}. ${messageOf(err)}`, 'error', {
+          label: 'Reopen',
+          run: () => spec.reopen({ values, error: err }),
+          ready: busy ? () => !busy() : undefined,
+        });
       },
     );
   });
@@ -136,11 +147,12 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
       deleting.then(
         () => showToast('Deleted.'),
         (err: unknown) => {
+          const context = `Couldn't delete ${openedAs}`;
           if (needsReload(err)) {
-            spec.reportError(err);
+            spec.reportError(err, context);
             return;
           }
-          showToast(`Couldn't delete ${openedAs}. ${messageOf(err)}`, 'error');
+          showToast(`${context}. ${messageOf(err)}`, 'error');
         },
       );
     });

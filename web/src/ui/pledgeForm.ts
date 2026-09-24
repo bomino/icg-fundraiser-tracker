@@ -1,6 +1,7 @@
 import { todayIso } from '../dates';
 import { matchKey } from '../matchKey';
 import { parseAmount } from '../format';
+import { isPending } from '../store';
 import type { Pledge, PledgeDraft } from '../types';
 import { validatePledge, type FieldErrors } from '../validate';
 import { confirmDialog } from './dialog';
@@ -12,11 +13,14 @@ import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
 export interface PledgeFormOptions {
   existing?: Pledge;
   pledges: readonly Pledge[];
-  onSave(draft: PledgeDraft): Promise<void>;
-  onDelete?: () => Promise<void>;
+  /** Saves against `existing` as this form holds it; a reopened form may hold a newer version than the first one did. */
+  onSave(draft: PledgeDraft, existing: Pledge | undefined): Promise<void>;
+  onDelete?: (existing: Pledge) => Promise<void>;
+  /** The row being edited as the store has it now, so a reopened form starts from the current version. */
+  latest?: () => Pledge | undefined;
   /** Called once the dialog has closed, after the "Log a payment" button is used. Only offered for an existing pledge with a phone. */
   onLogPayment?: () => void;
-  reportError(err: unknown): void;
+  reportError(err: unknown, context?: string): void;
 }
 
 function otherPledgeWithPhone(pledges: readonly Pledge[], phone: string, exceptId: string | undefined): Pledge | undefined {
@@ -74,6 +78,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     dialog.close();
   }
 
+  const onDelete = options.onDelete;
   const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
   const dialog = runForm<PledgeDraft>({
     title: existing ? 'Edit pledge' : 'Add pledge',
@@ -95,13 +100,14 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     },
     validate: validatePledge,
     describe: (draft) => draft.name || draft.phone || 'the pledge',
-    onSave: options.onSave,
-    onDelete: options.onDelete,
+    onSave: (draft) => options.onSave(draft, existing),
+    onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     secondary: canLogPayment ? { label: 'Log a payment', run: () => { void handleLogPayment(); } } : undefined,
     deleteMessage: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
     reportError: options.reportError,
-    reopen: (again) => openPledgeForm(options, again),
+    reopen: (again) => openPledgeForm({ ...options, existing: existing && (options.latest?.() ?? existing) }, again),
     restore,
+    busy: () => (existing ? isPending(existing) : false),
   });
 
   if (canLogPayment && onLogPayment) {

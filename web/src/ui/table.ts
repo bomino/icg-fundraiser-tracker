@@ -91,6 +91,8 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
           const firstCellText = typeof content === 'string' ? content : (content.textContent ?? '');
           const savingLabel = pending ? h('span', { class: 'row-saving' }, 'Saving…') : null;
           if (!options.onOpen) return cell(content, savingLabel);
+          // The button's name already says "Saving…", so the visible label is hidden from screen readers here.
+          savingLabel?.setAttribute('aria-hidden', 'true');
           if (!open) return cell(h('button', { type: 'button', class: 'row-open', 'aria-disabled': 'true', 'aria-label': `${firstCellText || 'Row'} — Saving…` }, content), savingLabel);
           // The first cell is the row's open control: a real button for keyboard and screen-reader
           // users. Clicking anywhere else in the row still opens it, as a mouse convenience below.

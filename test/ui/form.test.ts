@@ -14,7 +14,7 @@ afterEach(() => {
 
 type Draft = { name: string };
 
-function setup(onSave: (draft: Draft) => Promise<void>, options: { restore?: FormRestore; onDelete?: () => Promise<void> } = {}) {
+function setup(onSave: (draft: Draft) => Promise<void>, options: { restore?: FormRestore; onDelete?: () => Promise<void>; busy?: () => boolean } = {}) {
   const name = field({ name: 'name', label: 'Name', value: '' });
   const form = h('form', { class: 'form' }, name.wrapper);
   const reportError = vi.fn();
@@ -32,6 +32,7 @@ function setup(onSave: (draft: Draft) => Promise<void>, options: { restore?: For
     reportError,
     reopen,
     restore: options.restore,
+    busy: options.busy,
   });
   const submit = () => form.dispatchEvent(new Event('submit', { cancelable: true }));
   return { name, dialog, submit, reportError, reopen };
@@ -122,7 +123,7 @@ describe('runForm', () => {
     const { name, submit, reportError } = setup(async () => { throw error; });
     name.input.value = 'x';
     submit();
-    await vi.waitFor(() => expect(reportError).toHaveBeenCalledWith(error));
+    await vi.waitFor(() => expect(reportError).toHaveBeenCalledWith(error, "Couldn't save x"));
     expect(errorToast()).toBeNull();
   });
 
@@ -141,6 +142,37 @@ describe('runForm', () => {
     expect(name.input.getAttribute('aria-invalid')).toBe('true');
     expect(name.wrapper.querySelector('.field-error')?.textContent).toBe('Too long.');
     expect(dialog.element.querySelector<HTMLElement>('.form-error')?.hidden).toBe(true);
+  });
+
+  it('puts focus in the reopened form: on the field the server rejected, else the first field', () => {
+    const { name } = setup(async () => undefined, { restore: { values: { name: 'x' }, error: new ApiError('BAD_REQUEST', 'Too long.', 'name') } });
+    expect(document.activeElement).toBe(name.input);
+    document.body.replaceChildren();
+    const again = setup(async () => undefined, { restore: { values: { name: 'x' }, error: new ApiError('BUSY', 'busy') } });
+    expect(document.activeElement).toBe(again.name.input);
+  });
+
+  it('holds Reopen while a newer save of the same row is still in flight, and offers it once that settles', async () => {
+    // #given a failed save whose row is being saved again by a later edit
+    vi.useFakeTimers();
+    let busy = true;
+    const { name, submit, reopen } = setup(async () => { throw new ApiError('BUSY', 'busy'); }, { busy: () => busy });
+    name.input.value = 'Aisha';
+    submit();
+    await vi.advanceTimersByTimeAsync(0);
+    const button = toastButton('Reopen') as HTMLButtonElement;
+    // #when Reopen is pressed while that save is in flight
+    button.click();
+    // #then nothing opens and the message stays, until the save settles
+    expect(button.disabled).toBe(true);
+    expect(reopen).not.toHaveBeenCalled();
+    expect(errorToast()).not.toBeNull();
+    busy = false;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(button.disabled).toBe(false);
+    button.click();
+    expect(reopen).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it('clears the reopened form-level error on the next submit, even one stopped by validation', () => {
@@ -200,7 +232,7 @@ describe('runForm', () => {
     const conflict = new ApiError('CONFLICT', 'changed');
     const { dialog, reportError } = setup(async () => undefined, { onDelete: async () => { throw conflict; } });
     confirmDelete(dialog.element);
-    await vi.waitFor(() => expect(reportError).toHaveBeenCalledWith(conflict));
+    await vi.waitFor(() => expect(reportError).toHaveBeenCalledWith(conflict, "Couldn't delete the row"));
     expect(errorToast()).toBeNull();
   });
 

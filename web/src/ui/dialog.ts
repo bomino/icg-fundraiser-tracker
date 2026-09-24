@@ -30,3 +30,19 @@ export function confirmDialog(message: string, confirmLabel: string, variant: 'd
     handle.element.addEventListener('close', () => resolve(confirmed));
   });
 }
+
+/** Resolves once no modal is open, e.g. so a background message never lands on top of the form a volunteer is typing in. */
+export function whenNoDialogOpen(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!document.querySelector('dialog[open]')) {
+      resolve();
+      return;
+    }
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('dialog[open]')) return;
+      observer.disconnect();
+      resolve();
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
+  });
+}

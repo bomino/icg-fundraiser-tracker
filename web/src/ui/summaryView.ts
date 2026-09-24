@@ -8,7 +8,7 @@ import { openGoalForm } from './goalForm';
 
 export interface SummaryDeps {
   store: Store;
-  reportError(err: unknown): void;
+  reportError(err: unknown, context?: string): void;
   showList(view: 'pledges' | 'payments', filter: ListFilter): void;
   exportWorkbook(state: State): Promise<void>;
   drawChart(canvas: HTMLCanvasElement, rows: readonly MethodRow[]): void;

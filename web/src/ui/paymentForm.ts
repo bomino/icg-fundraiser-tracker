@@ -1,6 +1,7 @@
 import { todayIso } from '../dates';
 import { WARNING_MARK, createDonorResolver } from '../engine';
 import { parseAmount } from '../format';
+import { isPending } from '../store';
 import type { Payment, PaymentDraft, Pledge } from '../types';
 import { validatePayment, type FieldErrors } from '../validate';
 import { h } from './dom';
@@ -14,9 +15,12 @@ export interface PaymentFormOptions {
   phone?: string;
   methods: readonly string[];
   pledges: readonly Pledge[];
-  onSave(draft: PaymentDraft): Promise<void>;
-  onDelete?: () => Promise<void>;
-  reportError(err: unknown): void;
+  /** Saves against `existing` as this form holds it; a reopened form may hold a newer version than the first one did. */
+  onSave(draft: PaymentDraft, existing: Payment | undefined): Promise<void>;
+  onDelete?: (existing: Payment) => Promise<void>;
+  /** The row being edited as the store has it now, so a reopened form starts from the current version. */
+  latest?: () => Payment | undefined;
+  reportError(err: unknown, context?: string): void;
 }
 
 export function openPaymentForm(options: PaymentFormOptions, restore?: FormRestore): void {
@@ -43,6 +47,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   fields.phone.input.addEventListener('input', updatePreview);
   updatePreview();
 
+  const onDelete = options.onDelete;
   const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, fields.dateReceived.wrapper, fields.amountReceived.wrapper, fields.method.wrapper, fields.notes.wrapper);
   runForm<PaymentDraft>({
     title: existing ? 'Edit payment' : 'Log a payment',
@@ -64,11 +69,12 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     },
     validate: (draft) => validatePayment(draft, options.methods),
     describe: (draft) => (draft.phone ? `the payment from ${draft.phone}` : 'the payment'),
-    onSave: options.onSave,
-    onDelete: options.onDelete,
+    onSave: (draft) => options.onSave(draft, existing),
+    onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     deleteMessage: 'Delete this payment? It will be removed from every total.',
     reportError: options.reportError,
-    reopen: (again) => openPaymentForm(options, again),
+    reopen: (again) => openPaymentForm({ ...options, existing: existing && (options.latest?.() ?? existing) }, again),
     restore,
+    busy: () => (existing ? isPending(existing) : false),
   });
 }
