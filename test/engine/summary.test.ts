@@ -60,7 +60,7 @@ describe('data health', () => {
         payment({ id: 'unmatched', phone: '9', amountReceived: 10, dateReceived: '2025-01-01' }),
         payment({ id: 'incomplete', phone: '1', dateReceived: '2025-01-02' }),
         payment({ id: 'future', phone: '2', amountReceived: 5, dateReceived: '2099-01-01' }),
-        payment({ amountReceived: 7 }),
+        payment({ id: 'noPhonePay', amountReceived: 7 }),
         // Matched to the "predates" pledge (phone '1'), so this pair does not also trip notMatched.
         payment({ id: 'dupPayA', phone: '1', amountReceived: 20, dateReceived: '2025-03-01' }),
         payment({ id: 'dupPayB', phone: '(1)', amountReceived: 20, dateReceived: '2025-03-01' }),
@@ -69,7 +69,7 @@ describe('data health', () => {
       TODAY,
     );
     expect(Object.fromEntries(computed.health.map((check) => [check.id, check.ids]))).toEqual({
-      notMatched: ['unmatched'],
+      notMatched: ['unmatched', 'noPhonePay'],
       duplicates: ['dupeA', 'dupeB'],
       pledgeNoPhone: ['noPhone'],
       paymentIncomplete: ['incomplete'],

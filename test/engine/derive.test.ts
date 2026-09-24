@@ -107,9 +107,9 @@ describe('derivePayments', () => {
     expect(d).toMatchObject({ donorName: '', notCounted: false });
   });
 
-  it('is blank and unflagged when the payment has no phone', () => {
+  it('warns, never matching a phoneless pledge, when the payment has no phone', () => {
     const [d] = derivePayments([payment({ amountReceived: 30 })], [pledge({ amountPledged: 30 })], TODAY);
-    expect(d).toMatchObject({ key: '', donorName: '', notCounted: false });
+    expect(d).toMatchObject({ key: '', donorName: WARN_NOT_IN_PLEDGES, notCounted: true });
   });
 
   it('flags only dates after today', () => {
@@ -122,7 +122,7 @@ describe('createDonorResolver', () => {
   it('previews the same name the Payments tab would show', () => {
     const resolve = createDonorResolver([pledge({ phone: '(555) 010-0101', name: 'Aisha', amountPledged: 5 })]);
     expect(resolve('5550100101')).toBe('Aisha');
-    expect(resolve('')).toBe('');
+    expect(resolve('')).toBe(WARN_NOT_IN_PLEDGES);
     expect(resolve('123')).toBe(WARN_NOT_IN_PLEDGES);
   });
 });

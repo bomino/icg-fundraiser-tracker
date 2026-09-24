@@ -95,7 +95,8 @@ export function createDonorResolver(pledges: readonly Pledge[]): (phone: string)
   }
   return (phone) => {
     const key = matchKey(phone);
-    if (key === '') return '';
+    // A blank phone can never match, and is never paired with a phoneless pledge.
+    if (key === '') return WARN_NOT_IN_PLEDGES;
     const pledge = firstByKey.get(key);
     if (!pledge) return WARN_NOT_IN_PLEDGES;
     if (pledge.amountPledged === null) return WARN_NO_AMOUNT;

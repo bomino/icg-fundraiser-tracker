@@ -34,7 +34,7 @@ Four literal values, set only when Amount Pledged is filled in (a blank amount h
 
 Every "this payment is not counted" signal keys off a leading `⚠` (`WARNING_MARK` in `web/src/engine/constants.ts`) — any new warning must start with it, and a donor name never may (`validate.ts` and `Code.gs` reject such names). The two warnings:
 
-- `⚠ phone not in Pledges` — no match-key match.
+- `⚠ phone not in Pledges` — no match-key match, including a blank phone (only possible for a row typed straight into the Sheet, since both validators refuse it), so such a payment shows red, counts under "Payments not matched to a pledge" and exports as not counted instead of vanishing from every check.
 - `⚠ no amount on Pledges` — matched donor has a blank Amount Pledged, so the payment doesn't count toward that donor's Amount Received.
 
 A blank (never `0`) is shown for a matched-but-nameless donor.

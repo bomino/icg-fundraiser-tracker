@@ -304,7 +304,8 @@ describe('payment form', () => {
   it('asks for the phone number while the phone holds only punctuation', () => {
     openPaymentForm({ methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
     type(document.querySelector('input[name=phone]') as HTMLInputElement, '(--)');
-    expect((document.querySelector('[data-role=donor-preview]') as HTMLElement).textContent).toBe('Type the phone number to find the donor.');
+    const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
+    expect({ text: preview.textContent, className: preview.className }).toEqual({ text: 'Type the phone number to find the donor.', className: 'hint' });
   });
 
   it('turns typed text into a draft', async () => {

@@ -39,9 +39,10 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   const updatePreview = () => {
     const phone = fields.phone.input.value;
     const donor = resolveDonor(phone);
-    const warning = donor.startsWith(WARNING_MARK);
+    const blank = matchKey(phone) === '';
+    const warning = !blank && donor.startsWith(WARNING_MARK);
     preview.className = warning ? 'hint hint-warning' : 'hint';
-    if (matchKey(phone) === '') preview.textContent = 'Type the phone number to find the donor.';
+    if (blank) preview.textContent = 'Type the phone number to find the donor.';
     else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.`;
     else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}`;
   };
