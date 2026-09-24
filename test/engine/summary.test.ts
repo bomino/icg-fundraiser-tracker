@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compute, findByName, findByPhone, paymentsForKey } from '../../web/src/engine';
+import type { Payment } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 describe('totals', () => {
@@ -47,7 +48,7 @@ describe('totals', () => {
 });
 
 describe('data health', () => {
-  it('finds exactly the offending rows for each of the six checks', () => {
+  it('finds exactly the offending rows for each of the seven checks', () => {
     const predates = pledge({ id: 'predates', phone: '1', amountPledged: 100, datePledged: '2025-06-01' });
     const dupeA = pledge({ id: 'dupeA', phone: '2', amountPledged: 100 });
     const dupeB = pledge({ id: 'dupeB', phone: '2', amountPledged: 100 });
@@ -60,6 +61,9 @@ describe('data health', () => {
         payment({ id: 'incomplete', phone: '1', dateReceived: '2025-01-02' }),
         payment({ id: 'future', phone: '2', amountReceived: 5, dateReceived: '2099-01-01' }),
         payment({ amountReceived: 7 }),
+        // Matched to the "predates" pledge (phone '1'), so this pair does not also trip notMatched.
+        payment({ id: 'dupPayA', phone: '1', amountReceived: 20, dateReceived: '2025-03-01' }),
+        payment({ id: 'dupPayB', phone: '(1)', amountReceived: 20, dateReceived: '2025-03-01' }),
       ],
       SETTINGS,
       TODAY,
@@ -71,6 +75,7 @@ describe('data health', () => {
       paymentIncomplete: ['incomplete'],
       futureDated: ['future'],
       predatesPledge: ['predates'],
+      possibleDuplicatePayments: ['dupPayA', 'dupPayB'],
     });
     expect(computed.health.map((check) => check.label)).toEqual([
       'Payments not matched to a pledge',
@@ -79,7 +84,46 @@ describe('data health', () => {
       'Payments missing a date or amount',
       'Payments dated in the future',
       'Donors whose payments predate their pledge',
+      'Possible duplicate payments',
     ]);
+  });
+});
+
+describe('possible duplicate payments health check', () => {
+  const duplicateCheck = (payments: Payment[]) => compute([], payments, SETTINGS, TODAY).health.find((check) => check.id === 'possibleDuplicatePayments');
+
+  it('flags a duplicate group', () => {
+    const result = duplicateCheck([
+      payment({ id: 'a', phone: '555-0101', amountReceived: 20, dateReceived: '2026-01-05' }),
+      payment({ id: 'b', phone: '555-0101', amountReceived: 20, dateReceived: '2026-01-05' }),
+    ]);
+    expect(result?.ids).toEqual(['a', 'b']);
+  });
+
+  it('does not flag a different date, amount or phone', () => {
+    const result = duplicateCheck([
+      payment({ id: 'base', phone: '555-0101', amountReceived: 20, dateReceived: '2026-01-05' }),
+      payment({ id: 'diffDate', phone: '555-0101', amountReceived: 20, dateReceived: '2026-01-06' }),
+      payment({ id: 'diffAmount', phone: '555-0101', amountReceived: 21, dateReceived: '2026-01-05' }),
+      payment({ id: 'diffPhone', phone: '555-0102', amountReceived: 20, dateReceived: '2026-01-05' }),
+    ]);
+    expect(result?.ids).toEqual([]);
+  });
+
+  it('does not flag a blank date', () => {
+    const result = duplicateCheck([
+      payment({ id: 'noDateA', phone: '555-0101', amountReceived: 20, dateReceived: '' }),
+      payment({ id: 'noDateB', phone: '555-0101', amountReceived: 20, dateReceived: '' }),
+    ]);
+    expect(result?.ids).toEqual([]);
+  });
+
+  it('flags phones spelled differently but with the same match key', () => {
+    const result = duplicateCheck([
+      payment({ id: 'plain', phone: '555-0101', amountReceived: 20, dateReceived: '2026-01-05' }),
+      payment({ id: 'formatted', phone: '(555) 0101', amountReceived: 20, dateReceived: '2026-01-05' }),
+    ]);
+    expect(result?.ids).toEqual(['plain', 'formatted']);
   });
 });
 

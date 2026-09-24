@@ -77,10 +77,31 @@ export function computeTotals(pledges: readonly DerivedPledge[], payments: reado
   };
 }
 
+// Groups payments by (match key, amount in cents, date received). A group of more than one
+// payment is a possible duplicate entry - but two real installments of the same amount on the
+// same day happen too, so this is a prompt to check, not a certainty like the other checks.
+function findPossibleDuplicatePaymentIds(payments: readonly DerivedPayment[]): Set<string> {
+  const groups = new Map<string, string[]>();
+  for (const derived of payments) {
+    const cents = toCents(derived.payment.amountReceived);
+    if (derived.key === '' || derived.payment.dateReceived === '' || cents === null) continue;
+    const groupKey = `${derived.key}|${cents}|${derived.payment.dateReceived}`;
+    const ids = groups.get(groupKey);
+    if (ids) ids.push(derived.payment.id);
+    else groups.set(groupKey, [derived.payment.id]);
+  }
+  const duplicateIds = new Set<string>();
+  for (const ids of groups.values()) {
+    if (ids.length > 1) for (const id of ids) duplicateIds.add(id);
+  }
+  return duplicateIds;
+}
+
 export function computeHealth(pledges: readonly DerivedPledge[], payments: readonly DerivedPayment[]): HealthCheck[] {
   const pledgeIds = (test: (d: DerivedPledge) => boolean) => pledges.filter(test).map((d) => d.pledge.id);
   const paymentIds = (test: (d: DerivedPayment) => boolean) => payments.filter(test).map((d) => d.payment.id);
   const check = (id: HealthId, target: HealthCheck['target'], ids: string[]): HealthCheck => ({ id, label: HEALTH_LABELS[id], target, ids });
+  const possibleDuplicatePaymentIds = findPossibleDuplicatePaymentIds(payments);
   return [
     check('notMatched', 'payments', paymentIds((d) => d.notCounted)),
     check('duplicates', 'pledges', pledgeIds((d) => d.duplicate)),
@@ -89,6 +110,7 @@ export function computeHealth(pledges: readonly DerivedPledge[], payments: reado
     check('futureDated', 'payments', paymentIds((d) => d.futureDate)),
     // Compares only the latest payment date, as the workbook does (see CLAUDE.md).
     check('predatesPledge', 'pledges', pledgeIds((d) => d.lastPaymentDate !== '' && d.pledge.datePledged !== '' && d.lastPaymentDate < d.pledge.datePledged)),
+    check('possibleDuplicatePayments', 'payments', paymentIds((d) => possibleDuplicatePaymentIds.has(d.payment.id))),
   ];
 }
 

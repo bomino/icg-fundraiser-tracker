@@ -38,6 +38,7 @@ function seedPledges(): Pledge[] {
     ['555-0113', 'Sumayyah Bello', '2026-08-01', 400],
     ['555-0114', 'Abdullahi Garba', '2026-08-05', 2000, 'Matching gift from employer expected'],
     ['555-0115', 'Hafsa Yusuf', '2026-09-05', 600, 'Paid before the pledge form came in'],
+    ['555-0116', 'Layla Nasser', '2026-08-20', 300],
   ];
   return seeds.map(([phone, name, datePledged, amountPledged, notes = ''], index) => ({
     id: `demo-pledge-${index + 1}`,
@@ -78,6 +79,9 @@ function seedPayments(): Payment[] {
     ['555-0115', '2026-08-10', 300, 'Card'],
     ['555-0115', '2026-09-01', 300, 'Card'],
     ['555-0113', '2026-09-12', 0, ''],
+    // Same phone, amount and date twice - a possible duplicate entry (may just be two real installments).
+    ['555-0116', '2026-08-25', 150, 'Cash', 'Possible duplicate entry'],
+    ['(555) 0116', '2026-08-25', 150, 'Cash', 'Possible duplicate entry'],
   ];
   return seeds.map(([phone, dateReceived, amountReceived, method, notes = ''], index) => ({
     id: `demo-payment-${index + 1}`,

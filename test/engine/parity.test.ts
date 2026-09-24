@@ -68,6 +68,8 @@ describe('parity with Masjid_Fundraiser_Tracker_v3.xlsx (values computed by Exce
 
   it('matches every Summary figure', () => {
     const { totals, methods } = computed;
+    // Includes possibleDuplicatePayments, but it is never read below - that check is app-only
+    // (v1.1), has no counterpart in the workbook's Summary B21:B26, and is excluded from parity.
     const health = Object.fromEntries(computed.health.map((check) => [check.id, check.ids.length]));
     const { B14, ...rest } = normalise(expected.summary);
     expect({

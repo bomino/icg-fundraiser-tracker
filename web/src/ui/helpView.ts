@@ -82,6 +82,10 @@ const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
     meaning: 'A donor’s most recent payment is dated before their Date Pledged. One of the dates is probably wrong.',
     fix: ['Check the Date Pledged on the pledge and the dates on the donor’s payments, and correct whichever is wrong.'],
   },
+  possibleDuplicatePayments: {
+    meaning: 'Two or more payments share the same phone number, amount and date. That is often the same payment typed in twice, but two real installments of the same amount on the same day are possible — check, it may be fine.',
+    fix: ['Open the payments. If one is a duplicate entry, delete it. If both are real, no change is needed.'],
+  },
 };
 
 interface Problem {
@@ -215,7 +219,7 @@ function theScreens(): Child[] {
         [b('The four totals'), ' — Total pledged, Total received, Balance outstanding, and Overpaid / credit. ', b('Understanding the numbers'), ' explains each one.'],
         [b('Donors'), ' — how many donors have pledged, and how many are Fully paid, Partial, Pending or Overpaid.'],
         [b('Reconciliation'), ' — Payments logged (every payment typed in) next to Unmatched payments (money not counted toward any pledge). Unmatched should be $0.00; the card turns amber when it is not.'],
-        [b('Data health'), ' — six checks that should all read 0. ', said(SAID.healthIntro), ' Tap ', b('Show'), ' next to a check to see just the rows it found.'],
+        [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found.'],
         [b('Collected by payment method'), ' — a chart and table of money by Cash, Card and so on. Payments with no method appear as ', b('No method recorded'), '. The last row, ', said(SAID.methodTotal), ', should equal Payments logged.'],
         [b('Download .xlsx'), ' — saves a copy of everything as an Excel file.'],
       ),
@@ -427,8 +431,8 @@ function warningsAndHealth(): Child[] {
       ),
     ),
     topic(
-      'The six data-health checks',
-      p('Each check should read 0. When one does not, tap ', b('Show'), ' to see the rows, then fix them as described below.'),
+      'The seven data-health checks',
+      p('The first six should read 0. When one does not, tap ', b('Show'), ' to see the rows, then fix them as described below. The last, ', b(HEALTH_LABELS.possibleDuplicatePayments), ', can be a false alarm — see below.'),
       h(
         'dl',
         { class: 'help-terms' },
