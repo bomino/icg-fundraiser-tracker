@@ -19,9 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      # The same gate as local development, so the two can't drift apart.
+      - run: npm run check
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_SCRIPT_URL: ${{ vars.VITE_SCRIPT_URL }}
