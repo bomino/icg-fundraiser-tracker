@@ -35,6 +35,8 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   const showFormError = (message: string | null) => {
     formError.hidden = message === null;
     formError.textContent = message ?? '';
+    // Long forms scroll inside the dialog; a volunteer who pressed Save from the top must still see why it failed.
+    if (message !== null) formError.scrollIntoView({ block: 'nearest' });
   };
   const dialog = openDialog(spec.title, spec.form, [remove, h('span', { class: 'spacer' }), cancel, save]);
   const buttons = [save, cancel, remove].filter((b): b is HTMLButtonElement => b !== null);

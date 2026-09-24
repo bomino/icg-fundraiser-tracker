@@ -67,6 +67,8 @@ describe('runForm', () => {
     ['NETWORK', 'Could not reach the tracker. Check your connection and try again.'],
     ['BUSY', 'The tracker is busy. Try again in a moment.'],
   ] as const)('keeps the dialog and the typed values after a %s failure so Save can be retried', async (code, message) => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
     const onSave = vi.fn(async (): Promise<void> => { throw new ApiError(code, message); });
     const { name, submit, reportError, dialog } = setup(onSave);
     name.input.value = 'Aisha';
@@ -77,6 +79,7 @@ describe('runForm', () => {
       return element as HTMLElement;
     });
     expect(alert.textContent).toBe(message);
+    expect(scrollIntoView.mock.contexts).toContain(alert);
     expect(dialog.element.open).toBe(true);
     expect(name.input.value).toBe('Aisha');
     expect(reportError).not.toHaveBeenCalled();
