@@ -86,7 +86,8 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
           // The first cell is the row's open control: a real button for keyboard and screen-reader
           // users. Clicking anywhere else in the row still opens it, as a mouse convenience below.
           if (open && index === 0) {
-            const button = h('button', { type: 'button', class: 'row-open' }, content);
+            const firstCellText = typeof content === 'string' ? content : (content.textContent ?? '');
+            const button = h('button', { type: 'button', class: 'row-open', 'aria-label': firstCellText !== '' ? `Open ${firstCellText}` : 'Open row' }, content);
             button.addEventListener('click', (event) => {
               // Otherwise the click also bubbles to the row's own listener and opens it twice.
               event.stopPropagation();

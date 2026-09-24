@@ -44,6 +44,19 @@ describe('table', () => {
     third.querySelector('button.row-open')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(onOpen.mock.calls.map((call) => call[0].id)).toEqual(['a', 'b', 'c']);
   });
+  it('names the row-open button after the first cell text', () => {
+    const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none' });
+    const button = table.querySelector('tbody tr button.row-open') as HTMLButtonElement;
+    expect(button.getAttribute('aria-label')).toBe('Open Bilal');
+  });
+
+  it('falls back to "Open row" when the first cell is empty', () => {
+    const blankFirstCell: Row[] = [{ id: 'z', name: '', amount: 5 }];
+    const table = renderTable({ columns, rows: blankFirstCell, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none' });
+    const button = table.querySelector('tbody tr button.row-open') as HTMLButtonElement;
+    expect(button.getAttribute('aria-label')).toBe('Open row');
+  });
+
   it('also opens the row when the click lands elsewhere on it, as a mouse convenience, without opening it twice', () => {
     const onOpen = vi.fn();
     const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen, empty: 'none' });
