@@ -129,6 +129,33 @@ describe('pledge form', () => {
     expect(onLogPayment).toHaveBeenCalledTimes(1);
   });
 
+  it('asks to discard unsaved pledge edits before logging a payment, and proceeds once confirmed', async () => {
+    const onLogPayment = vi.fn();
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), onLogPayment, reportError: vi.fn() });
+    type(document.querySelector('input[name=name]') as HTMLInputElement, 'Chen Wei Jr.');
+    const button = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
+    button.click();
+    expect(document.querySelectorAll('dialog[open]')).toHaveLength(2);
+    const confirmModal = Array.from(document.querySelectorAll('dialog')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm') as HTMLDialogElement;
+    expect(confirmModal.textContent).toContain('Discard your changes to this pledge?');
+    (Array.from(confirmModal.querySelectorAll('button')).find((b) => b.textContent === 'Discard') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(document.querySelector('dialog[open]')).toBeNull());
+    expect(onLogPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the pledge dialog open and does not log a payment when discard is declined', () => {
+    const onLogPayment = vi.fn();
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), onLogPayment, reportError: vi.fn() });
+    type(document.querySelector('input[name=name]') as HTMLInputElement, 'Chen Wei Jr.');
+    const button = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
+    button.click();
+    const confirmModal = Array.from(document.querySelectorAll('dialog')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm') as HTMLDialogElement;
+    (Array.from(confirmModal.querySelectorAll('button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
+    expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
+    expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit pledge');
+    expect(onLogPayment).not.toHaveBeenCalled();
+  });
+
   it('hides the Log a payment button for a pledge with no phone', () => {
     const noPhone = pledge({ id: 'p9', name: 'No Phone', amountPledged: 50 });
     openPledgeForm({ pledges: [...pledges, noPhone], existing: noPhone, onSave: vi.fn(), onLogPayment: vi.fn(), reportError: vi.fn() });

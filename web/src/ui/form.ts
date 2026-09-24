@@ -15,6 +15,8 @@ export interface FormSpec<D> {
   onSave(draft: D): Promise<void>;
   onDelete?: () => Promise<void>;
   deleteMessage: string;
+  /** A secondary footer action (e.g. "Log a payment"). Shares the form's busy lock: disabled, and inert, while Save or Delete is in flight. */
+  secondary?: { label: string; run(): void };
   reportError(err: unknown): void;
 }
 
@@ -30,6 +32,7 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   const save = h('button', { type: 'submit', class: 'btn btn-primary', form: spec.form.id }, 'Save');
   const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Cancel');
   const remove = spec.onDelete ? h('button', { type: 'button', class: 'btn btn-danger' }, 'Delete') : null;
+  const secondary = spec.secondary ? h('button', { type: 'button', class: 'btn btn-secondary' }, spec.secondary.label) : null;
   const formError = h('p', { class: 'hint hint-warning form-error', role: 'alert', hidden: true });
   spec.form.append(formError);
   const showFormError = (message: string | null) => {
@@ -38,14 +41,24 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
     // Long forms scroll inside the dialog; a volunteer who pressed Save from the top must still see why it failed.
     if (message !== null) formError.scrollIntoView({ block: 'nearest' });
   };
-  const dialog = openDialog(spec.title, spec.form, [remove, h('span', { class: 'spacer' }), cancel, save]);
-  const buttons = [save, cancel, remove].filter((b): b is HTMLButtonElement => b !== null);
+  const dialog = openDialog(spec.title, spec.form, [secondary, remove, h('span', { class: 'spacer' }), cancel, save]);
+  const buttons = [save, cancel, remove, secondary].filter((b): b is HTMLButtonElement => b !== null);
   const setBusy = (busy: boolean, label = 'Saving…') => {
     buttons.forEach((button) => { button.disabled = busy; });
     save.textContent = busy ? label : 'Save';
   };
 
   cancel.addEventListener('click', () => dialog.close());
+
+  if (secondary && spec.secondary) {
+    const run = spec.secondary.run;
+    // Shares the Save/Delete busy lock via `buttons` above: while busy the button is disabled, and this
+    // guards the same way runForm's other handlers do in case a click still lands (e.g. a queued event).
+    secondary.addEventListener('click', () => {
+      if (secondary.disabled) return;
+      run();
+    });
+  }
 
   spec.form.addEventListener('submit', async (event) => {
     event.preventDefault();

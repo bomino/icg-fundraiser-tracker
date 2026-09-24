@@ -3,6 +3,7 @@ import { matchKey } from '../matchKey';
 import { parseAmount } from '../format';
 import type { Pledge, PledgeDraft } from '../types';
 import { validatePledge, type FieldErrors } from '../validate';
+import { confirmDialog } from './dialog';
 import { h } from './dom';
 import { field } from './field';
 import { runForm } from './form';
@@ -44,6 +45,35 @@ export function openPledgeForm(options: PledgeFormOptions): void {
   fields.phone.input.addEventListener('input', updateHint);
   updateHint();
 
+  // Snapshot at open time, to ask before discarding an in-progress edit for "Log a payment".
+  const initial = {
+    phone: fields.phone.input.value,
+    name: fields.name.input.value,
+    datePledged: fields.datePledged.input.value,
+    amountPledged: fields.amountPledged.input.value,
+    notes: fields.notes.input.value,
+  };
+  const isDirty = () =>
+    fields.phone.input.value !== initial.phone ||
+    fields.name.input.value !== initial.name ||
+    fields.datePledged.input.value !== initial.datePledged ||
+    fields.amountPledged.input.value !== initial.amountPledged ||
+    fields.notes.input.value !== initial.notes;
+
+  const onLogPayment = options.onLogPayment;
+  const canLogPayment = Boolean(existing?.phone.trim() && onLogPayment);
+  let requested = false;
+
+  async function handleLogPayment() {
+    if (isDirty()) {
+      const discard = await confirmDialog('Discard your changes to this pledge?', 'Discard');
+      if (!discard) return;
+    }
+    // Never stack form dialogs: this closes the pledge dialog first, then the caller opens the payment form.
+    requested = true;
+    dialog.close();
+  }
+
   const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
   const dialog = runForm<PledgeDraft>({
     title: existing ? 'Edit pledge' : 'Add pledge',
@@ -66,20 +96,12 @@ export function openPledgeForm(options: PledgeFormOptions): void {
     validate: validatePledge,
     onSave: options.onSave,
     onDelete: options.onDelete,
+    secondary: canLogPayment ? { label: 'Log a payment', run: () => { void handleLogPayment(); } } : undefined,
     deleteMessage: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
     reportError: options.reportError,
   });
 
-  const onLogPayment = options.onLogPayment;
-  if (existing?.phone.trim() && onLogPayment) {
-    // Never stack form dialogs: this closes the pledge dialog first, then the caller opens the payment form.
-    let requested = false;
-    const logPayment = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Log a payment');
-    logPayment.addEventListener('click', () => {
-      requested = true;
-      dialog.close();
-    });
-    dialog.element.querySelector('.modal-actions')?.prepend(logPayment);
+  if (canLogPayment && onLogPayment) {
     dialog.element.addEventListener('close', () => { if (requested) onLogPayment(); }, { once: true });
   }
 }

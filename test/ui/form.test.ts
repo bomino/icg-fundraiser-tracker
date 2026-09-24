@@ -154,6 +154,33 @@ describe('runForm', () => {
     expect(dialog.element.open).toBe(false);
   });
 
+  it('disables the secondary action while Save is pending, and a click while disabled does nothing', async () => {
+    let finish!: () => void;
+    const onSave = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const run = vi.fn();
+    const name = field({ name: 'name', label: 'Name', value: 'Aisha' });
+    const form = h('form', { class: 'form' }, name.wrapper);
+    const dialog = runForm({
+      title: 'Test',
+      form,
+      fields: { name },
+      read: () => ({ draft: { name: name.input.value }, errors: {} }),
+      validate: () => ({}),
+      onSave,
+      secondary: { label: 'Log a payment', run },
+      deleteMessage: '',
+      reportError: vi.fn(),
+    });
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    const secondary = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
+    expect(secondary.disabled).toBe(true);
+    secondary.click();
+    expect(run).not.toHaveBeenCalled();
+    expect(dialog.element.open).toBe(true);
+    finish();
+    await vi.waitFor(() => expect(dialog.element.open).toBe(false));
+  });
+
   it('does not open a second confirm dialog when Delete is activated twice quickly', () => {
     const name = field({ name: 'name', label: 'Name', value: 'x' });
     const form = h('form', { class: 'form' }, name.wrapper);
