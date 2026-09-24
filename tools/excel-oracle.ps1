@@ -92,12 +92,19 @@ finally {
   Remove-Item $workingCopy -ErrorAction SilentlyContinue
 }
 
+# Lowercase hex, to match Node's `createHash('sha256').update(buf).digest('hex')` in the test
+# that asserts this fixture was generated from the exact tracked workbook.
+$sourceSha256 = (Get-FileHash -Algorithm SHA256 -Path $Workbook).Hash.ToLowerInvariant()
+
 [ordered]@{
-  source   = 'Masjid_Fundraiser_Tracker_v3.xlsx'
-  today    = (Get-Date).ToString('yyyy-MM-dd')
-  pledges  = @($pledgeResults)
-  payments = @($paymentResults)
-  summary  = $summary
-  lookups  = @($lookupResults)
+  _regenerate   = 'Regenerate on Windows with Excel installed: pwsh -NoProfile -File tools/excel-oracle.ps1'
+  source        = 'Masjid_Fundraiser_Tracker_v3.xlsx'
+  sourceSha256  = $sourceSha256
+  generatedBy   = 'tools/excel-oracle.ps1'
+  today         = (Get-Date).ToString('yyyy-MM-dd')
+  pledges       = @($pledgeResults)
+  payments      = @($paymentResults)
+  summary       = $summary
+  lookups       = @($lookupResults)
 } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8NoBOM $OutputPath
 Write-Host "Wrote $OutputPath"
