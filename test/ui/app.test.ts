@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Auth } from '../../web/src/auth';
+import { createAuth, type Auth } from '../../web/src/auth';
 import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
@@ -230,6 +230,37 @@ describe('mountApp', () => {
     history.replaceState(null, '', '#display');
     mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
     expect(localStorage.getItem('icg-last-view')).not.toBe('display');
+  });
+
+  it('may ask for sign-in once when Friday display is pressed with a nearly expired sign-in, then shows the display', async () => {
+    let emit: ((response: { credential: string }) => void) | undefined;
+    const renderButton = vi.fn();
+    vi.stubGlobal('google', {
+      accounts: { id: { initialize: vi.fn((config: { callback: typeof emit }) => { emit = config.callback; }), renderButton, prompt: vi.fn(), disableAutoSelect: vi.fn() } },
+    });
+    const encode = (payload: object) => `h.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.s`;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+    const signIn = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    emit?.({ credential: encode({ exp: Math.floor(Date.now() / 1000) + 200 }) });
+    await signIn;
+
+    history.replaceState(null, '', '#summary');
+    mountApp(root, { store: fakeStore().store, auth });
+    // The volunteer is at the keyboard, so the usual early refresh may ask them here; it buys the screen a fresh hour.
+    (root.querySelector('main a[href="#display"]') as HTMLAnchorElement).click();
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    expect(host.querySelector('dialog')?.open).toBe(true);
+    history.replaceState(null, '', '#display');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(root.querySelector('.friday')).not.toBeNull();
+
+    emit?.({ credential: encode({ exp: Math.floor(Date.now() / 1000) + 3600 }) });
+    expect(host.querySelector('dialog')?.open).toBe(false);
+    expect(auth.hasFreshToken()).toBe(true);
+    vi.unstubAllGlobals();
   });
 
   it('links to the Friday display from the Summary', () => {

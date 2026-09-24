@@ -267,3 +267,5 @@ textarea.input { resize: vertical; }
 .friday-stale { background: transparent; border: 1px solid var(--color-rule-strong); border-radius: var(--radius-full); padding: var(--space-xs) var(--space-md); font-size: clamp(0.75rem, 0.5rem + 0.5vw, 1rem); color: var(--color-warning); cursor: pointer; }
 .friday-stale:hover:not(:disabled) { background: var(--color-warning-tint); }
 .friday-stale:disabled { opacity: 0.6; cursor: progress; }
+/* Nothing may pop up over the projector; the stale note is the display's only call for attention. */
+body[data-display] .toasts { display: none; }

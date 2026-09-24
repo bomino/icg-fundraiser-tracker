@@ -43,7 +43,7 @@ function figures(state: State): HTMLElement[] {
  * Returns the teardown, which undoes every timer, listener and hold it set up.
  */
 export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
-  let releasePrompts = deps.auth.suppressPrompts();
+  let releasePrompts: () => void = () => undefined;
   let loading = false;
   let reconnecting = false;
   let closed = false;
@@ -110,16 +110,17 @@ export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
     showStatus();
   }
 
+  // The first render is the only step that can throw, so it runs before anything that would need undoing.
+  const state = deps.store.state();
+  if (state) render(state);
   staleNote.addEventListener('click', () => void reconnect());
   const refreshTimer = setInterval(tick, DISPLAY_REFRESH_MS);
   const staleTimer = setInterval(showStatus, STALE_CHECK_MS);
   document.addEventListener('visibilitychange', onVisibility);
   const unsubscribe = deps.store.subscribe(render);
   document.body.dataset.display = 'friday';
-
-  const state = deps.store.state();
-  if (state) render(state);
   root.replaceChildren(view);
+  releasePrompts = deps.auth.suppressPrompts();
 
   return () => {
     closed = true;

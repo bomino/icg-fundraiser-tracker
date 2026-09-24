@@ -257,7 +257,8 @@ describe('createAuth', () => {
 
     const release = auth.suppressPrompts();
     await expect(auth.getToken(false)).resolves.toBe(credential);
-    await expect(auth.getToken(true)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    // Neutral wording: a save still in flight when the display opens can surface this as a toast.
+    await expect(auth.getToken(true)).rejects.toMatchObject({ code: 'UNAUTHENTICATED', message: 'Sign-in is needed. Tap to sign in again.' });
     expect(renderButton).toHaveBeenCalledTimes(1);
     expect(signInDialog(host).open).toBe(false);
 

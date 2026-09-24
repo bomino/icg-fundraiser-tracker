@@ -118,7 +118,7 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
     if (!forceRefresh && isFresh(token, Date.now() / 1000)) return token as string;
     // Covers the path hasFreshToken cannot: the server rejecting a token that looked fresh, which
     // makes api.ts ask again with forceRefresh — on an unattended screen that must not prompt.
-    if (suppressions > 0) throw new ApiError('UNAUTHENTICATED', 'Sign-in is needed before the figures can update.');
+    if (suppressions > 0) throw new ApiError('UNAUTHENTICATED', 'Sign-in is needed. Tap to sign in again.');
     await waitForGoogle();
     initialise();
     return new Promise<string>((resolve, reject) => {

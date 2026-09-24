@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAuth, type Auth } from '../../web/src/auth';
 import { compute } from '../../web/src/engine';
@@ -241,6 +243,24 @@ describe('Friday display', () => {
     expect(note.hidden).toBe(true);
     exit();
     expect(events.at(-1)).toBe('release');
+  });
+
+  it('leaks no sign-in hold, timer or listener when the first render throws', () => {
+    vi.useFakeTimers();
+    const timersBefore = vi.getTimerCount();
+    const { store, listeners } = fakeStore();
+    vi.spyOn(store, 'state').mockReturnValue({ pledges, payments, settings, me: 'me' } as unknown as State);
+    const { auth, release } = fakeAuth(true);
+    expect(() => mountDisplay(root, { store, auth, reconnect: vi.fn(async () => undefined) })).toThrow();
+    expect(auth.suppressPrompts.mock.calls.length - release.mock.calls.length).toBe(0);
+    expect(vi.getTimerCount()).toBe(timersBefore);
+    expect(listeners.size).toBe(0);
+    expect(document.body.dataset.display).toBeUndefined();
+  });
+
+  it('hides toasts while the display is on screen, so its note is the only thing that asks for attention', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'components.css'), 'utf8');
+    expect(css).toMatch(/body\[data-display\] \.toasts \{ display: none; \}/);
   });
 
   it('clears every timer and listener on exit', async () => {
