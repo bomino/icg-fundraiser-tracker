@@ -357,8 +357,8 @@ function howTo(): Child[] {
       'Record a pledge when the amount isn’t known yet',
       p('Sometimes a donor promises to give but has not said how much. Enter ', b('0'), ' in Amount pledged — do not leave it blank.'),
       bullets(
-        [b('With 0'), ', the donor’s payments are counted in every total. Once they pay, their status shows Overpaid until you type in the real amount. That is expected.'],
-        [b('Left blank'), ', the donor’s payments show ', said(WARN_NO_AMOUNT), ' and are left out of every total until the amount is filled in.'],
+        [b('With 0'), ', the donor’s payments count toward Total received and the goal. Once they pay, their status shows Overpaid until you type in the real amount. That is expected.'],
+        [b('Left blank'), ', the donor’s payments show ', said(WARN_NO_AMOUNT), ' and do not count toward Total received or the goal until the amount is filled in. Until then they show up in Unmatched payments.'],
       ),
       p('When you learn the amount, edit the pledge and replace the 0.'),
     ),

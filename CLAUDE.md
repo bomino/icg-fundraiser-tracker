@@ -28,7 +28,7 @@ Three logical tables: Pledges (donor dimension), Payments (transaction fact), Su
 
 ### Statuses
 
-Four literal values: blank-or-zero pledge amount → `Pending`; `round(received - pledged, 2) > 0` → `Overpaid`; `= 0` → `Paid`; else `Partial`. The rounding is deliberate — exact float equality would leave cent-level residues stuck on `Partial` (e.g. 0.1 + 0.2 against a 0.30 pledge should read `Paid`). Summary's status counts are `count`s over those four literal strings, so renaming a status breaks the counts.
+Four literal values, set only when Amount Pledged is filled in (a blank amount has no status): nothing received → `Pending`, whatever was pledged; otherwise `round(received - pledged, 2) > 0` → `Overpaid`; `= 0` → `Paid`; else `Partial`. So a `0` pledge reads `Pending` until money arrives, then `Overpaid`. The rounding is deliberate — exact float equality would leave cent-level residues stuck on `Partial` (e.g. 0.1 + 0.2 against a 0.30 pledge should read `Paid`). Summary's status counts are `count`s over those four literal strings, so renaming a status breaks the counts.
 
 ### The two ⚠ warnings
 
