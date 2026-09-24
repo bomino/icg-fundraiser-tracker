@@ -11,8 +11,9 @@ test('the Needs follow-up chip shows stale pending or partial pledges', async ({
   await expect(page.getByText('No pledges match.')).toHaveCount(0);
   await expect(page.locator('.data-table tbody tr')).not.toHaveCount(0);
 
-  // Every visible row must actually be stale Pending/Partial, not just "not empty".
-  const statuses = await page.locator('.data-table tbody tr td:nth-child(9)').allTextContents();
+  // Every visible row must actually be stale Pending/Partial, not just "not empty". Selecting by
+  // the cell's data-label (not column position) survives a column being added or reordered.
+  const statuses = await page.locator('.data-table tbody tr td[data-label="Status"]').allTextContents();
   for (const status of statuses) {
     expect(['Pending', 'Partial']).toContain(status.trim());
   }

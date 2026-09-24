@@ -6,7 +6,7 @@ test('logging a payment from the Find donor card records it', async ({ page }) =
   await goToTab(page, 'find');
 
   await page.getByLabel('Search').fill('555-0110');
-  const card = page.locator('article.lookup-card');
+  const card = page.getByRole('article');
   await expect(card).toContainText('Ibrahim Musa');
   await expect(card).toContainText('$750.00');
 

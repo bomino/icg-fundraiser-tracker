@@ -1,5 +1,4 @@
 import { ApiError, type Api, type LoadResult, type RowRef, type Versioned } from './api';
-import { todayIso } from './dates';
 import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
 
 // Dev-only stand-in for the Apps Script backend so every screen can be exercised without Google accounts.
@@ -23,11 +22,13 @@ const BIG_LAST_NAMES = ['Abara', 'Bello', 'Chowdhury', 'Demir', 'Elmi', 'Farouk'
 type PledgeSeed = [phone: string, name: string, datePledged: string, amountPledged: number | null, notes?: string];
 type PaymentSeed = [phone: string, dateReceived: string, amountReceived: number | null, method: string, notes?: string];
 
-function daysFromToday(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return todayIso(date);
-}
+// Fixed, not wall-clock-relative: a "30 days from today" date would eventually drift into the
+// June 2026 window e2e/payments-date-range.spec.ts filters on, or the 30-day Needs-follow-up
+// window, silently breaking those hardcoded assertions on whatever day the suite happens to run.
+// This stays safely past the rest of the (2026) seed and demonstrates "payment dated in the
+// future" for the practical life of this fixture — it will eventually need bumping, like the
+// seed's other dates, just on a much longer horizon.
+const POST_DATED_CHECK_DATE = '2036-01-01';
 
 // Pure calendar-day arithmetic in UTC (no reliance on "today" or the local timezone), so the big
 // seed is byte-identical on any date and any machine.
@@ -93,7 +94,7 @@ function seedPayments(): Payment[] {
     ['555-0112', '2026-08-15', 399.7, 'Other', 'Collected at the Friday table'],
     ['555-0114', '2026-08-10', 1000, 'Check'],
     ['555-0114', '', 250, 'Cash', 'Date not written on the envelope'],
-    ['555-0114', daysFromToday(30), 250, 'Check', 'Post-dated check'],
+    ['555-0114', POST_DATED_CHECK_DATE, 250, 'Check', 'Post-dated check'],
     ['555-0115', '2026-08-10', 300, 'Card'],
     ['555-0115', '2026-09-01', 300, 'Card'],
     ['555-0113', '2026-09-12', 0, ''],
