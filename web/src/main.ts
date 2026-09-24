@@ -39,6 +39,8 @@ async function boot(root: HTMLElement, api: Api, auth: Auth) {
 async function startDemo(root: HTMLElement) {
   // Dynamic import inside a DEV-only branch lets the bundler drop demo.ts from production builds.
   const { createDemoApi } = await import('./demo');
+  // `?demo&big`: the Task 7 performance check's event-scale seed (1,500 pledges / 3,000 payments).
+  const big = new URLSearchParams(window.location.search).has('big');
   const auth: Auth = {
     getToken: async () => 'demo-token',
     refreshIfStale: () => undefined,
@@ -50,7 +52,7 @@ async function startDemo(root: HTMLElement) {
       window.location.assign(url.href);
     },
   };
-  await boot(root, createDemoApi(), auth);
+  await boot(root, createDemoApi(undefined, { big }), auth);
 }
 
 async function start() {

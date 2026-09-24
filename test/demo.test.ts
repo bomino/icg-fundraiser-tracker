@@ -51,4 +51,23 @@ describe('demo api', () => {
     await expect(stale).rejects.toMatchObject({ code: 'CONFLICT' });
     await expect(api.deletePledge(first)).rejects.toMatchObject({ code: 'CONFLICT' });
   });
+
+  it('the big seed (Task 7 event scale) is a deterministic 1,500/3,000-row dataset', async () => {
+    const first = await createDemoApi(0, { big: true }).load();
+    const second = await createDemoApi(0, { big: true }).load();
+    expect(first.pledges).toHaveLength(1500);
+    expect(first.payments).toHaveLength(3000);
+    expect(first.pledges).toEqual(second.pledges);
+    expect(first.payments).toEqual(second.payments);
+    const computed = compute(first.pledges, first.payments, first.settings, todayIso());
+    expect(computed.pledges).toHaveLength(1500);
+    expect(computed.payments).toHaveLength(3000);
+  });
+
+  it('the big seed leaves the normal demo seed unchanged', async () => {
+    const data = await createDemoApi(0).load();
+    expect(data.pledges.length).toBeGreaterThanOrEqual(12);
+    expect(data.pledges.length).toBeLessThan(20);
+    expect(data.payments.length).toBeLessThan(30);
+  });
 });

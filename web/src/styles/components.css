@@ -110,6 +110,9 @@ textarea.input { resize: vertical; }
 .row-pending .row-open { cursor: progress; }
 .cell-warning { background: var(--color-warning-tint); color: var(--color-ink); box-shadow: inset 3px 0 0 var(--color-warning); }
 .totals-band { font-size: 0.8125rem; color: var(--color-ink-soft); }
+/* Wraps a paged table plus its "Show more" button; a tighter gap than the view grid's own, so the button reads as part of the table rather than a new section. */
+.table-pager { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
+@media (max-width: 720px) { .table-pager .show-more { align-self: stretch; } }
 
 /* Money treatment, usable inside a data-table cell or standalone (stat cards, lookup summaries). */
 .num { text-align: right; white-space: nowrap; font-feature-settings: 'tnum'; }

@@ -12,6 +12,14 @@ const DEFAULT_LATENCY_MS = 300;
 const VERSION_FIELDS = new Set(['id', 'updatedAt', 'updatedBy']);
 const METHODS = ['Cash', 'Bank Transfer', 'Card', 'Check', 'Online', 'Other'];
 
+// Event-scale seed for the Task 7 performance check (`?demo&big`). Sized to the plan's realistic
+// ceiling (~1,500 pledges) plus double the payments, entirely index-derived so two runs — and two
+// machines — always produce byte-identical rows.
+const BIG_PLEDGE_COUNT = 1500;
+const BIG_PAYMENT_COUNT = 3000;
+const BIG_FIRST_NAMES = ['Amina', 'Bilal', 'Chioma', 'Dawud', 'Elif', 'Farid', 'Ghalia', 'Hakim', 'Imani', 'Junayd', 'Khadija', 'Layth'];
+const BIG_LAST_NAMES = ['Abara', 'Bello', 'Chowdhury', 'Demir', 'Elmi', 'Farouk', 'Gueye', 'Haidari', 'Ibrahim', 'Jalloh', 'Karimi', 'Lawal'];
+
 type PledgeSeed = [phone: string, name: string, datePledged: string, amountPledged: number | null, notes?: string];
 type PaymentSeed = [phone: string, dateReceived: string, amountReceived: number | null, method: string, notes?: string];
 
@@ -19,6 +27,16 @@ function daysFromToday(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return todayIso(date);
+}
+
+// Pure calendar-day arithmetic in UTC (no reliance on "today" or the local timezone), so the big
+// seed is byte-identical on any date and any machine.
+function addDaysIso(base: string, days: number): string {
+  const [year, month, day] = base.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  return `${date.getUTCFullYear()}-${mm}-${dd}`;
 }
 
 function seedPledges(): Pledge[] {
@@ -95,9 +113,54 @@ function seedPayments(): Payment[] {
   }));
 }
 
-export function createDemoApi(latencyMs: number = DEFAULT_LATENCY_MS): Api {
-  let pledges = seedPledges();
-  let payments = seedPayments();
+// `?demo&big`: an event-scale seed for the Task 7 performance check. Every field is derived from
+// the row index alone, so the row count and content never change between runs.
+function seedBigPledges(): Pledge[] {
+  return Array.from({ length: BIG_PLEDGE_COUNT }, (_, index) => {
+    const first = BIG_FIRST_NAMES[index % BIG_FIRST_NAMES.length];
+    const last = BIG_LAST_NAMES[(index * 7 + 3) % BIG_LAST_NAMES.length];
+    // 1-in-29 pledges have no amount yet, matching the small seed's "amount to be confirmed" case.
+    const amountPledged = index % 29 === 0 ? null : 100 + ((index * 37) % 4900);
+    return {
+      id: `demo-pledge-big-${index + 1}`,
+      phone: `555-3${String(index).padStart(4, '0')}`,
+      name: `${first} ${last}`,
+      datePledged: addDaysIso('2026-01-01', index % 240),
+      amountPledged,
+      notes: index % 50 === 0 ? 'Sample note for the event-scale performance check.' : '',
+      updatedAt: SEEDED_AT,
+      updatedBy: SEEDED_BY,
+    };
+  });
+}
+
+function seedBigPayments(pledgePhones: readonly string[]): Payment[] {
+  return Array.from({ length: BIG_PAYMENT_COUNT }, (_, index) => {
+    // Most payments land on a pledge phone (so the Pledges join has real work to do); 1-in-37
+    // target an unregistered phone, matching the small seed's "phone not in Pledges" warning.
+    const phone = index % 37 === 0 ? `555-9${String(index).padStart(4, '0')}` : pledgePhones[index % pledgePhones.length];
+    const amountReceived = index % 41 === 0 ? null : 20 + ((index * 53) % 480);
+    return {
+      id: `demo-payment-big-${index + 1}`,
+      phone,
+      dateReceived: addDaysIso('2026-01-15', index % 260),
+      amountReceived,
+      method: METHODS[index % METHODS.length],
+      notes: '',
+      updatedAt: SEEDED_AT,
+      updatedBy: SEEDED_BY,
+    };
+  });
+}
+
+export interface DemoOptions {
+  /** `?demo&big`: seeds 1,500 pledges / 3,000 payments instead of the small hand-authored set. */
+  big?: boolean;
+}
+
+export function createDemoApi(latencyMs: number = DEFAULT_LATENCY_MS, options: DemoOptions = {}): Api {
+  let pledges = options.big ? seedBigPledges() : seedPledges();
+  let payments = options.big ? seedBigPayments(pledges.map((pledge) => pledge.phone)) : seedPayments();
   let settings: Settings = { goal: 25000, paymentMethods: METHODS };
   let lastStamp = 0;
 

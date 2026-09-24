@@ -7,6 +7,7 @@ import { openPaymentForm } from '../../web/src/ui/paymentForm';
 import { openPledgeForm } from '../../web/src/ui/pledgeForm';
 import { createPaymentsView } from '../../web/src/ui/paymentsView';
 import { createPledgesView } from '../../web/src/ui/pledgesView';
+import { TABLE_PAGE_SIZE } from '../../web/src/ui/table';
 import { METHODS, SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 afterEach(() => document.body.replaceChildren());
@@ -191,6 +192,46 @@ describe('payments view: date range', () => {
     expect(view.textContent).not.toContain('Showing');
     type(dateInput(view, 'payments-date-from'), '2026-06-01');
     expect(view.textContent).toContain('Showing 2 of 4');
+  });
+});
+
+describe('pledges view: paging at event scale', () => {
+  const manyPledges = Array.from({ length: 240 }, (_, i) => pledge({ id: `big${i}`, phone: `555-400-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
+  const manyState: State = { pledges: manyPledges, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(manyPledges, [], SETTINGS, TODAY) };
+  const ids = (view: HTMLElement) => [...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+  const showMore = (view: HTMLElement) => view.querySelector('.show-more') as HTMLButtonElement;
+
+  it('shows only the first page and a "Show more (N left)" button for an event-scale pledge list', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
+    document.body.append(view);
+    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE);
+    expect(showMore(view).textContent).toBe(`Show more (${240 - TABLE_PAGE_SIZE} left)`);
+  });
+
+  it('reveals another page per click, until every row is shown and the button disappears', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
+    document.body.append(view);
+    showMore(view).click();
+    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE * 2);
+    expect(showMore(view).textContent).toBe(`Show more (${240 - TABLE_PAGE_SIZE * 2} left)`);
+    showMore(view).click();
+    expect(ids(view)).toHaveLength(240);
+    expect(view.querySelector('.show-more')).toBeNull();
+  });
+
+  it('starts a new search back at page 1, even after "Show more" was used', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
+    document.body.append(view);
+    showMore(view).click();
+    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE * 2);
+    const search = view.querySelector('input[type=search]') as HTMLInputElement;
+    vi.useFakeTimers();
+    type(search, 'Donor 1');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    // "Donor 1", "Donor 10"-"Donor 19", "Donor 100"-"Donor 199" all match - more than one page's worth - so the reset is visible as a "Show more" button again, not the full match set.
+    expect(ids(view).length).toBe(TABLE_PAGE_SIZE);
+    expect(view.querySelector('.show-more')).not.toBeNull();
   });
 });
 

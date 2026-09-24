@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { nextSort, renderTable, sortRows, type Column } from '../../web/src/ui/table';
+import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column } from '../../web/src/ui/table';
 import { matchesQuery } from '../../web/src/ui/search';
 
 interface Row { id: string; name: string; amount: number | null }
@@ -69,6 +69,53 @@ describe('table', () => {
   });
   it('shows the empty message when there are no rows', () => {
     expect(renderTable({ columns, rows: [], sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'No pledges yet.' }).textContent).toBe('No pledges yet.');
+  });
+
+  describe('paging (event-scale tables)', () => {
+    const many: Row[] = Array.from({ length: 250 }, (_, i) => ({ id: `p${i}`, name: `Donor ${i}`, amount: i }));
+
+    it('renders every row when visibleCount is omitted, as every table did before Task 7', () => {
+      const table = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none' });
+      expect(table.querySelectorAll('tbody tr')).toHaveLength(250);
+      expect(table.querySelector('.show-more')).toBeNull();
+    });
+
+    it('caps the DOM rows at visibleCount and reports the remainder in "Show more (N left)"', () => {
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: vi.fn() });
+      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
+      expect(wrap.querySelector('.show-more')?.textContent).toBe(`Show more (${250 - TABLE_PAGE_SIZE} left)`);
+    });
+
+    it('calls onShowMore when the button is clicked, without renderTable managing the count itself', () => {
+      const onShowMore = vi.fn();
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore });
+      (wrap.querySelector('.show-more') as HTMLButtonElement).click();
+      expect(onShowMore).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides the button once visibleCount reaches or passes the row count', () => {
+      const exact = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: 250, onShowMore: vi.fn() });
+      expect(exact.querySelectorAll('tbody tr')).toHaveLength(250);
+      expect(exact.querySelector('.show-more')).toBeNull();
+
+      const over = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: 999, onShowMore: vi.fn() });
+      expect(over.querySelectorAll('tbody tr')).toHaveLength(250);
+      expect(over.querySelector('.show-more')).toBeNull();
+    });
+
+    it('pages the already sorted and filtered rows, not the other way round: page 1 holds the first 100 of the SORTED order', () => {
+      const sorted = sortRows(many, columns, { key: 'amount', direction: 'desc' });
+      const wrap = renderTable({ columns, rows: sorted, sort: { key: 'amount', direction: 'desc' }, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: vi.fn() });
+      const ids = [...wrap.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+      expect(ids[0]).toBe('p249');
+      expect(ids).toHaveLength(TABLE_PAGE_SIZE);
+    });
+
+    it('shows no "Show more" button when visibleCount is under the row count but no onShowMore is given', () => {
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE });
+      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
+      expect(wrap.querySelector('.show-more')).toBeNull();
+    });
   });
 });
 

@@ -24,7 +24,18 @@ export interface TableOptions<R> {
   onSort: (key: string) => void;
   onOpen?: (row: R) => void;
   empty: string;
+  /**
+   * Caps how many of `rows` are actually inserted into the DOM; a "Show more (N left)" button
+   * reveals the rest. Applied after sorting and filtering, so paging never changes which rows
+   * match or their order - it only defers building the ones not yet shown. Omit both this and
+   * `onShowMore` to render every row (e.g. the small, fixed-size Method breakdown table).
+   */
+  visibleCount?: number;
+  onShowMore?: () => void;
 }
+
+/** Event-scale tables (~1,500+ rows) render 15,000+ DOM cells at once without this; see task-7-report.md. */
+export const TABLE_PAGE_SIZE = 100;
 
 export function nextSort(current: SortState | null, key: string): SortState {
   if (current?.key === key) return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
@@ -49,6 +60,8 @@ export function sortRows<R>(rows: readonly R[], columns: readonly Column<R>[], s
 
 export function renderTable<R>(options: TableOptions<R>): HTMLElement {
   if (options.rows.length === 0) return h('p', { class: 'empty' }, options.empty);
+  const visibleCount = Math.min(options.visibleCount ?? options.rows.length, options.rows.length);
+  const visibleRows = options.rows.slice(0, visibleCount);
   const head = h(
     'tr',
     {},
@@ -63,7 +76,7 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
   const body = h(
     'tbody',
     {},
-    ...options.rows.map((row) => {
+    ...visibleRows.map((row) => {
       const tr = h(
         'tr',
         { 'data-id': options.rowId(row), class: options.rowClass?.(row) },
@@ -88,5 +101,10 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
       return tr;
     }),
   );
-  return h('div', { class: 'table-wrap' }, h('table', { class: 'data-table' }, h('thead', {}, head), body));
+  const table = h('div', { class: 'table-wrap' }, h('table', { class: 'data-table' }, h('thead', {}, head), body));
+  const remaining = options.rows.length - visibleRows.length;
+  if (remaining <= 0 || !options.onShowMore) return table;
+  const showMore = h('button', { type: 'button', class: 'btn btn-ghost show-more' }, `Show more (${remaining} left)`);
+  showMore.addEventListener('click', () => options.onShowMore?.());
+  return h('div', { class: 'table-pager' }, table, showMore);
 }

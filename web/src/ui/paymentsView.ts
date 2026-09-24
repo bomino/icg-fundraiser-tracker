@@ -10,7 +10,7 @@ import { filterChip, showingLine, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
-import { nextSort, renderTable, sortRows, type Column, type SortState } from './table';
+import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type SortState } from './table';
 
 const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'phone', label: 'Phone Number', value: (d) => d.payment.phone },
@@ -27,8 +27,15 @@ export function createPaymentsView(deps: ListViewDeps) {
   let dateFrom = '';
   let dateTo = '';
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let visibleCount = TABLE_PAGE_SIZE;
+  let lastFilterLabel: string | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
+    // A drill-down filter arriving or clearing changes which rows match, same as a new search - start back at page 1.
+    if (filter?.label !== lastFilterLabel) {
+      visibleCount = TABLE_PAGE_SIZE;
+      lastFilterLabel = filter?.label;
+    }
     const openEditor = (existing?: Payment) => {
       // One id per opened form: a Save retried after a lost response must name the same row.
       const newId = existing ? undefined : makeId();
@@ -74,6 +81,11 @@ export function createPaymentsView(deps: ListViewDeps) {
             if (!isPending(d.payment)) openEditor(d.payment);
           },
           empty: filter || query || dateFilterActive() ? 'No payments match.' : 'No payments yet. Use “Log a payment” when money comes in.',
+          visibleCount,
+          onShowMore: () => {
+            visibleCount += TABLE_PAGE_SIZE;
+            drawTable();
+          },
         }),
       );
       const line = showingLine(!!filter || query.trim() !== '' || dateFilterActive(), rows.length, state.computed.payments.length);
@@ -83,6 +95,7 @@ export function createPaymentsView(deps: ListViewDeps) {
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;
+      visibleCount = TABLE_PAGE_SIZE;
       clearTimeout(searchTimer);
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
@@ -94,6 +107,7 @@ export function createPaymentsView(deps: ListViewDeps) {
     const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput));
     const redrawDateControls = () => {
       clearDates.hidden = !dateFilterActive();
+      visibleCount = TABLE_PAGE_SIZE;
       drawTable();
     };
     dateFromInput.addEventListener('input', () => {
