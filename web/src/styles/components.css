@@ -108,6 +108,8 @@ textarea.input { resize: vertical; }
 .row-pending { opacity: 0.6; cursor: progress !important; }
 /* .row-open sets its own cursor, which would otherwise win over the row's !important progress cursor. */
 .row-pending .row-open { cursor: progress; }
+/* Spelled out in the row, not only faded, so the state does not rest on colour alone. */
+.row-saving { margin-left: var(--space-sm); font-size: 0.75rem; font-style: italic; color: var(--color-ink-soft); }
 .cell-warning { background: var(--color-warning-tint); color: var(--color-ink); box-shadow: inset 3px 0 0 var(--color-warning); }
 .totals-band { font-size: 0.8125rem; color: var(--color-ink-soft); }
 /* Wraps a paged table plus its "Show more" button; a tighter gap than the view grid's own, so the button reads as part of the table rather than a new section. */
@@ -154,6 +156,8 @@ textarea.input { resize: vertical; }
 .toast { padding: var(--space-md); border-radius: var(--radius-sm); background: var(--color-surface); border: 1px solid var(--color-rule); box-shadow: var(--shadow-lift); }
 .toast-info { border-color: var(--color-emerald); color: var(--color-emerald); }
 .toast-error { border-color: var(--color-danger); color: var(--color-danger); }
+.toast-with-action { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.toast-actions { display: flex; gap: var(--space-sm); }
 .banner { padding: var(--space-sm) var(--space-md); border: 1px solid transparent; text-align: center; font-size: 0.8125rem; }
 .banner-warning { background: var(--color-warning-tint); color: var(--color-ink); border-color: var(--color-warning); }
 .chip { border: 1px solid var(--color-rule-strong); background: var(--color-gold-tint); color: var(--color-ink); border-radius: var(--radius-full); padding: 4px 12px; cursor: pointer; font-size: 0.8125rem; transition: border-color 150ms ease, background-color 150ms ease; }

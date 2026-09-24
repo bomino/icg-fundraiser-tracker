@@ -1,4 +1,4 @@
-import { h } from './dom';
+import { h, type Child } from './dom';
 
 export interface Column<R> {
   key: string;
@@ -21,6 +21,8 @@ export interface TableOptions<R> {
   sort: SortState | null;
   rowId: (row: R) => string;
   rowClass?: (row: R) => string | undefined;
+  /** A row whose save has not been confirmed: faded, labelled "Saving…", and not openable, since editing it would start from a version about to be replaced. */
+  pending?: (row: R) => boolean;
   onSort: (key: string) => void;
   onOpen?: (row: R) => void;
   empty: string;
@@ -72,30 +74,33 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
       return h('th', { scope: 'col', class: column.numeric ? 'num' : undefined, 'aria-sort': sorted === null ? undefined : sorted === 'asc' ? 'ascending' : 'descending' }, button);
     }),
   );
-  const open = options.onOpen;
   const body = h(
     'tbody',
     {},
     ...visibleRows.map((row) => {
+      const pending = options.pending?.(row) ?? false;
+      const open = pending ? undefined : options.onOpen;
       const tr = h(
         'tr',
-        { 'data-id': options.rowId(row), class: options.rowClass?.(row) },
+        { 'data-id': options.rowId(row), class: pending ? 'row-pending' : options.rowClass?.(row) },
         ...options.columns.map((column, index) => {
           const classes = [column.numeric ? 'num' : '', column.derived ? 'derived' : '', column.cellClass?.(row) ?? ''].filter(Boolean).join(' ');
           const content = column.display ? column.display(row) : String(column.value(row) ?? '');
+          const cell = (...children: Child[]) => h('td', { 'data-label': column.label, class: classes || undefined }, ...children);
+          if (index !== 0) return cell(content);
+          const firstCellText = typeof content === 'string' ? content : (content.textContent ?? '');
+          const savingLabel = pending ? h('span', { class: 'row-saving' }, 'Saving…') : null;
+          if (!options.onOpen) return cell(content, savingLabel);
+          if (!open) return cell(h('button', { type: 'button', class: 'row-open', 'aria-disabled': 'true', 'aria-label': `${firstCellText || 'Row'} — Saving…` }, content), savingLabel);
           // The first cell is the row's open control: a real button for keyboard and screen-reader
           // users. Clicking anywhere else in the row still opens it, as a mouse convenience below.
-          if (open && index === 0) {
-            const firstCellText = typeof content === 'string' ? content : (content.textContent ?? '');
-            const button = h('button', { type: 'button', class: 'row-open', 'aria-label': firstCellText !== '' ? `Open ${firstCellText}` : 'Open row' }, content);
-            button.addEventListener('click', (event) => {
-              // Otherwise the click also bubbles to the row's own listener and opens it twice.
-              event.stopPropagation();
-              open(row);
-            });
-            return h('td', { 'data-label': column.label, class: classes || undefined }, button);
-          }
-          return h('td', { 'data-label': column.label, class: classes || undefined }, content);
+          const button = h('button', { type: 'button', class: 'row-open', 'aria-label': firstCellText !== '' ? `Open ${firstCellText}` : 'Open row' }, content);
+          button.addEventListener('click', (event) => {
+            // Otherwise the click also bubbles to the row's own listener and opens it twice.
+            event.stopPropagation();
+            open(row);
+          });
+          return cell(button);
         }),
       );
       if (open) tr.addEventListener('click', () => open(row));

@@ -77,14 +77,13 @@ export function createPaymentsView(deps: ListViewDeps) {
           rows: sortRows(rows, COLUMNS, sort),
           sort,
           rowId: (d) => d.payment.id,
-          rowClass: (d) => (isPending(d.payment) ? 'row-pending' : d.notCounted ? 'row-danger' : undefined),
+          rowClass: (d) => (d.notCounted ? 'row-danger' : undefined),
+          pending: (d) => isPending(d.payment),
           onSort: (key) => {
             sort = nextSort(sort, key);
             drawTable();
           },
-          onOpen: (d) => {
-            if (!isPending(d.payment)) openEditor(d.payment);
-          },
+          onOpen: (d) => openEditor(d.payment),
           empty: filter || query || dateFilterActive() ? 'No payments match.' : 'No payments yet. Use “Log a payment” when money comes in.',
           visibleCount,
           onShowMore: () => {

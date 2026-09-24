@@ -69,6 +69,30 @@ describe('table', () => {
     (first.querySelector('button.row-open') as HTMLButtonElement).click();
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+  it('shows a row that is still saving as faded with a "Saving…" label, and will not open it', () => {
+    // #given a table whose first row is still being saved
+    const onOpen = vi.fn();
+    const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, rowClass: () => 'row-danger', pending: (r) => r.id === 'a', onSort: () => undefined, onOpen, empty: 'none' });
+    const [first, second] = table.querySelectorAll('tbody tr');
+    const button = first.querySelector('button.row-open') as HTMLButtonElement;
+    // #when it is clicked by button and by row
+    button.click();
+    (first.querySelector('td:last-child') as HTMLElement).click();
+    // #then it is marked, labelled and inert, while the next row is untouched
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(first.className).toBe('row-pending');
+    expect(first.querySelector('td:first-child .row-saving')?.textContent).toBe('Saving…');
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.getAttribute('aria-label')).toBe('Bilal — Saving…');
+    expect(second.className).toBe('row-danger');
+    expect(second.querySelector('.row-saving')).toBeNull();
+  });
+  it('labels a saving row in a table that has no open action too', () => {
+    const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, pending: (r) => r.id === 'c', onSort: () => undefined, empty: 'none' });
+    const third = table.querySelectorAll('tbody tr')[2];
+    expect(third.className).toBe('row-pending');
+    expect(third.querySelector('td:first-child .row-saving')?.textContent).toBe('Saving…');
+  });
   it('no longer marks the row itself as a button for screen readers', () => {
     const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none' });
     const [first] = table.querySelectorAll('tbody tr');

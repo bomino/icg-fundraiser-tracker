@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError, type Api } from '../../web/src/api';
 import { compute } from '../../web/src/engine';
-import type { State, Store } from '../../web/src/store';
-import type { PaymentDraft } from '../../web/src/types';
+import { createStore, type State, type Store } from '../../web/src/store';
+import type { Payment, PaymentDraft } from '../../web/src/types';
 import type { ListFilter } from '../../web/src/ui/filter';
 import { openPaymentForm } from '../../web/src/ui/paymentForm';
 import { openPledgeForm } from '../../web/src/ui/pledgeForm';
@@ -384,3 +385,77 @@ function TODAY_LOCAL() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
+
+describe('instant save from the lists', () => {
+  const fillAndSave = (values: Record<string, string>) => {
+    for (const [name, value] of Object.entries(values)) type(document.querySelector(`dialog[open] [name=${name}]`) as HTMLInputElement, value);
+    (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+  };
+  const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+
+  it('reopens a failed new pledge exactly as typed and retries it under the same id, so it can never be added twice', async () => {
+    // #given a save that fails with a lost connection
+    const savePledge = vi.fn<Store['savePledge']>(async () => { throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.'); });
+    const view = createPledgesView({ store: { ...store, savePledge } as Store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    button('Add pledge').click();
+    fillAndSave({ phone: '555 777 0001', name: ' Zara ', amountPledged: '50' });
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    // #when the volunteer reopens it from the error toast and saves again
+    await vi.waitFor(() => expect(document.querySelector('.toast-error .toast-message')?.textContent).toBe("Couldn't save Zara. Could not reach the tracker. Check your connection and try again."));
+    button('Reopen').click();
+    expect((document.querySelector('dialog[open] [name=name]') as HTMLInputElement).value).toBe(' Zara ');
+    expect((document.querySelector('dialog[open] [name=amountPledged]') as HTMLInputElement).value).toBe('50');
+    expect(document.querySelector('dialog[open] .form-error')?.textContent).toBe('Could not reach the tracker. Check your connection and try again.');
+    savePledge.mockImplementationOnce(async () => undefined);
+    fillAndSave({});
+    // #then both attempts name the same new row
+    await vi.waitFor(() => expect(savePledge).toHaveBeenCalledTimes(2));
+    const [first, second] = savePledge.mock.calls;
+    expect(first[2]).toEqual(expect.any(String));
+    expect(second[2]).toBe(first[2]);
+    expect(second[0]).toEqual(first[0]);
+  });
+
+  it('reopens a failed payment edit with the edited values against the same row', async () => {
+    const savePayment = vi.fn<Store['savePayment']>(async () => { throw new ApiError('BUSY', 'The tracker is busy. Try again in a moment.'); });
+    const view = createPaymentsView({ store: { ...store, savePayment } as Store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    (view.querySelector('tr[data-id="y1"] .row-open') as HTMLButtonElement).click();
+    fillAndSave({ amountReceived: '36' });
+    await vi.waitFor(() => expect(document.querySelector('.toast-error .toast-message')?.textContent).toBe("Couldn't save the payment from 555-999-0000. The tracker is busy. Try again in a moment."));
+    button('Reopen').click();
+    expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit payment');
+    expect((document.querySelector('dialog[open] [name=amountReceived]') as HTMLInputElement).value).toBe('36');
+    savePayment.mockImplementationOnce(async () => undefined);
+    fillAndSave({});
+    await vi.waitFor(() => expect(savePayment).toHaveBeenCalledTimes(2));
+    expect(savePayment.mock.calls[1][1]).toBe(payments[0]);
+  });
+
+  it('shows an edit that is still saving as "Saving…" and does not open it until the save settles', async () => {
+    // #given a real store whose payment save has not answered yet
+    let answer!: (saved: Payment) => void;
+    const api = {
+      load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me@example.com' }),
+      savePayment: () => new Promise<Payment>((resolve) => { answer = resolve; }),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    const saving = liveStore.savePayment({ phone: '555-999-0000', dateReceived: '2099-01-01', amountReceived: 36, method: '', notes: '' }, payments[0]);
+    const render = createPaymentsView({ store: liveStore, reportError: vi.fn() });
+    document.body.append(render(liveStore.state() as State, null, () => undefined));
+    // #when the row is tapped
+    const row = document.querySelector('tr[data-id="y1"]') as HTMLElement;
+    (row.querySelector('.row-open') as HTMLButtonElement).click();
+    // #then nothing opens, and the row says why
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    expect(row.classList.contains('row-pending')).toBe(true);
+    expect(row.textContent).toContain('Saving…');
+    answer({ ...payments[0], amountReceived: 36, updatedAt: 'v2' });
+    await saving;
+    document.body.replaceChildren(render(liveStore.state() as State, null, () => undefined));
+    (document.querySelector('tr[data-id="y1"] .row-open') as HTMLButtonElement).click();
+    expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit payment');
+  });
+});

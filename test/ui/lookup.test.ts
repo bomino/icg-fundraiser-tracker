@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compute } from '../../web/src/engine';
-import type { State, Store } from '../../web/src/store';
+import type { Api } from '../../web/src/api';
+import { createStore, type State, type Store } from '../../web/src/store';
 import { createLookupView } from '../../web/src/ui/lookupView';
 import type { PaymentDraft } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
@@ -69,5 +70,20 @@ describe('find donor', () => {
     (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
     expect(savePayment).toHaveBeenCalled();
     expect(savePayment.mock.calls[0][0]).toMatchObject({ phone: '555-010-0101', amountReceived: 25 });
+  });
+
+  it('labels a payment that is still saving in the donor card history', async () => {
+    const api = {
+      load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me' }),
+      savePayment: () => new Promise(() => undefined),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    void liveStore.savePayment({ phone: '555-010-0101', dateReceived: '2025-02-01', amountReceived: 10, method: 'Cash', notes: '' });
+    const view = createLookupView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State);
+    search(view, '(555) 010 0101');
+    const saving = Array.from(view.querySelectorAll('.lookup-card tbody tr')).filter((tr) => tr.classList.contains('row-pending'));
+    expect(saving).toHaveLength(1);
+    expect(saving[0].textContent).toContain('Saving…');
   });
 });

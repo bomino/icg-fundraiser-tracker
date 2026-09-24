@@ -6,7 +6,7 @@ import { validatePledge, type FieldErrors } from '../validate';
 import { confirmDialog } from './dialog';
 import { h } from './dom';
 import { field } from './field';
-import { runForm } from './form';
+import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
 
 export interface PledgeFormOptions {
@@ -25,7 +25,7 @@ function otherPledgeWithPhone(pledges: readonly Pledge[], phone: string, exceptI
   return pledges.find((p) => p.id !== exceptId && matchKey(p.phone) === key);
 }
 
-export function openPledgeForm(options: PledgeFormOptions): void {
+export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore): void {
   const existing = options.existing;
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? '', help: PLEDGE_HELP.phone }),
@@ -94,11 +94,14 @@ export function openPledgeForm(options: PledgeFormOptions): void {
       };
     },
     validate: validatePledge,
+    describe: (draft) => draft.name || draft.phone || 'the pledge',
     onSave: options.onSave,
     onDelete: options.onDelete,
     secondary: canLogPayment ? { label: 'Log a payment', run: () => { void handleLogPayment(); } } : undefined,
     deleteMessage: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
     reportError: options.reportError,
+    reopen: (again) => openPledgeForm(options, again),
+    restore,
   });
 
   if (canLogPayment && onLogPayment) {

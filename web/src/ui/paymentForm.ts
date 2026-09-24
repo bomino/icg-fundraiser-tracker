@@ -5,7 +5,7 @@ import type { Payment, PaymentDraft, Pledge } from '../types';
 import { validatePayment, type FieldErrors } from '../validate';
 import { h } from './dom';
 import { field } from './field';
-import { runForm } from './form';
+import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER, PAYMENT_HELP } from './help';
 
 export interface PaymentFormOptions {
@@ -19,7 +19,7 @@ export interface PaymentFormOptions {
   reportError(err: unknown): void;
 }
 
-export function openPaymentForm(options: PaymentFormOptions): void {
+export function openPaymentForm(options: PaymentFormOptions, restore?: FormRestore): void {
   const existing = options.existing;
   const resolveDonor = createDonorResolver(options.pledges);
   const fields = {
@@ -63,9 +63,12 @@ export function openPaymentForm(options: PaymentFormOptions): void {
       };
     },
     validate: (draft) => validatePayment(draft, options.methods),
+    describe: (draft) => (draft.phone ? `the payment from ${draft.phone}` : 'the payment'),
     onSave: options.onSave,
     onDelete: options.onDelete,
     deleteMessage: 'Delete this payment? It will be removed from every total.',
     reportError: options.reportError,
+    reopen: (again) => openPaymentForm(options, again),
+    restore,
   });
 }

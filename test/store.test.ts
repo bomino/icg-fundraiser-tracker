@@ -90,14 +90,108 @@ describe('store', () => {
     expect(store.state()?.pledges.some(isPending)).toBe(false);
   });
 
-  it('never marks an edited row as pending', async () => {
+  it('marks an edited row as pending until its save succeeds, so it cannot be reopened with a stale version', async () => {
     const pending = deferred<Pledge>();
     const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);
     await store.load();
     const saving = store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha);
-    expect(isPending(store.state()?.pledges[0] as Pledge)).toBe(false);
+    expect(isPending(store.state()?.pledges[0] as Pledge)).toBe(true);
     pending.resolve({ ...aisha, name: 'Changed', updatedAt: 'v2' });
     await saving;
+    expect(isPending(store.state()?.pledges[0] as Pledge)).toBe(false);
+  });
+
+  it('clears the pending mark on an edited row when its save fails', async () => {
+    const store = createStore(fakeApi({ savePledge: async () => { throw new ApiError('NETWORK', 'offline'); } }), () => TODAY);
+    await store.load();
+    await expect(store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha)).rejects.toMatchObject({ code: 'NETWORK' });
+    expect(isPending(store.state()?.pledges[0] as Pledge)).toBe(false);
+  });
+
+  it('keeps a row pending until every overlapping save of it has settled', async () => {
+    const edit1 = deferred<Pledge>();
+    const edit2 = deferred<Pledge>();
+    const saves = [edit1.promise, edit2.promise];
+    const store = createStore(fakeApi({ savePledge: () => saves.shift() as Promise<Pledge> }), () => TODAY);
+    await store.load();
+    const saving1 = store.savePledge({ ...draftOf(aisha), name: 'Edit1' }, aisha);
+    const saving2 = store.savePledge({ ...draftOf(aisha), name: 'Edit2' }, aisha);
+    edit1.resolve({ ...aisha, name: 'Edit1', updatedAt: 'v2' });
+    await saving1;
+    expect(isPending(aisha)).toBe(true);
+    edit2.resolve({ ...aisha, name: 'Edit2', updatedAt: 'v3' });
+    await saving2;
+    expect(isPending(aisha)).toBe(false);
+  });
+
+  it('keeps a new row that is still saving through a reload, then swaps in the server copy', async () => {
+    const pending = deferred<Pledge>();
+    const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);
+    await store.load();
+    const saving = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' }, undefined, 'new-1');
+    await store.load();
+    expect(store.state()?.pledges.map((p) => p.name)).toEqual(['Aisha', 'Bilal']);
+    expect(isPending({ id: 'new-1' })).toBe(true);
+    pending.resolve({ ...aisha, id: 'new-1', phone: '2', name: 'Bilal', updatedAt: 'v1' });
+    await saving;
+    expect(store.state()?.pledges.find((p) => p.id === 'new-1')?.updatedAt).toBe('v1');
+  });
+
+  it('keeps an edit that is still saving through a reload, and on failure falls back to what the reload fetched', async () => {
+    const pending = deferred<Pledge>();
+    let serverName = 'Aisha';
+    const store = createStore(
+      fakeApi({
+        load: async () => ({ pledges: [{ ...aisha, name: serverName, updatedAt: serverName }], payments: [], settings: SETTINGS, me: 'me@example.com' }),
+        savePledge: () => pending.promise,
+      }),
+      () => TODAY,
+    );
+    await store.load();
+    const loaded = store.state()?.pledges[0] as Pledge;
+    const saving = store.savePledge({ ...draftOf(loaded), name: 'Mine' }, loaded);
+    serverName = 'Theirs';
+    await store.load();
+    expect(store.state()?.pledges[0].name).toBe('Mine');
+    pending.reject(new ApiError('BUSY', 'busy'));
+    await expect(saving).rejects.toMatchObject({ code: 'BUSY' });
+    expect(store.state()?.pledges[0].name).toBe('Theirs');
+  });
+
+  it('keeps a row that is being deleted out of a reload that still has it', async () => {
+    const pending = deferred<void>();
+    const store = createStore(fakeApi({ deletePledge: () => pending.promise }), () => TODAY);
+    await store.load();
+    const deleting = store.deletePledge(aisha);
+    await store.load();
+    expect(store.state()?.pledges).toEqual([]);
+    pending.resolve();
+    await deleting;
+    expect(store.state()?.pledges).toEqual([]);
+  });
+
+  it('keeps a goal that is still saving through a reload', async () => {
+    const pending = deferred<typeof SETTINGS>();
+    const store = createStore(fakeApi({ setGoal: () => pending.promise }), () => TODAY);
+    await store.load();
+    const saving = store.setGoal(99);
+    await store.load();
+    expect(store.state()?.settings.goal).toBe(99);
+    pending.resolve({ ...SETTINGS, goal: 99 });
+    await saving;
+    expect(store.state()?.settings.goal).toBe(99);
+  });
+
+  it('never lists a row twice when a create is retried under an id a reload already fetched', async () => {
+    const store = createStore(
+      fakeApi({ load: async () => ({ pledges: [aisha, { ...aisha, id: 'new-1', name: 'Bilal', updatedAt: 'v1' }], payments: [], settings: SETTINGS, me: 'me@example.com' }) }),
+      () => TODAY,
+    );
+    await store.load();
+    const saving = store.savePledge({ ...draftOf(aisha), name: 'Bilal' }, undefined, 'new-1');
+    expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', 'new-1']);
+    await saving;
+    expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', 'new-1']);
   });
 
   it('rolls an edit back and rethrows when the server refuses it', async () => {

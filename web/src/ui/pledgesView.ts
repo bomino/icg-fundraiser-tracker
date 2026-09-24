@@ -94,14 +94,13 @@ export function createPledgesView(deps: ListViewDeps) {
           rows: sortRows(ordered, COLUMNS, sort),
           sort,
           rowId: (d) => d.pledge.id,
-          rowClass: (d) => (isPending(d.pledge) ? 'row-pending' : d.duplicate ? 'row-danger' : undefined),
+          rowClass: (d) => (d.duplicate ? 'row-danger' : undefined),
+          pending: (d) => isPending(d.pledge),
           onSort: (key) => {
             sort = nextSort(sort, key);
             drawTable();
           },
-          onOpen: (d) => {
-            if (!isPending(d.pledge)) openEditor(d.pledge);
-          },
+          onOpen: (d) => openEditor(d.pledge),
           empty: filter || query || statusChip !== ALL_CHIP ? 'No pledges match.' : 'No pledges yet. Use “Add pledge” to record the first one.',
           visibleCount,
           onShowMore: () => {

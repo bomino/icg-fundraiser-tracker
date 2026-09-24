@@ -2,10 +2,10 @@ import { parseAmount } from '../format';
 import { amountError } from '../validate';
 import { h } from './dom';
 import { field } from './field';
-import { runForm } from './form';
+import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER } from './help';
 
-export function openGoalForm(goal: number | null, onSave: (goal: number) => Promise<void>, reportError: (err: unknown) => void): void {
+export function openGoalForm(goal: number | null, onSave: (goal: number) => Promise<void>, reportError: (err: unknown) => void, restore?: FormRestore): void {
   const goalField = field({ name: 'goal', label: 'Fundraiser goal ($)', inputmode: 'decimal', value: goal?.toString() ?? '', help: '% of goal received is measured against this figure.' });
   runForm<{ goal: number | null }>({
     title: 'Edit goal',
@@ -19,8 +19,11 @@ export function openGoalForm(goal: number | null, onSave: (goal: number) => Prom
       const error = draft.goal === null ? 'Enter a goal.' : amountError(draft.goal);
       return error ? { goal: error } : {};
     },
+    describe: () => 'the goal',
     onSave: (draft) => onSave(draft.goal ?? 0),
     deleteMessage: '',
     reportError,
+    reopen: (again) => openGoalForm(goal, onSave, reportError, again),
+    restore,
   });
 }

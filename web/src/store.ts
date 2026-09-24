@@ -29,12 +29,19 @@ export interface Store {
   setGoal(goal: number): Promise<void>;
 }
 
-// Ids of created rows the server has not confirmed yet. Module-level because the views ask
-// about a row without a handle on the store; UUIDs cannot collide across stores.
-const pendingIds = new Set<string>();
+// How many saves of each row id are still in flight. Module-level because the views ask about a
+// row without a handle on the store; UUIDs cannot collide across stores. A count, not a set, so
+// the first of two overlapping saves settling does not unmark a row the second is still saving.
+const pendingSaves = new Map<string, number>();
 
 export function isPending(row: { id: string }): boolean {
-  return pendingIds.has(row.id);
+  return (pendingSaves.get(row.id) ?? 0) > 0;
+}
+
+function markPending(id: string, delta: 1 | -1) {
+  const count = (pendingSaves.get(id) ?? 0) + delta;
+  if (count > 0) pendingSaves.set(id, count);
+  else pendingSaves.delete(id);
 }
 
 interface Collection<T extends Row> {
@@ -46,10 +53,21 @@ const base = (state: State): Base => ({ pledges: state.pledges, payments: state.
 const pledgeRows: Collection<Pledge> = { get: (s) => s.pledges, with: (s, rows) => ({ ...s, pledges: rows }) };
 const paymentRows: Collection<Payment> = { get: (s) => s.payments, with: (s, rows) => ({ ...s, payments: rows }) };
 
+const withRow = <T extends Row>(rows: readonly T[], row: T): T[] => (rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [...rows, row]);
+
+/**
+ * Re-applies a change still in flight on top of freshly loaded data. `loaded` is the server's copy,
+ * untouched by other overlays; `onto` is the state being built.
+ */
+type Overlay = (loaded: Base, onto: Base) => Base;
+
 export function createStore(api: Api, today: () => string): Store {
   let current: State | null = null;
   let loadedAt: number | null = null;
   const listeners = new Set<Listener>();
+  // Saves and deletes run in the background after their dialog closes, so a reload can land
+  // mid-flight; without these it would briefly resurrect a deleted row or drop a new one for good.
+  const overlays = new Set<Overlay>();
 
   function publish(next: Base) {
     const state: State = { ...next, computed: compute(next.pledges, next.payments, next.settings, today()) };
@@ -62,27 +80,38 @@ export function createStore(api: Api, today: () => string): Store {
     return base(current);
   }
 
-  async function save<T extends Row>(collection: Collection<T>, provisional: T, existing: T | undefined, send: () => Promise<T>) {
-    const rows = collection.get(loaded());
-    if (!existing) pendingIds.add(provisional.id);
-    publish(collection.with(loaded(), existing ? rows.map((r) => (r.id === existing.id ? provisional : r)) : [...rows, provisional]));
+  async function inFlight<R>(overlay: Overlay, run: () => Promise<R>): Promise<R> {
+    overlays.add(overlay);
     try {
-      const saved = await send();
-      if (!existing) pendingIds.delete(provisional.id);
+      return await run();
+    } finally {
+      overlays.delete(overlay);
+    }
+  }
+
+  async function save<T extends Row>(collection: Collection<T>, provisional: T, existing: T | undefined, send: () => Promise<T>) {
+    const id = provisional.id;
+    // What the row falls back to if the save fails: the version it replaced, refreshed by any reload meanwhile.
+    let fallback = existing ?? collection.get(loaded()).find((r) => r.id === id);
+    const overlay: Overlay = (fresh, onto) => {
+      fallback = collection.get(fresh).find((r) => r.id === id);
+      return collection.with(onto, withRow(collection.get(onto), provisional));
+    };
+    markPending(id, 1);
+    publish(collection.with(loaded(), withRow(collection.get(loaded()), provisional)));
+    try {
+      const saved = await inFlight(overlay, send);
+      markPending(id, -1);
       // Only swap in saved if the current row is still the exact provisional object (reference equality)
-      const current = collection.get(loaded());
-      const row = current.find((r) => r.id === provisional.id);
-      if (row === provisional) {
-        publish(collection.with(loaded(), current.map((r) => (r.id === provisional.id ? saved : r))));
-      }
-    } catch (err) {
-      if (!existing) pendingIds.delete(provisional.id);
       const now = collection.get(loaded());
-      const row = now.find((r) => r.id === provisional.id);
+      if (now.find((r) => r.id === id) === provisional) publish(collection.with(loaded(), now.map((r) => (r.id === id ? saved : r))));
+    } catch (err) {
+      markPending(id, -1);
+      const now = collection.get(loaded());
+      const restore = fallback;
       // Only rollback if the row is still the exact provisional object (reference equality)
-      if (row === provisional) {
-        const rolledBack = existing ? now.map((r) => (r.id === existing.id ? existing : r)) : now.filter((r) => r.id !== provisional.id);
-        publish(collection.with(loaded(), rolledBack));
+      if (now.find((r) => r.id === id) === provisional) {
+        publish(collection.with(loaded(), restore ? now.map((r) => (r.id === id ? restore : r)) : now.filter((r) => r.id !== id)));
       }
       throw err;
     }
@@ -90,9 +119,10 @@ export function createStore(api: Api, today: () => string): Store {
 
   async function remove<T extends Row>(collection: Collection<T>, row: T, send: () => Promise<void>) {
     const index = collection.get(loaded()).findIndex((r) => r.id === row.id);
-    publish(collection.with(loaded(), collection.get(loaded()).filter((r) => r.id !== row.id)));
+    const withoutRow = (state: Base) => collection.with(state, collection.get(state).filter((r) => r.id !== row.id));
+    publish(withoutRow(loaded()));
     try {
-      await send();
+      await inFlight((_fresh, onto) => withoutRow(onto), send);
     } catch (err) {
       // The row is already gone on the server, which is what the user asked for.
       if (err instanceof ApiError && err.code === 'NOT_FOUND') return;
@@ -123,7 +153,8 @@ export function createStore(api: Api, today: () => string): Store {
     async load() {
       const result = await api.load();
       loadedAt = Date.now();
-      publish({ pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me });
+      const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me };
+      publish([...overlays].reduce((onto, overlay) => overlay(fresh, onto), fresh));
     },
     savePledge: (draft, existing, newId = makeId()) =>
       save(pledgeRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePledge(draft, existing ?? { id: newId })),
@@ -132,10 +163,14 @@ export function createStore(api: Api, today: () => string): Store {
     deletePledge: (row) => remove(pledgeRows, row, () => api.deletePledge(row)),
     deletePayment: (row) => remove(paymentRows, row, () => api.deletePayment(row)),
     async setGoal(goal) {
-      const previous = loaded().settings;
+      let previous = loaded().settings;
       publish({ ...loaded(), settings: { ...previous, goal } });
+      const overlay: Overlay = (fresh, onto) => {
+        previous = fresh.settings;
+        return { ...onto, settings: { ...onto.settings, goal } };
+      };
       try {
-        const settings = await api.setGoal(goal);
+        const settings = await inFlight(overlay, () => api.setGoal(goal));
         // Only publish server settings if the current goal is still what this call set
         if (loaded().settings.goal === goal) {
           publish({ ...loaded(), settings });

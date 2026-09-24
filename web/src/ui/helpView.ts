@@ -36,6 +36,10 @@ const SAID = {
   healthIntro: 'Every figure below should read 0. Anything higher needs a look.',
   methodTotal: 'Total (should match Payments Logged)',
   displayStale: 'Figures may be out of date — tap to reconnect',
+  saving: 'Saving…',
+  saved: 'Saved.',
+  couldNotSave: "Couldn't save",
+  couldNotDelete: "Couldn't delete",
 } as const;
 
 export const QUOTED_MESSAGES: readonly string[] = Object.values(SAID);
@@ -100,37 +104,37 @@ const PROBLEMS: readonly Problem[] = [
   {
     message: [said(SAID.offline)],
     meaning: ['Your phone or computer has lost its internet connection. This shows as a strip under the top bar.'],
-    action: ['Wait for the connection to come back, then press Save again. You can still read the screens.'],
+    action: ['Wait for the connection to come back. If a save failed meanwhile, press ', b('Reopen'), ' on its message and ', b('Save'), ' again. You can still read the screens.'],
   },
   {
     message: [said(SAID.network)],
     meaning: ['The save did not reach the shared sheet, usually because the connection dropped.'],
-    action: ['Your typing is kept in the form. Check your connection and press ', b('Save'), ' again.'],
+    action: ['Check your connection, then press ', b('Reopen'), ' on the message. The form comes back with everything you typed; press ', b('Save'), ' again.'],
   },
   {
     message: [said(`${SAID.httpError} (…). Try again.`)],
     meaning: ['Google’s servers had a hiccup.'],
-    action: ['Press ', b('Save'), ' again. If it keeps happening, tell the organiser.'],
+    action: ['Press ', b('Reopen'), ' on the message, then ', b('Save'), ' again. If it keeps happening, tell the organiser.'],
   },
   {
     message: [said(SAID.busy)],
     meaning: ['Several volunteers saved at the same moment, and the tracker handles one save at a time.'],
-    action: ['Wait a few seconds and press ', b('Save'), ' again. Nothing was lost.'],
+    action: ['Wait a few seconds, press ', b('Reopen'), ' on the message, then ', b('Save'), ' again. Nothing was lost.'],
   },
   {
     message: [said(SAID.serverError)],
     meaning: ['Something unexpected happened on the tracker’s side.'],
-    action: ['Press ', b('Save'), ' again. If it keeps happening, tell the organiser.'],
+    action: ['Press ', b('Reopen'), ' on the message, then ', b('Save'), ' again. If it keeps happening, tell the organiser.'],
   },
   {
     message: [said(SAID.expired)],
     meaning: ['Google sign-ins last about an hour. The tracker renews yours quietly, but sometimes it has to ask.'],
-    action: ['Sign in again in the window that appears. Your form stays open with everything you typed, so press ', b('Save'), ' once you are back.'],
+    action: ['Sign in again in the window that appears. The save carries on by itself once you are back.'],
   },
   {
     message: [said(SAID.cancelled)],
     meaning: ['The Google sign-in window was closed before you finished signing in.'],
-    action: ['Press ', b('Save'), ' again and complete the sign-in. The window will not pop up again on its own for about a minute.'],
+    action: ['Press ', b('Reopen'), ' on the message, then ', b('Save'), ', and complete the sign-in. The window will not pop up again on its own for about a minute.'],
   },
   {
     message: [said(SAID.googleDidNotLoad)],
@@ -233,7 +237,7 @@ function theScreens(): Child[] {
       bullets(
         ['The line above the table shows the running totals: pledged, received, outstanding and number of payments.'],
         [b('Red rows'), ' are donors listed more than once. Their payments are being counted twice until you fix it.'],
-        ['A faded row is still being saved. Wait a moment before tapping it.'],
+        ['A faded row marked ', said(SAID.saving), ' is still being saved. It cannot be opened until the save finishes, usually within a few seconds.'],
         ['Tap any row to edit or delete it.'],
         [
           b('Pending'),
@@ -310,7 +314,7 @@ function howTo(): Child[] {
       steps(
         ['Go to ', b('Pledges'), ' and press ', b('Add pledge'), '.'],
         ['Fill in the form. What goes in each box is listed below, and the same hint shows under the box.'],
-        ['Press ', b('Save'), '. A “Saved.” message appears at the bottom of the screen.'],
+        ['Press ', b('Save'), '. The form closes at once and the new row appears, marked ', said(SAID.saving), ' for a few seconds. Then ', said(SAID.saved), ' appears at the bottom of the screen.'],
       ),
       terms(
         ['Phone number', PLEDGE_HELP.phone],
@@ -364,7 +368,7 @@ function howTo(): Child[] {
     ),
     topic(
       'Delete a pledge or payment',
-      steps(['Tap the row to open it.'], ['Press ', b('Delete'), ' at the bottom left of the form.'], ['Read the question and press ', b('Delete'), ' again to confirm.']),
+      steps(['Tap the row to open it.'], ['Press ', b('Delete'), ' at the bottom left of the form.'], ['Read the question and press ', b('Delete'), ' again to confirm. The row disappears at once.']),
       bullets(
         ['Deleting a payment asks: ', said(SAID.deletePayment)],
         ['Deleting a pledge asks: ', said(SAID.deletePledge)],
@@ -516,21 +520,23 @@ function workingTogether(): Child[] {
       ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
       ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
       ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away.'],
-      ['A save can take a few seconds, especially on a slow connection. If Google’s servers hiccup, the tracker quietly retries on its own — you do not need to press Save again unless you actually see an error message.'],
+      ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the tracker quietly retries on its own — you do not need to do anything unless you actually see an error message.'],
     ),
     topic(
       'When two people change the same row',
       p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, your save stops and you see:'),
       p(said(SAID.conflict)),
       steps(['Press ', b('Reload'), '.'], ['Open the row again and look at what changed.'], ['Make your change again if it is still needed.']),
-      p('If you press Save again after a save that seemed to fail, the tracker checks whether the first one actually went through. If it did, nothing is added twice. If the saved values differ from what you are sending, you see the same message — reload and check the row.'),
+      p('If you reopen a save that seemed to fail and press Save again, the tracker checks whether the first one actually went through. If it did, nothing is added twice. If the saved values differ from what you are sending, you see the same message — reload and check the row.'),
     ),
   ];
 }
 
 function whenSomethingGoesWrong(): Child[] {
   return [
-    p('Most problems are a dropped connection. Your typing stays in the form until the save succeeds, so you rarely need to start again.'),
+    p('Most problems are a dropped connection. When a save fails, a red message appears at the bottom of the screen, starting ', said(`${SAID.couldNotSave} …`), ' and naming the donor, followed by one of the messages below. The row goes back to how it was.'),
+    p('Press ', b('Reopen'), ' on that message: the form comes back with everything you typed, and you can press ', b('Save'), ' again. Nothing you typed is lost, and saving it again never adds the row twice. The message stays for 30 seconds (longer while you have another form open), or until you press ', b('Dismiss'), '.'),
+    p('A delete that fails shows ', said(`${SAID.couldNotDelete} …`), ' and the row comes back. Open it and delete it again.'),
     problemTable(),
     topic(
       'Messages inside a form',
