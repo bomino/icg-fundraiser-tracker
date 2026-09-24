@@ -20,7 +20,7 @@ a { color: var(--color-emerald); }
 .body-md { font-size: 0.9375rem; line-height: 1.6; }
 .label { font: 500 0.8125rem/1.4 var(--font-ui); letter-spacing: 0.01em; }
 .meta { font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.02em; color: var(--color-ink-muted); }
-.eyebrow { font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); font-feature-settings: 'tnum'; }
+.eyebrow, .stat-label { font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); font-feature-settings: 'tnum'; }
 .numeric-xl { font: 600 2.25rem/1.1 var(--font-ui); letter-spacing: -0.01em; font-feature-settings: 'tnum'; }
 .numeric-lg { font: 600 1.5rem/1.2 var(--font-ui); font-feature-settings: 'tnum'; }
 .ink-soft { color: var(--color-ink-soft); }
