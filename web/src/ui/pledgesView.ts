@@ -48,6 +48,8 @@ export function createPledgesView(deps: ListViewDeps) {
     if (filter?.label !== lastFilterLabel) {
       visibleCount = TABLE_PAGE_SIZE;
       lastFilterLabel = filter?.label;
+      // A leftover status chip would hide the very rows the filter just arrived to show.
+      if (filter) statusChip = ALL_CHIP;
     }
     const openPaymentFor = (pledge: Pledge) => {
       // One id per opened form: a Save retried after a lost response must name the same row.

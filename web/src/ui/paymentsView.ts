@@ -35,6 +35,11 @@ export function createPaymentsView(deps: ListViewDeps) {
     if (filter?.label !== lastFilterLabel) {
       visibleCount = TABLE_PAGE_SIZE;
       lastFilterLabel = filter?.label;
+      // A leftover date range would hide the very rows the filter just arrived to show.
+      if (filter) {
+        dateFrom = '';
+        dateTo = '';
+      }
     }
     const openEditor = (existing?: Payment) => {
       // One id per opened form: a Save retried after a lost response must name the same row.

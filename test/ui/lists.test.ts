@@ -128,6 +128,18 @@ describe('pledges view: status chips and follow-up', () => {
     chip(view, 'Paid').click();
     expect(view.textContent).toContain('Showing 1 of 4');
   });
+
+  it('arriving with a drill-down filter resets an active status chip to All, so the filtered rows are not hidden behind it', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() });
+    document.body.append(view(followUpState, null, () => undefined));
+    chip(document.body, 'Paid').click();
+    expect(ids(document.body)).toEqual(['f3']);
+    const filter: ListFilter = { label: 'Pending pledges', ids: new Set(['f2', 'f4']) };
+    document.body.replaceChildren(view(followUpState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['f2', 'f4']);
+    expect(chip(document.body, 'All').getAttribute('aria-pressed')).toBe('true');
+    expect(chip(document.body, 'Paid').getAttribute('aria-pressed')).toBe('false');
+  });
 });
 
 describe('payments view', () => {
@@ -193,6 +205,18 @@ describe('payments view: date range', () => {
     expect(view.textContent).not.toContain('Showing');
     type(dateInput(view, 'payments-date-from'), '2026-06-01');
     expect(view.textContent).toContain('Showing 2 of 4');
+  });
+
+  it('arriving with a drill-down filter clears an active date range, so out-of-range/undated rows are not hidden behind it', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() });
+    document.body.append(view(rangeState, null, () => undefined));
+    type(dateInput(document.body, 'payments-date-from'), '2026-06-01');
+    expect(ids(document.body)).toHaveLength(2);
+    const filter: ListFilter = { label: 'Undated or out-of-range payments', ids: new Set(['r4']) };
+    document.body.replaceChildren(view(rangeState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['r4']);
+    expect(dateInput(document.body, 'payments-date-from').value).toBe('');
+    expect(dateInput(document.body, 'payments-date-to').value).toBe('');
   });
 });
 
