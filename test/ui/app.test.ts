@@ -29,7 +29,7 @@ function fakeStore() {
 }
 
 function fakeAuth() {
-  return { getToken: vi.fn(async () => 'tok'), refreshIfStale: vi.fn(), signOut: vi.fn() } satisfies Auth;
+  return { getToken: vi.fn(async () => 'tok'), refreshIfStale: vi.fn(), hasFreshToken: vi.fn(() => false), suppressPrompts: vi.fn(() => vi.fn()), signOut: vi.fn() } satisfies Auth;
 }
 
 function setVisibility(state: 'visible' | 'hidden') {
@@ -64,6 +64,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/find')).toBe('find');
     expect(parseRoute('')).toBe('summary');
     expect(parseRoute('#nonsense')).toBe('summary');
+    expect(parseRoute('#display')).toBe('display');
   });
 });
 
@@ -115,6 +116,7 @@ describe('mountApp', () => {
   afterEach(() => {
     vi.useRealTimers();
     document.body.replaceChildren();
+    delete document.body.dataset.display;
     untrackWindow();
     untrackDocument();
     restoreVisibility();
@@ -176,6 +178,64 @@ describe('mountApp', () => {
     expect(document.querySelector('dialog[open]')).not.toBeNull();
     setVisibility('visible');
     expect(store.load).not.toHaveBeenCalled();
+  });
+
+  it('shows the Friday display full screen, with no nav, tabs or offline banner', () => {
+    history.replaceState(null, '', '#display');
+    mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+    expect(root.querySelector('.friday')).not.toBeNull();
+    expect(root.querySelector('.nav-bar, nav.tabs, .banner, main')).toBeNull();
+    expect(document.body.dataset.display).toBe('friday');
+  });
+
+  it('treats ?display=friday like #display and drops the parameter so Exit really exits', () => {
+    history.replaceState(null, '', '/?display=friday#pledges');
+    mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+    expect(root.querySelector('.friday')).not.toBeNull();
+    expect(location.hash).toBe('#display');
+    expect(location.search).toBe('');
+  });
+
+  it('keeps the app’s own sign-in checks and auto-refresh out of display mode', () => {
+    history.replaceState(null, '', '#display');
+    const { store } = fakeStore();
+    store.lastLoadedAt.mockReturnValue(Date.now() - 10 * 60_000);
+    const auth = fakeAuth();
+    mountApp(root, { store, auth });
+    (root.querySelector('.friday') as HTMLElement).click();
+    setVisibility('hidden');
+    setVisibility('visible');
+    expect(auth.refreshIfStale).not.toHaveBeenCalled();
+    expect(auth.getToken).not.toHaveBeenCalled();
+    expect(store.load).not.toHaveBeenCalled();
+  });
+
+  it('leaves display mode on Exit, restoring the app and tearing the display down', () => {
+    history.replaceState(null, '', '#display');
+    const { store } = fakeStore();
+    const auth = fakeAuth();
+    const release = vi.fn();
+    auth.suppressPrompts.mockReturnValue(release);
+    mountApp(root, { store, auth });
+    history.replaceState(null, '', (root.querySelector('a.friday-exit') as HTMLAnchorElement).getAttribute('href'));
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(root.querySelector('.friday')).toBeNull();
+    expect(root.querySelector('nav.tabs a[href="#summary"]')?.getAttribute('aria-current')).toBe('page');
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(document.body.dataset.display).toBeUndefined();
+    expect(localStorage.getItem('icg-last-view')).toBe('summary');
+  });
+
+  it('never reopens in display mode from the remembered view', () => {
+    history.replaceState(null, '', '#display');
+    mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+    expect(localStorage.getItem('icg-last-view')).not.toBe('display');
+  });
+
+  it('links to the Friday display from the Summary', () => {
+    history.replaceState(null, '', '#summary');
+    mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+    expect(root.querySelector('main a[href="#display"]')?.textContent).toBe('Friday display');
   });
 
   it('keeps focus, text and caret in the search box when the store publishes', () => {

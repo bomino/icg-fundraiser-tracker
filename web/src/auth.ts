@@ -4,6 +4,10 @@ import { h } from './ui/dom';
 export interface Auth {
   getToken(forceRefresh: boolean): Promise<string>;
   refreshIfStale(): void;
+  /** Never prompts: true only when a load started now will be sent on the current token. */
+  hasFreshToken(): boolean;
+  /** Until the returned release runs, a request that needs sign-in fails instead of opening the dialog. */
+  suppressPrompts(): () => void;
   signOut(): void;
 }
 
@@ -12,6 +16,9 @@ const EXPIRY_MARGIN_SECONDS = 60;
 const EARLY_REFRESH_SECONDS = 300;
 // A volunteer who just dismissed sign-in should not have it pop up again on their next click.
 const DISMISSAL_COOLDOWN_MS = 60 * 1000;
+// Wider than EXPIRY_MARGIN_SECONDS, so a token that passes this check is still one getToken hands
+// back without prompting when the load it gates asks for it a moment later.
+const UNATTENDED_LOAD_MARGIN_SECONDS = 120;
 const GIS_LOAD_TIMEOUT_MS = 15000;
 
 export function decodeJwtPayload(token: string): Record<string, unknown> {
@@ -53,6 +60,7 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
   // the close is requested; anyone who asks for a token after that belongs to the next prompt.
   let closing: { waiters: Waiter[]; dismissed: boolean } | null = null;
   let dismissedAt = Number.NEGATIVE_INFINITY;
+  let suppressions = 0;
   const buttonSlot = h('div', { class: 'signin-button' });
   const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Cancel');
   const panel = h(
@@ -108,6 +116,9 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
 
   async function getToken(forceRefresh: boolean): Promise<string> {
     if (!forceRefresh && isFresh(token, Date.now() / 1000)) return token as string;
+    // Covers the path hasFreshToken cannot: the server rejecting a token that looked fresh, which
+    // makes api.ts ask again with forceRefresh — on an unattended screen that must not prompt.
+    if (suppressions > 0) throw new ApiError('UNAUTHENTICATED', 'Sign-in is needed before the figures can update.');
     await waitForGoogle();
     initialise();
     return new Promise<string>((resolve, reject) => {
@@ -128,6 +139,16 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
       if (token === null || waiting.length > 0 || Date.now() - dismissedAt < DISMISSAL_COOLDOWN_MS) return;
       if (isFresh(token, Date.now() / 1000, EARLY_REFRESH_SECONDS)) return;
       getToken(true).catch((err: unknown) => console.warn('Early sign-in refresh did not complete; the next save will ask again.', err));
+    },
+    hasFreshToken: () => isFresh(token, Date.now() / 1000, UNATTENDED_LOAD_MARGIN_SECONDS),
+    suppressPrompts() {
+      suppressions += 1;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        suppressions -= 1;
+      };
     },
     signOut() {
       if (typeof google !== 'undefined') google.accounts.id.disableAutoSelect();

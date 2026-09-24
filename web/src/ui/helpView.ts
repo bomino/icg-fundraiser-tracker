@@ -34,6 +34,7 @@ const SAID = {
   deletePayment: 'Delete this payment? It will be removed from every total.',
   healthIntro: 'Every figure below should read 0. Anything higher needs a look.',
   methodTotal: 'Total (should match Payments Logged)',
+  displayStale: 'Figures may be out of date — tap to reconnect',
 } as const;
 
 export const QUOTED_MESSAGES: readonly string[] = Object.values(SAID);
@@ -222,6 +223,7 @@ function theScreens(): Child[] {
         [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found.'],
         [b('Collected by payment method'), ' — a chart and table of money by Cash, Card and so on. Payments with no method appear as ', b('No method recorded'), '. The last row, ', said(SAID.methodTotal), ', should equal Payments logged.'],
         [b('Download .xlsx'), ' — saves a copy of everything as an Excel file.'],
+        [b('Friday display'), ' — a full-screen view of the fundraiser for the projector. See ', b('Show the fundraiser on the projector'), ' in How to….'],
       ),
     ),
     topic(
@@ -365,6 +367,17 @@ function howTo(): Child[] {
     topic(
       'Change the fundraiser goal',
       steps(['On ', b('Summary'), ', press ', b('Edit goal'), ' in the Goal card.'], ['Type the new goal and press ', b('Save'), '.']),
+    ),
+    topic(
+      'Show the fundraiser on the projector',
+      steps(
+        ['Sign in on the computer connected to the projector.'],
+        ['On ', b('Summary'), ', press ', b('Friday display'), '.'],
+        ['Make the browser full screen (F11 on most computers).'],
+      ),
+      p('The screen shows the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
+      p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
+      note('Google sign-ins last about an hour. After that the figures stop updating, and after 15 minutes a small note says ', said(SAID.displayStale), '. Tap it and sign in to bring the figures up to date. Press ', b('Exit'), ' in the top corner to go back to the Summary.'),
     ),
     topic(
       'Download a copy',

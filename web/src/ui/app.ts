@@ -2,6 +2,7 @@ import type { Auth } from '../auth';
 import type { Store } from '../store';
 import { currentTheme, toggleTheme } from '../theme';
 import { h } from './dom';
+import { mountDisplay } from './displayView';
 import { createErrorReporter } from './errors';
 import { downloadWorkbook } from './export';
 import type { ListFilter } from './filter';
@@ -13,6 +14,8 @@ import { createPledgesView } from './pledgesView';
 import { renderSummary } from './summaryView';
 
 export type ViewName = 'summary' | 'pledges' | 'payments' | 'find' | 'help';
+/** The Friday display is a route but not a tab: it replaces the whole app shell. */
+export type Route = ViewName | 'display';
 
 const VIEWS: ReadonlyArray<{ name: ViewName; label: string }> = [
   { name: 'summary', label: 'Summary' },
@@ -24,14 +27,16 @@ const VIEWS: ReadonlyArray<{ name: ViewName; label: string }> = [
 const LAST_VIEW_KEY = 'icg-last-view';
 const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
 
-export function parseRoute(hash: string): ViewName {
+export function parseRoute(hash: string): Route {
   const name = hash.replace(/^#\/?/, '');
+  if (name === 'display') return 'display';
   return VIEWS.find((view) => view.name === name)?.name ?? 'summary';
 }
 
 function rememberedView(): ViewName {
   try {
-    return parseRoute(`#${localStorage.getItem(LAST_VIEW_KEY) ?? ''}`);
+    const route = parseRoute(`#${localStorage.getItem(LAST_VIEW_KEY) ?? ''}`);
+    return route === 'display' ? 'summary' : route;
   } catch (err) {
     console.warn('Last view could not be read; starting on Summary.', err);
     return 'summary';
@@ -51,8 +56,19 @@ export interface AppDeps {
   auth: Auth;
 }
 
+// DESIGN.md's projector link; rewritten to #display so that Exit, and a reload after it, leave the mode.
+function adoptDisplayParam() {
+  const url = new URL(location.href);
+  if (url.searchParams.get('display') !== 'friday') return;
+  url.searchParams.delete('display');
+  url.hash = 'display';
+  history.replaceState(null, '', url.href);
+}
+
 export function mountApp(root: HTMLElement, deps: AppDeps): void {
   let listFilter: { view: ViewName; filter: ListFilter } | null = null;
+  let exitDisplay: (() => void) | null = null;
+  let shellShown = false;
   const reportError = createErrorReporter(() => deps.store.load());
   const pledgesView = createPledgesView({ store: deps.store, reportError });
   const paymentsView = createPaymentsView({ store: deps.store, reportError });
@@ -108,18 +124,19 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   // up front instead of interrupting the Save.
   main.addEventListener('click', () => deps.auth.refreshIfStale(), { capture: true });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+    // The display runs its own non-prompting refresh; refreshIfStale here could open sign-in on the projector.
+    if (exitDisplay || document.visibilityState !== 'visible') return;
     deps.auth.refreshIfStale();
     const loadedAt = deps.store.lastLoadedAt();
     const stale = loadedAt === null || Date.now() - loadedAt > AUTO_REFRESH_AFTER_MS;
     // A reload under an open form would redraw the list the volunteer is editing from.
     if (stale && !refresh.disabled && !document.querySelector('dialog[open]')) void reload();
   });
-  root.replaceChildren(
+  const shell = [
     h('header', { class: 'nav-bar' }, h('div', { class: 'nav-inner' }, h('a', { href: '#summary', class: 'wordmark' }, 'ICG Fundraiser Tracker'), nav, h('div', { class: 'nav-actions' }, me, refresh, themeButton, signOut))),
     offline,
     main,
-  );
+  ];
 
   // Store publishes rebuild the whole view; without this a volunteer typing a search loses the box mid-word.
   function focusedSearch() {
@@ -139,6 +156,17 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     const state = deps.store.state();
     if (!state) return;
     const view = parseRoute(location.hash);
+    if (view === 'display') {
+      exitDisplay ??= mountDisplay(root, { store: deps.store, auth: deps.auth, reconnect: reload });
+      shellShown = false;
+      return;
+    }
+    if (!shellShown) {
+      exitDisplay?.();
+      exitDisplay = null;
+      root.replaceChildren(...shell);
+      shellShown = true;
+    }
     tabs.forEach((tab, name) => (name === view ? tab.setAttribute('aria-current', 'page') : tab.removeAttribute('aria-current')));
     main.classList.toggle('container-wide', view === 'pledges' || view === 'payments');
     const filter = listFilter && listFilter.view === view ? listFilter.filter : null;
@@ -172,6 +200,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     window.scrollTo({ top: 0 });
   });
   deps.store.subscribe(render);
+  adoptDisplayParam();
   if (!location.hash) history.replaceState(null, '', `#${rememberedView()}`);
   render();
 }

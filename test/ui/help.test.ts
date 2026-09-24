@@ -37,7 +37,7 @@ function fakeStore() {
   return { store: store as unknown as Store, publish: () => listeners.forEach((listener) => listener(state)) };
 }
 
-const fakeAuth = (): Auth => ({ getToken: vi.fn(async () => 'tok'), refreshIfStale: vi.fn(), signOut: vi.fn() });
+const fakeAuth = (): Auth => ({ getToken: vi.fn(async () => 'tok'), refreshIfStale: vi.fn(), hasFreshToken: () => false, suppressPrompts: () => () => undefined, signOut: vi.fn() });
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

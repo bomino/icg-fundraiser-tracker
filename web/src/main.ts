@@ -42,6 +42,8 @@ async function startDemo(root: HTMLElement) {
   const auth: Auth = {
     getToken: async () => 'demo-token',
     refreshIfStale: () => undefined,
+    hasFreshToken: () => true,
+    suppressPrompts: () => () => undefined,
     signOut() {
       const url = new URL(window.location.href);
       url.searchParams.delete('demo');

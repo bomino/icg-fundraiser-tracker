@@ -219,6 +219,56 @@ describe('createAuth', () => {
     host.remove();
   });
 
+  it('hasFreshToken reports a token only while it will outlast a load, without ever prompting', async () => {
+    const { renderButton, emitCredential } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+    expect(auth.hasFreshToken()).toBe(false);
+
+    const first = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    emitCredential(encode({ exp: nowSeconds() + 3600 }));
+    await first;
+    expect(auth.hasFreshToken()).toBe(true);
+
+    // Fresh enough for getToken's own margin, but not for a display refresh that is about to call it.
+    const second = auth.getToken(true);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    emitCredential(encode({ exp: nowSeconds() + 90 }));
+    await second;
+    expect(isFresh(await auth.getToken(false), nowSeconds())).toBe(true);
+    expect(auth.hasFreshToken()).toBe(false);
+    expect(renderButton).toHaveBeenCalledTimes(2);
+    expect(signInDialog(host).open).toBe(false);
+    host.remove();
+  });
+
+  it('fails a token request instead of opening sign-in while prompts are suppressed, until released', async () => {
+    const { renderButton, emitCredential } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+    const first = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    const credential = encode({ exp: nowSeconds() + 3600 });
+    emitCredential(credential);
+    await first;
+
+    const release = auth.suppressPrompts();
+    await expect(auth.getToken(false)).resolves.toBe(credential);
+    await expect(auth.getToken(true)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect(renderButton).toHaveBeenCalledTimes(1);
+    expect(signInDialog(host).open).toBe(false);
+
+    release();
+    release();
+    void auth.getToken(true);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    expect(signInDialog(host).open).toBe(true);
+    host.remove();
+  });
+
   it('ignores a late close event from the previous sign-in when a new one has already opened', async () => {
     const { renderButton, emitCredential } = stubGoogleAccounts();
     const host = document.createElement('div');

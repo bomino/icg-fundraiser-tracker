@@ -29,6 +29,7 @@
 /* Buttons */
 .btn { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 10px 20px; font: 500 0.8125rem/1.4 var(--font-ui); letter-spacing: 0.01em; cursor: pointer; min-height: 40px; transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
 .btn:disabled { opacity: 0.6; cursor: progress; }
+a.btn { text-decoration: none; }
 .btn-primary { background: var(--color-emerald); color: var(--color-surface); }
 .btn-primary:hover:not(:disabled) { background: var(--color-emerald-soft); }
 .btn-secondary { background: var(--color-surface); color: var(--color-ink); border-color: var(--color-rule); }
@@ -246,3 +247,23 @@ textarea.input { resize: vertical; }
   .help-toc, .help-summary::after { display: none; }
   .help-topic { break-inside: avoid; }
 }
+
+/* Friday display: read from the back of the prayer hall, so every size scales with the screen. */
+.friday { position: relative; min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: 1fr auto; padding: var(--space-xl) var(--space-lg) var(--space-lg); }
+.friday-stack { align-self: center; justify-self: center; width: min(100%, 1400px); display: grid; justify-items: center; gap: clamp(var(--space-sm), 2.5vh, var(--space-xl)); text-align: center; }
+.friday .friday-eyebrow { font-size: clamp(0.8125rem, 0.5rem + 1vw, 1.75rem); letter-spacing: 0.18em; }
+.friday-title { font: 500 clamp(3rem, 1rem + 7vw, 9rem)/1.05 var(--font-display); letter-spacing: -0.01em; }
+.friday-title::after { content: ''; display: block; width: clamp(64px, 8vw, 160px); height: 2px; margin: clamp(var(--space-sm), 2vh, var(--space-lg)) auto 0; background: var(--color-gold); }
+/* Rule, not the sunken track colour: in dark mode sunken sits too close to the page for the unfilled part to show on a projector. */
+.friday .friday-track { width: 100%; height: clamp(12px, 1.6vw, 28px); margin-top: clamp(var(--space-sm), 2vh, var(--space-lg)); background: var(--color-rule); }
+.friday-raised { font: 600 clamp(1.5rem, 0.75rem + 3.2vw, 4.25rem)/1.2 var(--font-ui); letter-spacing: -0.01em; font-feature-settings: 'tnum'; }
+.friday-raised .gold { font-size: 1.35em; }
+.friday-percent { font: 600 clamp(2.5rem, 1rem + 6vw, 8rem)/1 var(--font-ui); letter-spacing: -0.02em; color: var(--color-emerald); font-feature-settings: 'tnum'; }
+.friday-donors { font-size: clamp(1.125rem, 0.75rem + 1.6vw, 2.5rem); line-height: 1.3; }
+.friday-exit { position: absolute; top: var(--space-md); right: var(--space-md); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); font-size: clamp(0.75rem, 0.5rem + 0.5vw, 1rem); color: var(--color-ink-muted); text-decoration: none; }
+.friday-exit:hover { background: var(--color-surface-soft); color: var(--color-ink); }
+.friday-status { display: flex; justify-content: center; align-items: center; gap: var(--space-md); flex-wrap: wrap; min-height: 40px; }
+.friday-status .meta { font-size: clamp(0.75rem, 0.5rem + 0.5vw, 1rem); }
+.friday-stale { background: transparent; border: 1px solid var(--color-rule-strong); border-radius: var(--radius-full); padding: var(--space-xs) var(--space-md); font-size: clamp(0.75rem, 0.5rem + 0.5vw, 1rem); color: var(--color-warning); cursor: pointer; }
+.friday-stale:hover:not(:disabled) { background: var(--color-warning-tint); }
+.friday-stale:disabled { opacity: 0.6; cursor: progress; }
