@@ -68,9 +68,17 @@ function errorBody_(err) {
   return { code: 'INTERNAL', message: 'Something went wrong on the server. Try again.' };
 }
 
+function clientId_() {
+  const clientId = PropertiesService.getScriptProperties().getProperty('CLIENT_ID');
+  // Without it every token looks foreign, which would read to volunteers as an endless "sign-in expired".
+  if (!clientId) throw new ApiError('INTERNAL', 'The server is not configured: set the CLIENT_ID script property (see docs/SETUP.md).');
+  return clientId;
+}
+
 function verifyToken_(token) {
   if (typeof token !== 'string' || token === '') throw new ApiError('UNAUTHENTICATED', 'Please sign in.');
-  assertPlausibleToken_(token);
+  const clientId = clientId_();
+  assertPlausibleToken_(token, clientId);
   const cache = CacheService.getScriptCache();
   const cacheKey = 'tok_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
   let email = cache.get(cacheKey);
@@ -78,10 +86,9 @@ function verifyToken_(token) {
     const response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
     if (response.getResponseCode() !== 200) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
     const info = JSON.parse(response.getContentText());
-    const clientId = PropertiesService.getScriptProperties().getProperty('CLIENT_ID');
     const nowSeconds = Math.floor(Date.now() / 1000);
     const expSeconds = Number(info.exp);
-    const valid = clientId && info.aud === clientId && info.email_verified === 'true' && GOOGLE_ISSUERS.indexOf(info.iss) >= 0 && expSeconds > nowSeconds && info.email;
+    const valid = info.aud === clientId && info.email_verified === 'true' && GOOGLE_ISSUERS.indexOf(info.iss) >= 0 && expSeconds > nowSeconds && info.email;
     if (!valid) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
     email = String(info.email).toLowerCase();
     cache.put(cacheKey, email, Math.min(TOKEN_CACHE_SECONDS, expSeconds - nowSeconds));
@@ -93,7 +100,7 @@ function verifyToken_(token) {
 
 // Rejects malformed tokens and tokens minted for a different app locally, before spending a
 // network call on them. Tokeninfo (in verifyToken_) remains the actual authority.
-function assertPlausibleToken_(token) {
+function assertPlausibleToken_(token, clientId) {
   const segments = token.split('.');
   const malformed = segments.length !== 3 || segments.some((segment) => segment === '');
   if (malformed) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
@@ -103,8 +110,7 @@ function assertPlausibleToken_(token) {
   } catch (err) {
     throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
   }
-  const clientId = PropertiesService.getScriptProperties().getProperty('CLIENT_ID');
-  if (!clientId || payload.aud !== clientId) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
+  if (payload.aud !== clientId) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
 }
 
 function allowlist_() {

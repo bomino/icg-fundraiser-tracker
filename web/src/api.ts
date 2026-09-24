@@ -46,6 +46,15 @@ type ApiResponse<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: ApiErrorCode; message: string; field?: string; current?: unknown } };
 
+const NETWORK_MESSAGE = 'Could not reach the tracker. Check your connection and try again.';
+
+// A deployment not shared with "Anyone" answers with a cross-origin sign-in redirect that the
+// browser reports exactly like a dropped connection, so an online device gets the extra hint.
+function networkMessage(): string {
+  const online = typeof navigator !== 'undefined' && navigator.onLine;
+  return online ? `${NETWORK_MESSAGE} If this keeps happening, the Apps Script deployment may not allow access to "Anyone".` : NETWORK_MESSAGE;
+}
+
 export function createApi(scriptUrl: string, getToken: TokenSource, fetchImpl: typeof fetch = (input, init) => fetch(input, init)): Api {
   async function send<T>(op: string, payload: unknown, idToken: string): Promise<T> {
     let response: Response;
@@ -58,7 +67,7 @@ export function createApi(scriptUrl: string, getToken: TokenSource, fetchImpl: t
         redirect: 'follow',
       });
     } catch {
-      throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.');
+      throw new ApiError('NETWORK', networkMessage());
     }
     if (!response.ok) throw new ApiError('NETWORK', `The tracker answered with an error (${response.status}). Try again.`);
     let body: ApiResponse<T>;

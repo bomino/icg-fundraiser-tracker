@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from '../web/src/api';
 
 const URL = 'https://script.google.com/macros/s/abc/exec';
@@ -58,9 +58,24 @@ describe('createApi', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('reports a network failure plainly', async () => {
-    const api = createApi(URL, async () => 'tok', async () => { throw new TypeError('Failed to fetch'); });
-    await expect(api.load()).rejects.toMatchObject({ code: 'NETWORK' });
+  describe('when fetch itself fails', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    const failing = () => createApi(URL, async () => 'tok', async () => { throw new TypeError('Failed to fetch'); });
+
+    it('blames the connection when the device is offline', async () => {
+      vi.stubGlobal('navigator', { onLine: false });
+      await expect(failing().load()).rejects.toMatchObject({ code: 'NETWORK', message: 'Could not reach the tracker. Check your connection and try again.' });
+    });
+
+    it('also points at the deployment access setting when the device is online', async () => {
+      vi.stubGlobal('navigator', { onLine: true });
+      await expect(failing().load()).rejects.toMatchObject({
+        code: 'NETWORK',
+        message: 'Could not reach the tracker. Check your connection and try again. If this keeps happening, the Apps Script deployment may not allow access to "Anyone".',
+      });
+    });
   });
 
   it('explains an HTML answer, which means the deployment is misconfigured', async () => {

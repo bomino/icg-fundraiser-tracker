@@ -48,3 +48,13 @@ VITE_GOOGLE_CLIENT_ID=….apps.googleusercontent.com
 ```
 
 Then run `npm install`, then `npm run dev`, and open <http://localhost:5173>.
+
+## Troubleshooting
+
+| The app says | Likely cause and fix |
+|---|---|
+| *The server is not configured: set the CLIENT_ID script property* | The `CLIENT_ID` script property is missing or misnamed. Add it as in step 2.5, then try again. No redeploy is needed. |
+| *Your sign-in has expired. Please sign in again.* on every attempt | The `CLIENT_ID` script property and the site's `VITE_GOOGLE_CLIENT_ID` hold different client IDs. Make them identical. |
+| *Could not reach the tracker … may not allow access to "Anyone"*, or *The tracker sent back an unexpected page* | The deployment's **Who has access** isn't **Anyone**, or `VITE_SCRIPT_URL` isn't the `/exec` URL. Fix it under **Deploy → Manage deployments** (step 3). If the device really is offline, the message stops at "try again". |
+| *… is not on the volunteer list* | That Google account isn't on the **Allowlist** tab. Add the email exactly, one per row (step 1.6), or sign in with the listed account. |
+| *Someone else deleted this row* when **adding** a pledge or payment, or *Missing or malformed row id* | The site and `Code.gs` are out of step: `Code.gs` was changed without deploying a **new version**, or the site wasn't rebuilt. Redeploy `Code.gs` (**Manage deployments → ✎ → New version**) and re-run the site's workflow. |

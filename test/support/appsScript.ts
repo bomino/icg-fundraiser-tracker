@@ -50,7 +50,7 @@ export function createServer() {
   const sheets = new Map<string, FakeSheet>();
   const tokens = new Map<string, TokenInfo>();
   const cache = new Map<string, string>();
-  const state = { fetchCount: 0, lockAvailable: true };
+  const state: { fetchCount: number; lockAvailable: boolean; clientId: string | null } = { fetchCount: 0, lockAvailable: true, clientId: CLIENT_ID };
 
   const spreadsheet = {
     getSheetByName: (name: string) => sheets.get(name) ?? null,
@@ -84,7 +84,7 @@ export function createServer() {
       }),
     },
     LockService: { getScriptLock: () => ({ tryLock: () => state.lockAvailable, releaseLock: () => undefined }) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (key: string) => (key === 'CLIENT_ID' ? CLIENT_ID : null) }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (key: string) => (key === 'CLIENT_ID' ? state.clientId : null) }) },
     Session: { getScriptTimeZone: () => 'UTC', getEffectiveUser: () => ({ getEmail: () => OWNER }) },
     Utilities: {
       DigestAlgorithm: { SHA_256: 'SHA_256' },

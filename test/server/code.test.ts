@@ -44,6 +44,14 @@ describe('authentication', () => {
   ])('rejects %s', (_label, overrides) => {
     expect(server.post('load', {}, server.tokenFor(OWNER, overrides)).error?.code).toBe('UNAUTHENTICATED');
   });
+  it('says the server is not configured when the CLIENT_ID script property is missing', () => {
+    server.state.clientId = null;
+    expect(server.post('load', {}, token).error).toEqual({
+      code: 'INTERNAL',
+      message: 'The server is not configured: set the CLIENT_ID script property (see docs/SETUP.md).',
+    });
+    expect(server.state.fetchCount).toBe(0);
+  });
   it('forbids accounts that are not on the allowlist', () => {
     const response = server.post('load', {}, server.tokenFor('stranger@example.com'));
     expect(response.error).toMatchObject({ code: 'FORBIDDEN', message: 'stranger@example.com is not on the volunteer list.' });
