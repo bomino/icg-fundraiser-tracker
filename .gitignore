@@ -5,8 +5,7 @@ playwright-report/
 test-results/
 .env
 .env.*
-*.xlsx
-*.docx
+Masjid_Fundraiser_Tracker_v3.BACKUP-before-trim.xlsx
 ~$*
 .claude/settings.local.json
 .clasp.json
