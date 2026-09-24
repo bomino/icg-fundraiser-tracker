@@ -11,6 +11,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 5. Back in the editor, pick `setup` from the function list and press **Run**. Approve the permissions. The Sheet now has the **Pledges**, **Payments**, **Settings** and **Allowlist** tabs, and your own email is on the Allowlist.
 6. Add each volunteer's Google email to the **Allowlist** tab, one per row. To remove access later, delete their row. It takes effect on their next click.
 7. Don't format the Pledges or Payments data columns as **Plain text** in the Sheet UI. The app forces text (ids, phone numbers, dates) by writing a leading apostrophe on every value; a Plain text column stores that apostrophe as a literal character instead of hiding it, which corrupts ids and phone numbers. Leave the columns on Automatic.
+8. Add pledges and payments through the app, not by typing into the **Pledges** or **Payments** tabs. The app ignores any row with an empty `id` in column A, so a row typed straight into the Sheet without one won't appear or count anywhere. If you must add rows by hand, give each one a unique `id` (any text not used by another row).
 
 ## 2. The Google sign-in client
 
@@ -18,7 +19,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 2. **APIs & Services → OAuth consent screen**: choose **External** and fill in the app name and your support email. Under **Audience**, press **Publish app**. With only the basic sign-in scopes this needs no Google review, and it lets any allowlisted volunteer sign in.
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type **Web application**. Under **Authorized JavaScript origins** add:
    - `https://<your-github-username>.github.io`
-   - `http://localhost:5173` (for local testing)
+   - `http://localhost:5173` and `http://localhost` (Google's sign-in setup guide asks for both when testing locally)
 4. Copy the **Client ID**. It ends in `.apps.googleusercontent.com`.
 5. In Apps Script, go to **Project Settings → Script properties → Add**: name `CLIENT_ID`, value = that Client ID.
 
