@@ -87,6 +87,22 @@ describe('data health', () => {
       'Possible duplicate payments',
     ]);
   });
+
+  it('treats punctuation-only phones as missing, so they neither join each other nor escape the missing-phone check', () => {
+    const computed = compute(
+      [pledge({ id: 'dashes', phone: '--', amountPledged: 10 }), pledge({ id: 'spaces', phone: '  ', amountPledged: 10 })],
+      [payment({ id: 'parens', phone: '()', amountReceived: 10, dateReceived: '2025-01-01' })],
+      SETTINGS,
+      TODAY,
+    );
+    const health = Object.fromEntries(computed.health.map((check) => [check.id, check.ids]));
+    expect({
+      statuses: computed.pledges.map((d) => d.status),
+      receivedCents: computed.totals.receivedCents,
+      pledgeNoPhone: health.pledgeNoPhone,
+      duplicates: health.duplicates,
+    }).toEqual({ statuses: ['Pending', 'Pending'], receivedCents: 0, pledgeNoPhone: ['dashes', 'spaces'], duplicates: [] });
+  });
 });
 
 describe('possible duplicate payments health check', () => {

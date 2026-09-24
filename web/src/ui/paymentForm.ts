@@ -1,6 +1,7 @@
 import { todayIso } from '../dates';
 import { WARNING_MARK, createDonorResolver } from '../engine';
 import { parseAmount } from '../format';
+import { matchKey } from '../matchKey';
 import { isPending } from '../store';
 import type { Payment, PaymentDraft, Pledge } from '../types';
 import { validatePayment, type FieldErrors } from '../validate';
@@ -36,11 +37,11 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   const preview = h('p', { class: 'hint', role: 'status', 'data-role': 'donor-preview' });
   // Shows, before saving, exactly what the Donor Name column will say, so a mistyped phone is caught at the door.
   const updatePreview = () => {
-    const phone = fields.phone.input.value.trim();
+    const phone = fields.phone.input.value;
     const donor = resolveDonor(phone);
     const warning = donor.startsWith(WARNING_MARK);
     preview.className = warning ? 'hint hint-warning' : 'hint';
-    if (phone === '') preview.textContent = 'Type the phone number to find the donor.';
+    if (matchKey(phone) === '') preview.textContent = 'Type the phone number to find the donor.';
     else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.`;
     else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}`;
   };

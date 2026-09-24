@@ -20,10 +20,11 @@ Three logical tables: Pledges (donor dimension), Payments (transaction fact), Su
 
 ### The match key
 
-`web/src/matchKey.ts` strips `-`, `(`, `)`, `.`, `+` and spaces, lower-cases, and prefixes the result with `#`. Two details are deliberate:
+`web/src/matchKey.ts` strips `-`, `(`, `)`, `.`, `+`, any whitespace (tabs and non-breaking spaces included) and Unicode dashes (`‐`–`―`, `−`), lower-cases, and prefixes the result with `#`. Three details are deliberate:
 
 - **The `#` prefix is required.** Without it, a key like `0551234` could be coerced to a number and collide with `551234`. Keep any new key logic text-prefixed.
 - **A blank phone gets a blank key, and every join must guard on that**, not just match on `""` — otherwise a pledge with no phone would match every payment that also lacks one.
+- **A phone with nothing left after stripping (`--`, `()`, `" "`) is blank too**, never a bare `#`, or every such placeholder would join every other one. Anything deciding "has a phone" must test `matchKey(phone) === ''`, not the raw text: the missing-phone health check, the Payments blank-phone validation (and its copy, `PHONE_IGNORED` in `Code.gs`), and the "Log a payment" buttons all do.
 
 ### Statuses
 
@@ -84,7 +85,7 @@ A donor entered on two Pledges rows has their payments counted once per row — 
 
 ## Testing the engine against the frozen fixture
 
-`test/fixtures/parity-input.json` and `parity-expected.json` are a frozen expected-values fixture: about 40 pledges and 80 payments covering every awkward case the engine must handle (float dust, one phone number spelled four ways, a leading zero next to the same digits without one, a donor with a phone but no Amount Pledged, a donor with no name, an overpayment, a duplicated donor), paired with the values each one should produce. `test/engine/parity.test.ts` asserts `web/src/engine` reproduces them exactly (cents for money, ISO dates for dates, exact status/warning strings). It's ordinary committed test data now — there's no generator script or external file in this repo it's checked against, and no reason it should ever need to change unless you're deliberately changing the engine's rules. `possibleDuplicatePayments` (the app-only, v1.1 health check) has no cells in this fixture and is excluded from the assertions.
+`test/fixtures/parity-input.json` and `parity-expected.json` are a frozen expected-values fixture: about 40 pledges and 80 payments covering every awkward case the engine must handle (float dust, one phone number spelled four ways, a leading zero next to the same digits without one, a pledge and a payment whose phones are only punctuation (both blank, so they don't join), a donor with a phone but no Amount Pledged, a donor with no name, an overpayment, a duplicated donor), paired with the values each one should produce. `test/engine/parity.test.ts` asserts `web/src/engine` reproduces them exactly (cents for money, ISO dates for dates, exact status/warning strings). It's ordinary committed test data now — there's no generator script or external file in this repo it's checked against, and no reason it should ever need to change unless you're deliberately changing the engine's rules. `possibleDuplicatePayments` (the app-only, v1.1 health check) has no cells in this fixture and is excluded from the assertions.
 
 ## Version control
 

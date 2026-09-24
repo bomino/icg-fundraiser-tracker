@@ -65,7 +65,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     fields.notes.input.value !== initial.notes;
 
   const onLogPayment = options.onLogPayment;
-  const canLogPayment = Boolean(existing?.phone.trim() && onLogPayment);
+  const canLogPayment = Boolean(existing && matchKey(existing.phone) !== '' && onLogPayment);
   let requested = false;
 
   async function handleLogPayment() {

@@ -26,6 +26,9 @@ export const VALIDATION_CASES: ValidationCase[] = [
   { name: 'payment with only a phone', tab: 'Payments', draft: { ...payment, dateReceived: '', amountReceived: null, method: '' }, invalidField: null },
   { name: 'payment without a phone', tab: 'Payments', draft: { ...payment, phone: '' }, invalidField: 'phone' },
   { name: 'payment with a whitespace phone', tab: 'Payments', draft: { ...payment, phone: '   ' }, invalidField: 'phone' },
+  { name: 'payment with a punctuation-only phone', tab: 'Payments', draft: { ...payment, phone: '(--)' }, invalidField: 'phone' },
+  { name: 'payment with a Unicode dash and space phone', tab: 'Payments', draft: { ...payment, phone: '–\u00a0—' }, invalidField: 'phone' },
+  { name: 'payment with a Unicode-dashed phone', tab: 'Payments', draft: { ...payment, phone: '555–010–0101' }, invalidField: null },
   // Both blank (after trim) and over the length limit - client and server must agree on which
   // field is at fault even though their messages differ (length-first order, see CLAUDE.md).
   { name: 'payment with an overlong whitespace phone', tab: 'Payments', draft: { ...payment, phone: ' '.repeat(501) }, invalidField: 'phone' },

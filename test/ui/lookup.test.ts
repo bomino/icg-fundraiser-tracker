@@ -13,6 +13,7 @@ const pledges = [
   pledge({ id: 'p1', phone: '555-010-0101', name: '<b>Aisha</b>', amountPledged: 100 }),
   pledge({ id: 'p2', phone: '2', name: 'Aisha Khan', amountPledged: 50 }),
   pledge({ id: 'p3', phone: '', name: 'No Phone Yet', amountPledged: 75 }),
+  pledge({ id: 'p4', phone: '--', name: 'Dashes Only', amountPledged: 75 }),
 ];
 const payments = [payment({ phone: '5550100101', amountReceived: 40, dateReceived: '2025-01-05', method: 'Cash' })];
 const state: State = { pledges, payments, settings: SETTINGS, me: 'me', computed: compute(pledges, payments, SETTINGS, TODAY) };
@@ -52,6 +53,13 @@ describe('find donor', () => {
     search(view, 'No Phone Yet');
     (view.querySelector('.match') as HTMLButtonElement).click();
     expect(view.textContent).toContain('No Phone Yet');
+    expect(Array.from(view.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
+  });
+
+  it('hides the Log a payment button on the donor card when the phone is only punctuation', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(view, 'Dashes Only');
+    (view.querySelector('.match') as HTMLButtonElement).click();
     expect(Array.from(view.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
   });
 

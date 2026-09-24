@@ -14,10 +14,15 @@ describe('matchKey', () => {
   it('keeps a leading zero distinct', () => {
     expect(matchKey('0551234')).not.toBe(matchKey('551234'));
   });
-  it('gives punctuation-only and space-only phones the bare "#" key', () => {
-    expect(matchKey('--')).toBe('#');
-    expect(matchKey(' ')).toBe('#');
+  it.each(['--', '()', '.', ' ', '\t', '\u00a0', '–'])('treats the punctuation-only phone %j as blank', (phone) => {
+    expect(matchKey(phone)).toBe('');
   });
+  it.each(['555\u00a0010\u00a00110', '555\t010\t0110', '555–010–0110', '555—010—0110', '555‐010‐0110', '555−010−0110'])(
+    'treats %j, pasted with a Unicode space or dash, as the plain number',
+    (phone) => {
+      expect(matchKey(phone)).toBe('#5550100110');
+    },
+  );
   it('ignores letter case', () => {
     expect(matchKey('555-010-0122X')).toBe(matchKey('555 010 0122x'));
   });

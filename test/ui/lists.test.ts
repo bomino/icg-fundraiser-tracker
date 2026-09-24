@@ -301,6 +301,12 @@ describe('payment form', () => {
     expect(preview.className).toContain('hint-warning');
   });
 
+  it('asks for the phone number while the phone holds only punctuation', () => {
+    openPaymentForm({ methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '(--)');
+    expect((document.querySelector('[data-role=donor-preview]') as HTMLElement).textContent).toBe('Type the phone number to find the donor.');
+  });
+
   it('turns typed text into a draft', async () => {
     // Typed so `.mock.calls[0][0]` below is not indexed into an inferred empty tuple.
     const onSave = vi.fn(async (_draft: PaymentDraft) => undefined);
@@ -372,6 +378,12 @@ describe('pledge form', () => {
   it('hides the Log a payment button for a pledge with no phone', () => {
     const noPhone = pledge({ id: 'p9', name: 'No Phone', amountPledged: 50 });
     openPledgeForm({ pledges: [...pledges, noPhone], existing: noPhone, onSave: vi.fn(), onLogPayment: vi.fn(), reportError: vi.fn() });
+    expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
+  });
+
+  it('hides the Log a payment button for a pledge whose phone is only punctuation', () => {
+    const dashes = pledge({ id: 'p9', phone: '--', name: 'Dashes Only', amountPledged: 50 });
+    openPledgeForm({ pledges: [...pledges, dashes], existing: dashes, onSave: vi.fn(), onLogPayment: vi.fn(), reportError: vi.fn() });
     expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
   });
 

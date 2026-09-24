@@ -1,5 +1,6 @@
 import { isIsoDate } from './dates';
 import { WARNING_MARK } from './engine/constants';
+import { matchKey } from './matchKey';
 import type { PaymentDraft, PledgeDraft } from './types';
 
 // Keep these rules identical to validateRow_ in apps-script/Code.gs; test/support/validationCases.ts runs against both.
@@ -42,7 +43,7 @@ export function validatePayment(draft: PaymentDraft, methods: readonly string[])
   return compact({
     // Length before blank, matching validateRow_ in Code.gs: it checks every field's length in
     // field order before its Payments-only blank-phone check runs.
-    phone: textError(draft.phone) ?? (draft.phone.trim() === '' ? "Enter the donor's phone number." : undefined),
+    phone: textError(draft.phone) ?? (matchKey(draft.phone) === '' ? "Enter the donor's phone number." : undefined),
     dateReceived: dateError(draft.dateReceived),
     amountReceived: amountError(draft.amountReceived),
     method: draft.method === '' || methods.includes(draft.method) ? undefined : 'Pick a method from the list.',

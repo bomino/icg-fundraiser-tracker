@@ -30,7 +30,7 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], onLogPaymen
   ];
   // Same rule as the pledge dialog: no phone means there is nowhere for the payment to match to.
   let logPayment: HTMLButtonElement | null = null;
-  if (donor.pledge.phone.trim() !== '') {
+  if (donor.key !== '') {
     logPayment = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Log a payment');
     logPayment.addEventListener('click', onLogPayment);
   }
