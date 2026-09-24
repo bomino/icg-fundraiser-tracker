@@ -30,7 +30,12 @@ describe('pledges view', () => {
     document.body.append(view);
     expect([...view.querySelectorAll('tr.row-danger')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p1', 'p2']);
     const search = view.querySelector('input[type=search]') as HTMLInputElement;
+    vi.useFakeTimers();
     type(search, 'chen');
+    vi.advanceTimersByTime(149);
+    expect(view.querySelectorAll('tbody tr')).toHaveLength(3);
+    vi.advanceTimersByTime(1);
+    vi.useRealTimers();
     expect([...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p3']);
     expect(document.body.contains(search)).toBe(true);
   });

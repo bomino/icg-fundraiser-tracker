@@ -20,6 +20,7 @@ const VIEWS: ReadonlyArray<{ name: ViewName; label: string }> = [
   { name: 'find', label: 'Find donor' },
 ];
 const LAST_VIEW_KEY = 'icg-last-view';
+const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
 
 export function parseRoute(hash: string): ViewName {
   const name = hash.replace(/^#\/?/, '');
@@ -75,6 +76,23 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     themeButton.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
     themeButton.setAttribute('aria-pressed', String(theme === 'dark'));
   });
+  const main = h('main', { class: 'container', id: 'main' });
+  const refresh = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Refresh');
+  const reload = async () => {
+    refresh.disabled = true;
+    refresh.textContent = 'Refreshing…';
+    try {
+      await deps.store.load();
+    } catch (err) {
+      reportError(err);
+    } finally {
+      refresh.disabled = false;
+      refresh.textContent = 'Refresh';
+    }
+  };
+  refresh.addEventListener('click', () => {
+    if (!refresh.disabled) void reload();
+  });
   const signOut = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Sign out');
   signOut.addEventListener('click', () => deps.auth.signOut());
   const me = h('span', { class: 'meta' }, deps.store.state()?.me ?? '');
@@ -82,18 +100,36 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   window.addEventListener('online', () => { offline.hidden = true; });
   window.addEventListener('offline', () => { offline.hidden = false; });
 
-  const main = h('main', { class: 'container', id: 'main' });
   // Capture phase runs before the view opens a form, so a nearly expired sign-in is renewed
   // up front instead of interrupting the Save.
   main.addEventListener('click', () => deps.auth.refreshIfStale(), { capture: true });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') deps.auth.refreshIfStale();
+    if (document.visibilityState !== 'visible') return;
+    deps.auth.refreshIfStale();
+    const loadedAt = deps.store.lastLoadedAt();
+    const stale = loadedAt === null || Date.now() - loadedAt > AUTO_REFRESH_AFTER_MS;
+    // A reload under an open form would redraw the list the volunteer is editing from.
+    if (stale && !refresh.disabled && !document.querySelector('dialog[open]')) void reload();
   });
   root.replaceChildren(
-    h('header', { class: 'nav-bar' }, h('div', { class: 'nav-inner' }, h('a', { href: '#summary', class: 'wordmark' }, 'ICG Fundraiser Tracker'), nav, h('div', { class: 'nav-actions' }, me, themeButton, signOut))),
+    h('header', { class: 'nav-bar' }, h('div', { class: 'nav-inner' }, h('a', { href: '#summary', class: 'wordmark' }, 'ICG Fundraiser Tracker'), nav, h('div', { class: 'nav-actions' }, me, refresh, themeButton, signOut))),
     offline,
     main,
   );
+
+  // Store publishes rebuild the whole view; without this a volunteer typing a search loses the box mid-word.
+  function focusedSearch() {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement) || !main.contains(active) || !active.dataset.focusKey) return null;
+    return { key: active.dataset.focusKey, start: active.selectionStart, end: active.selectionEnd };
+  }
+
+  function restoreFocus(focus: { key: string; start: number | null; end: number | null }) {
+    const input = main.querySelector<HTMLInputElement>(`input[data-focus-key="${focus.key}"]`);
+    if (!input) return;
+    input.focus();
+    if (focus.start !== null && focus.end !== null) input.setSelectionRange(focus.start, focus.end);
+  }
 
   function render() {
     const state = deps.store.state();
@@ -120,7 +156,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
             location.hash = target;
           },
         });
+    const focus = focusedSearch();
     main.replaceChildren(content);
+    if (focus) restoreFocus(focus);
     rememberView(view);
   }
 

@@ -38,6 +38,29 @@ describe('store', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it('records when the last successful load happened', async () => {
+    let fail = false;
+    const store = createStore(
+      fakeApi({
+        load: async () => {
+          if (fail) throw new ApiError('NETWORK', 'offline');
+          return { pledges: [], payments: [], settings: SETTINGS, me: 'me@example.com' };
+        },
+      }),
+      () => TODAY,
+    );
+    expect(store.lastLoadedAt()).toBeNull();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-23T12:00:00Z'));
+    await store.load();
+    expect(store.lastLoadedAt()).toBe(Date.parse('2026-09-23T12:00:00Z'));
+    vi.setSystemTime(new Date('2026-09-23T12:05:00Z'));
+    fail = true;
+    await expect(store.load()).rejects.toMatchObject({ code: 'NETWORK' });
+    expect(store.lastLoadedAt()).toBe(Date.parse('2026-09-23T12:00:00Z'));
+    vi.useRealTimers();
+  });
+
   it('shows a new row immediately, then swaps in the server copy', async () => {
     const pending = deferred<Pledge>();
     const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);

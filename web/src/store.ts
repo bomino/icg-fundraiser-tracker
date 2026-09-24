@@ -18,6 +18,8 @@ export interface Store {
   state(): State | null;
   subscribe(listener: Listener): () => void;
   load(): Promise<void>;
+  /** Epoch ms of the last successful load, or null before the first one. */
+  lastLoadedAt(): number | null;
   savePledge(draft: PledgeDraft, existing?: Pledge): Promise<void>;
   savePayment(draft: PaymentDraft, existing?: Payment): Promise<void>;
   deletePledge(row: Pledge): Promise<void>;
@@ -42,6 +44,7 @@ const paymentRows: Collection<Payment> = { get: (s) => s.payments, with: (s, row
 
 export function createStore(api: Api, today: () => string): Store {
   let current: State | null = null;
+  let loadedAt: number | null = null;
   let pendingCount = 0;
   const listeners = new Set<Listener>();
 
@@ -106,12 +109,14 @@ export function createStore(api: Api, today: () => string): Store {
 
   return {
     state: () => current,
+    lastLoadedAt: () => loadedAt,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     async load() {
       const result = await api.load();
+      loadedAt = Date.now();
       publish({ pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me });
     },
     savePledge: (draft, existing) => save(pledgeRows, { ...provisionalFields(existing), ...draft }, existing, () => api.savePledge(draft, existing)),

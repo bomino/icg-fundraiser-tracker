@@ -1,5 +1,8 @@
 import { matchKey } from '../matchKey';
 
+// Long enough to skip redraws between keystrokes on a slow phone, short enough to feel instant.
+export const SEARCH_DEBOUNCE_MS = 150;
+
 export function matchesQuery(query: string, texts: readonly string[], key: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === '') return true;

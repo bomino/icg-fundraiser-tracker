@@ -7,7 +7,7 @@ import { statusBadge } from './badges';
 import { h } from './dom';
 import { filterChip, type ListFilter } from './filter';
 import { openPledgeForm } from './pledgeForm';
-import { matchesQuery } from './search';
+import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
 import { nextSort, renderTable, sortRows, type Column, type SortState } from './table';
 
 export interface ListViewDeps {
@@ -31,6 +31,7 @@ const COLUMNS: Column<DerivedPledge>[] = [
 export function createPledgesView(deps: ListViewDeps) {
   let query = '';
   let sort: SortState | null = null;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
     const openEditor = (existing?: Pledge) =>
@@ -64,11 +65,12 @@ export function createPledgesView(deps: ListViewDeps) {
         }),
       );
     };
-    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges' });
+    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', 'data-focus-key': 'pledges-search' });
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;
-      drawTable();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add pledge');
     add.addEventListener('click', () => openEditor());

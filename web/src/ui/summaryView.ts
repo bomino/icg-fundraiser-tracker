@@ -71,7 +71,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   return h(
     'section',
     { class: 'view' },
-    h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Updates as volunteers save'), h('h1', { class: 'display-md' }, 'Fundraiser summary')), download),
+    h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Live from the shared sheet — tap Refresh for others’ changes'), h('h1', { class: 'display-md' }, 'Fundraiser summary')), download),
     h(
       'section',
       { class: 'card' },

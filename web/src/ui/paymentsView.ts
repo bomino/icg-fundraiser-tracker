@@ -8,7 +8,7 @@ import { h } from './dom';
 import { filterChip, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
-import { matchesQuery } from './search';
+import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
 import { nextSort, renderTable, sortRows, type Column, type SortState } from './table';
 
 const COLUMNS: Column<DerivedPayment>[] = [
@@ -23,6 +23,7 @@ const COLUMNS: Column<DerivedPayment>[] = [
 export function createPaymentsView(deps: ListViewDeps) {
   let query = '';
   let sort: SortState | null = null;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
     const openEditor = (existing?: Payment) =>
@@ -57,11 +58,12 @@ export function createPaymentsView(deps: ListViewDeps) {
         }),
       );
     };
-    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments' });
+    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;
-      drawTable();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Log a payment');
     add.addEventListener('click', () => openEditor());

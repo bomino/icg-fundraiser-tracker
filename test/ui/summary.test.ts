@@ -25,6 +25,11 @@ describe('summary', () => {
     expect(view.textContent).toContain('0.4% of goal received');
   });
 
+  it('says truthfully that other volunteers’ changes need a refresh', () => {
+    const { view } = render();
+    expect(view.querySelector('.view-header .eyebrow')?.textContent).toBe('Live from the shared sheet — tap Refresh for others’ changes');
+  });
+
   it('highlights unmatched money and links a health problem to its rows', () => {
     const { view, deps } = render();
     expect(view.querySelector('[data-role=unmatched]')?.classList.contains('is-flagged')).toBe(true);
