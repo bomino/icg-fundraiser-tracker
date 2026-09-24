@@ -1,3 +1,0 @@
-# The workbook and guide are zip-based Office formats; autocrlf must never touch their bytes.
-*.xlsx binary
-*.docx binary
