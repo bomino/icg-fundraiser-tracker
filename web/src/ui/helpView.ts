@@ -1,4 +1,5 @@
-import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, type HealthId, type Status } from '../engine';
+import { HEALTH_LABELS, STATUS, WARNING_MARK, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, type HealthId, type Status } from '../engine';
+import { MAX_TEXT } from '../validate';
 import { SITE_API_VERSION, SITE_COMMIT } from '../version';
 import { h, type Child } from './dom';
 import { PAYMENT_HELP, PLEDGE_HELP } from './help';
@@ -30,12 +31,20 @@ const SAID = {
   columnChanged: 'The organiser needs to put the columns back as they were, or move a new column to the right of updatedBy.',
   conflict: 'Someone else changed this row since you opened it. Reload to see the latest version, then make your change again.',
   deleted: 'Someone else deleted this row. Reload to see the latest list.',
+  alreadySavedDifferent: 'This entry was already saved with different values. Reopen it to check.',
   notANumber: 'Enter a number, e.g. 250.',
   negative: 'Enter an amount of 0 or more.',
   decimals: 'Use at most 2 decimal places.',
+  tooLarge: 'That amount is too large.',
+  validDate: 'Enter a valid date.',
   noPhone: "Enter the donor's phone number.",
   noAmount: 'Enter the amount received.',
   pickMethod: 'Pick a method from the list.',
+  noGoal: 'Enter a goal.',
+  // Prefixes only: the app builds the rest of these two from MAX_TEXT and WARNING_MARK.
+  tooLong: 'Keep this under',
+  nameMark: 'A name cannot start with',
+  counted: 'Counted',
   duplicateHint: 'This phone number is already on the pledge for',
   oldNumber: 'payments were logged under the old number',
   oldNumberNext: 'They will stop counting for this donor. After saving, go to Payments, search the old number, and change each one to the new number.',
@@ -168,8 +177,10 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.network)],
-    meaning: ['The save did not reach the shared sheet, usually because the connection dropped or was too slow. The tracker had already tried again by itself.'],
-    action: ['Check your connection, then press ', b('Reopen'), ' on the message. The form comes back with everything you typed; press ', b('Save'), ' again.'],
+    meaning: [
+      'The save did not reach the shared sheet, usually because the connection dropped or was too slow. The tracker had already tried again by itself. If your phone or computer seems to be online, the message goes on to say the Apps Script deployment may not allow access to “Anyone”. That only matters if it keeps happening. It is a setup problem that only the organiser can fix.',
+    ],
+    action: ['Check your connection, then press ', b('Reopen'), ' on the message. The form comes back with everything you typed; press ', b('Save'), ' again. If other websites work and it keeps happening, tell the organiser, and include the exact message.'],
   },
   {
     message: [said(`${SAID.httpError} (…). Try again.`)],
@@ -188,8 +199,18 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.expired)],
-    meaning: ['Google sign-ins last about an hour. The tracker renews yours quietly, but sometimes it has to ask.'],
-    action: ['Sign in again in the window that appears. The save carries on by itself once you are back.'],
+    meaning: ['Your Google sign-in could not be confirmed, even after the tracker asked you to sign in again.'],
+    action: [
+      'Press ',
+      b('Reopen'),
+      ' on the message, then ',
+      b('Save'),
+      ', and sign in if the window appears. If it was a delete, open the row and press ',
+      b('Delete'),
+      ' again. If the tracker would not open, press ',
+      b('Try again'),
+      '. If it keeps happening, tell the organiser, and include the exact message.',
+    ],
   },
   {
     message: [said(SAID.signInIdsDiffer)],
@@ -214,6 +235,12 @@ const PROBLEMS: readonly Problem[] = [
       b(SAID.differentAccount),
       ' and sign in with the account they did add. If this replaced the tracker while you were using it, ask the organiser to add you back, then press ',
       b('Try again'),
+      '. If it appears on a message about a save, ask the organiser to add you back. Do not press ',
+      b('Dismiss'),
+      ': once you are back on the list, press ',
+      b('Reopen'),
+      ' and ',
+      b('Save'),
       '.',
     ],
   },
@@ -226,6 +253,11 @@ const PROBLEMS: readonly Problem[] = [
     message: [said(SAID.conflict)],
     meaning: ['Another volunteer saved a change to the same pledge or payment after you opened it, or the organiser corrected it in the sheet.'],
     action: ['Press ', b('Reload'), ', open the row again, look at their change, and redo yours if it is still needed.'],
+  },
+  {
+    message: [said(SAID.alreadySavedDifferent)],
+    meaning: ['You pressed Save again on a new pledge or payment after a save that seemed to fail, and changed something first. The first save had actually gone through, with the values from before.'],
+    action: ['Press ', b('Reload'), ' (the question has no Reopen button). Open the entry on the list and correct it if needed. Do not add it again.'],
   },
   {
     message: [said(SAID.deleted)],
@@ -342,7 +374,9 @@ function theScreens(): Child[] {
           b('Needs follow-up'),
           ' finds Pending or Partial donors with no payment, and no change saved to their pledge, in the last 30 days, biggest balance first. See ',
           b('Follow up with donors who still owe'),
-          ' in How to….',
+          ' in How to…. Press ',
+          b('All'),
+          ' to see every pledge again.',
         ],
       ),
     ),
@@ -587,7 +621,11 @@ function howTo(): Child[] {
     ),
     topic(
       'Delete a pledge or payment',
-      steps(['Tap the row to open it.'], ['Press ', b('Delete'), ' at the bottom left of the form.'], ['Read the question and press ', b('Delete'), ' again to confirm. The row disappears at once.']),
+      steps(
+        ['Tap the row to open it.'],
+        ['Press the red ', b('Delete'), ' button at the bottom of the form. On a pledge with a phone number it comes just after ', b('Log a payment'), '.'],
+        ['Read the question and press ', b('Delete'), ' again to confirm. The row disappears at once.'],
+      ),
       bullets(
         ['Deleting a payment asks: ', said(SAID.deletePayment)],
         ['Deleting a pledge asks: ', said(`${SAID.deletePledge} ${WARN_NOT_IN_PLEDGES} ${SAID.deletePledgeStopsCounting}`), ' It then says how many payments that is and how much money.'],
@@ -692,7 +730,13 @@ function howTo(): Child[] {
         ['When the announcement is over, press F11 to leave full screen, then press ', b('Exit'), ', then ', b('Sign out'), ', then close the window.'],
       ),
       p('The screen shows the drive’s name (or just “Fundraiser” until the organiser sets one), the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
-      p('It fetches the latest figures as soon as it opens, then updates itself every few minutes, and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
+      p(
+        'When it opens, it fetches the latest figures, unless they were fetched in the last 3 minutes. After that it updates itself every few minutes and shows the time of the last update. To include an entry made in the last few minutes, press ',
+        b('Refresh'),
+        ' on the Summary just before you press ',
+        b('Friday display'),
+        '. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.',
+      ),
       p('If a sign-in box appears when you press ', b('Friday display'), ', sign in: your sign-in was about to run out, and signing in now keeps the screen updating for about another hour.'),
       note('Google sign-ins last about an hour. After that the figures stop updating, and after 15 minutes a small note says ', said(SAID.displayStale), '. Tap it and sign in to bring the figures up to date. Press ', b('Exit'), ' in the top corner to go back to the Summary.'),
       bullets(
@@ -716,7 +760,20 @@ function howTo(): Child[] {
       ),
       p('So the file has everything saved up to the moment you pressed Download, other volunteers’ changes included. The first row of its Summary sheet, ', said(SAID.figuresAsOf), ', gives the date and time of that fetch — the same time shown at the top of the Summary screen, and in the file name (1401 means 2:01 PM). If a row still shows ', said(SAID.saving), ', wait for it to finish before you download, in case that save does not go through.'),
       p('Downloading needs a connection. If the tracker cannot reach the shared sheet, it says ', said(SAID.couldNotDownload), ' and saves nothing, so you never get an out-of-date copy by mistake. Try again once you are back online.'),
-      p('The Pledges and Payments sheets end with ', said(SAID.lastChangedBy), ' and ', said(SAID.lastChangedAt), ': the email of the volunteer who last saved each row, and when. That is whoever saved the row last, not always the person who took the money — fixing a typo in someone else’s payment puts your email there.'),
+      p(
+        'The Payments sheet lists every payment, including ones with a ⚠ warning. Its ',
+        said(SAID.counted),
+        ' column says No for those. So adding up its Amount Received column gives Payments logged, not Total received. To get Total received, add up the Amount Received column on the Pledges sheet instead (a donor listed more than once is counted once per row there, just as on the Summary). On the Pledges sheet, ',
+        said(SAID.listedMoreThanOnce),
+        ' says Yes on every row whose phone number is on more than one pledge.',
+      ),
+      p(
+        'The Pledges and Payments sheets end with ',
+        said(SAID.lastChangedBy),
+        ' and ',
+        said(SAID.lastChangedAt),
+        ': who last saved each row, and when. That is the email of whoever last saved the row in the tracker, not always the person who took the money — fixing a typo in someone else’s payment puts your email there. A row the organiser corrected straight in the shared sheet shows the organiser’s email, or “edited in Sheet” when Google does not say who made the change.',
+      ),
       p('On the Pledges and Payments sheets, the small arrow beside each heading lets you show only some rows, for example only Partial pledges or only Cash payments.'),
       p(
         'To save just part of a list, filter it on ',
@@ -777,6 +834,7 @@ function theNumbers(): Child[] {
     topic(
       '% of goal received',
       p('Total received divided by the goal. Only money matched to a pledge counts, so fixing ⚠ payments can raise it.'),
+      p('It is rounded down to a tenth of a percent, so it never shows 100% until the goal is met. The Friday display shows the amount received in whole dollars, rounded down too, so it can read a little less than the Summary.'),
     ),
     topic(
       'Phone numbers',
@@ -839,7 +897,7 @@ function workingTogether(): Child[] {
     bullets(
       ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
       ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
-      ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away, and each time you press ', b('Download .xlsx'), '.'],
+      ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more since its last refresh, as long as no form is open, and each time you press ', b('Download .xlsx'), '.'],
       ['Until you refresh, the tracker does not know about a pledge another volunteer has just added. Before adding a pledge for a donor it cannot find, press ', b('Refresh'), ': two pledges for the same donor count their payments twice.'],
       ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the sheet is busy with other volunteers’ saves, or the connection drops for a moment, the tracker quietly tries again on its own — you do not need to do anything unless you actually see an error message.'],
     ),
@@ -848,7 +906,13 @@ function workingTogether(): Child[] {
       p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, or the organiser corrected it in the sheet, your save stops and you see the message below, starting with what you were saving. If you are already typing in another form, it waits until you close that form:'),
       p(said(SAID.conflict)),
       steps(['Press ', b('Reload'), '.'], ['Open the row again and look at what changed.'], ['Make your change again if it is still needed.']),
-      p('If you reopen a save that seemed to fail and press Save again, the tracker checks whether the first one actually went through. If it did, nothing is added twice. If the saved values differ from what you are sending, you see the same message — reload and check the row.'),
+      p(
+        'If you reopen a save that seemed to fail and press Save again, the tracker checks whether the first one actually went through. If it did and you changed nothing, nothing is added twice. If you changed something, it asks you to reload instead, starting with what you were saving. For a change to an existing row you see the message above. For a new pledge or payment you see ',
+        said(SAID.alreadySavedDifferent),
+        ' Either way, press ',
+        b('Reload'),
+        ', find the entry on the list (the first save went through), open it and correct it if needed. Do not add it again. What you typed the second time is not kept.',
+      ),
     ),
   ];
 }
@@ -862,7 +926,22 @@ function whenSomethingGoesWrong(): Child[] {
     topic(
       'Messages inside a form',
       p('These appear in red under a box when something in it needs fixing. Correct the box and press Save again.'),
-      bullets([said(SAID.notANumber)], [said(SAID.negative)], [said(SAID.decimals)], [said(SAID.noPhone)], [said(SAID.noAmount)], [said(SAID.pickMethod)]),
+      bullets(
+        [said(SAID.notANumber)],
+        [said(SAID.negative)],
+        [said(SAID.decimals)],
+        [said(SAID.tooLarge)],
+        [said(SAID.validDate), ' On a computer, type the year in full (2026, not 26).'],
+        [said(SAID.noPhone)],
+        [said(SAID.noAmount)],
+        [said(SAID.pickMethod)],
+        [said(`${SAID.nameMark} ${WARNING_MARK}.`), ' A donor name cannot begin with the warning sign the tracker uses for payments it does not count.'],
+        [
+          said(`${SAID.tooLong} ${MAX_TEXT} characters.`),
+          ' That box has too much text, usually Notes after many added lines. Shorten older lines, for example to one short line per call, and press Save again.',
+        ],
+        [said(SAID.noGoal), ' The goal box on ', b('Edit goal'), ' was left empty. Type the goal, or 0.'],
+      ),
     ),
   ];
 }
@@ -875,7 +954,7 @@ function forTheOrganiser(): Child[] {
       p(
         'Add each volunteer’s Google email address to the ',
         b('Allowlist'),
-        ' tab, one per row, in the first column. To remove someone, delete their row. The tracker then turns them away the next time their page refreshes or saves (',
+        ' tab, one per row, in the first column, from row 2 down. Row 1 is the heading (email) and is never read, so do not paste a list over it. To remove someone, delete their row. The tracker then turns them away the next time their page refreshes or saves (',
         b('Download .xlsx'),
         ' refreshes first, so it counts), and a refresh clears the page to ',
         b(SAID.notOnListTitle),
@@ -890,7 +969,7 @@ function forTheOrganiser(): Child[] {
     ),
     topic(
       'Payment methods, the goal and the drive’s name',
-      p('The ', b('Settings'), ' tab has one setting per row. ', b('paymentMethods'), ' is the list volunteers pick from, separated by commas — for example Cash,Bank Transfer,Card,Check,Online,Other. ', b('goal'), ' is the fundraiser target; volunteers can also change it with ', b('Edit goal'), ' on the Summary.'),
+      p('The ', b('Settings'), ' tab has one setting per row, below its heading row, which is never read. ', b('paymentMethods'), ' is the list volunteers pick from, separated by commas — for example Cash,Bank Transfer,Card,Check,Online,Other. ', b('goal'), ' is the fundraiser target; volunteers can also change it with ', b('Edit goal'), ' on the Summary.'),
       p(
         b('campaignName'),
         ' is the title of the Friday display, such as Masjid Expansion 2026. Left blank, the display says Fundraiser. If the tab has no campaignName row, add one: campaignName in the first column and the name in the second.',
@@ -918,6 +997,13 @@ function forTheOrganiser(): Child[] {
           ' for you, so a volunteer who opened it before your fix is asked to reload instead of saving the old values over it. Rows brought in with ',
           b('File → Import'),
           ' are not marked, so do not use Import to change rows.',
+        ],
+        [
+          'When you type a phone number into the sheet, start it with an apostrophe (',
+          b("'0551234"),
+          ', ',
+          b("'+1 336 555 0123"),
+          '), as the tracker does. The apostrophe does not show in the cell. Without it, the sheet drops a leading 0, or treats a leading + as the start of a formula (often showing #ERROR!), and that row stops matching the donor’s other rows. Type dates as 2026-09-24 and amounts as plain numbers such as 50 or 1250.50. A date the sheet does not recognise as a date (for example 24/09/2026), or an amount with words in it, shows as blank in the tracker. This goes for corrections and for rows you bring in with a new id.',
         ],
         [
           'Add your own columns to Pledges or Payments only to the right of the last one, ',

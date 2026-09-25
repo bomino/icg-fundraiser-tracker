@@ -7,8 +7,8 @@ colors:
   # --- Surfaces ---
   bg: "#fbf9f3"               # Page background — warm ivory, like aged paper
   surface: "#ffffff"          # Cards, modals — clean white for elevation
-  surface-soft: "#f5f1e8"     # Inputs, secondary fills, table row hover — slight cream
-  surface-sunken: "#efe9d9"   # Toolbar/footer/recessed wells — deeper cream
+  surface-soft: "#f5f1e8"     # Hover fills (tabs, table rows, ghost buttons, Find-donor matches), hints, help notes, method badges without their own tint
+  surface-sunken: "#efe9d9"   # Progress-bar track, loading skeleton
 
   # --- Ink (text) ---
   ink: "#1a2e1f"              # Primary text + headings — deep forest, almost black
@@ -18,7 +18,7 @@ colors:
   # --- Rules and dividers ---
   rule: "#e8e0cc"             # Hairline borders, table dividers — soft sand
   field-border: "#948a6e"     # Input borders only — a field's only visible edge, 3:1 on surface
-  rule-strong: "#d4c79e"      # Emphasized borders, focused inputs
+  rule-strong: "#d4c79e"      # Table and help-table header rules, chip borders, secondary-button hover borders, modal scrollbar thumb
 
   # --- Brand accents ---
   gold: "#926c09"             # Antique gold — primary accent, stat values, hairline rules — 4.5:1 on bg and surface
@@ -52,15 +52,14 @@ colors:
   chart-8: "#4a4640"          # dark neutral — "Other / unlisted"; darker than chart-7 so the two neutrals differ by lightness
 
 # Dark-mode token overrides. Same semantic names; different values.
-# Each entry below is the dark-mode value of the matching token in `colors`
-# above. Tokens not listed here keep their light-mode value in dark mode
-# (e.g. payment-* tints we re-derive from token math).
+# Every token in `colors` has its dark value below. The scrim and the two
+# shadows are not in `colors` but change too; see Elevation & Depth.
 colors-dark:
   # --- Surfaces ---
   bg: "#15110a"               # Warm near-black — slight gold cast keeps the "civic" register
   surface: "#1f1a10"           # Cards/modals — one step lighter than bg
-  surface-soft: "#28221a"      # Inputs, secondary fills, table hover
-  surface-sunken: "#1a160e"    # Toolbars, recessed wells — darker than bg
+  surface-soft: "#28221a"      # Hover fills (tabs, table rows, ghost buttons, Find-donor matches), hints, help notes, method badges without their own tint
+  surface-sunken: "#1a160e"    # Progress-bar track, loading skeleton — just above bg (1.04:1)
 
   # --- Ink (text) ---
   ink: "#f1ebd8"              # Warm off-white. Never pure white.
@@ -70,7 +69,7 @@ colors-dark:
   # --- Rules and dividers ---
   rule: "#3a3320"             # Warm dim brown-gold, low contrast
   field-border: "#7a6d4b"      # Input borders only, 3:1 on surface
-  rule-strong: "#5a4f30"       # Emphasized borders, focused state outlines
+  rule-strong: "#5a4f30"       # Table and help-table header rules, chip borders, secondary-button hover borders, modal scrollbar thumb
 
   # --- Brand accents (lifted slightly for dark backgrounds) ---
   gold: "#d4af37"              # Brighter antique gold — readable on dark
@@ -192,18 +191,12 @@ typography:
     lineHeight: 1.2
     fontFeature: "'tnum'"
 
-  arabic:
-    fontFamily: "Amiri, 'Times New Roman', serif"
-    fontSize: "1.25rem"
-    fontWeight: 400
-    lineHeight: 1.6
-
 rounded:
   none: "0"
-  sm: "6px"      # buttons, inputs, badges
+  sm: "6px"      # buttons, inputs, toasts
   md: "12px"     # cards, modals, table containers
-  lg: "20px"     # hero panel, large display surfaces only
-  full: "9999px" # pills, avatars, progress bars
+  lg: "20px"     # unused; kept on the scale for a future large display surface
+  full: "9999px" # badges, chips, progress bars, swatches
 
 spacing:
   "0": 0
@@ -248,12 +241,6 @@ components:
     rounded: "{rounded.sm}"
     padding: "8px 14px"
 
-  button-icon:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-soft}"
-    rounded: "{rounded.sm}"
-    padding: "8px"
-
   # --- Inputs ---
   input:
     backgroundColor: "{colors.surface}"
@@ -288,28 +275,32 @@ components:
   # --- Badges ---
   badge-active:
     backgroundColor: "{colors.emerald-tint}"
-    textColor: "{colors.emerald}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.emerald}"
     typography: "{typography.meta}"
     rounded: "{rounded.full}"
     padding: "2px 10px"
 
   badge-inactive:
     backgroundColor: "{colors.warning-tint}"
-    textColor: "{colors.warning}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.warning}"
     typography: "{typography.meta}"
     rounded: "{rounded.full}"
     padding: "2px 10px"
 
   badge-category:
     backgroundColor: "{colors.gold-tint}"
-    textColor: "{colors.gold}"
-    typography: "{typography.eyebrow}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.gold}"
+    typography: "{typography.meta}"   # at eyebrow weight (600), tracking (0.12em) and in caps
     rounded: "{rounded.full}"
     padding: "2px 10px"
 
   payment-badge-cash:
     backgroundColor: "{colors.emerald-tint}"
-    textColor: "{colors.payment-cash}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.payment-cash}"
     rounded: "{rounded.full}"
     padding: "2px 10px"
 
@@ -363,7 +354,7 @@ The palette is rooted in three pillars: **ivory** (the institutional surface), *
 
 - **`bg` (#fbf9f3) — warm ivory.** The page background. Slightly warmer than pure white; reads as paper, not screen. Source of the "calm" in the design.
 - **`surface` (#ffffff) — clean white.** Cards and modals. Lifts content off the ivory background through brightness, not heavy shadows.
-- **`surface-soft` (#f5f1e8) and `surface-sunken` (#efe9d9) — recessed creams.** Inputs and recessed wells (toolbars, table-row hovers). Always darker than the page, never lighter.
+- **`surface-soft` (#f5f1e8) and `surface-sunken` (#efe9d9) — recessed creams.** Hover fills, hints and help notes; the progress track and loading skeleton. Always darker than the page in light mode. In dark mode they sit slightly above `bg`, like the cards. Inputs stay on `surface`.
 - **`ink` (#1a2e1f) — deep forest.** Primary text and headings. *Not pure black* — black on warm ivory is harsh. Forest pairs with the ICG dome and softens the contrast to something paper-like.
 - **`ink-soft` (#5a6b5f) and `ink-muted` (#65716a) — body and metadata.** A two-step text hierarchy below ink. All three reach WCAG AA (4.5:1) on `bg`, `surface` and `surface-soft` in both themes; `test/styles/contrast.test.ts` checks the faintest of them, `ink-muted`, on each. `ink-muted` carries text volunteers need — field hints, the only column labels on phones, "Showing N of M" — so it is the lightest shade of its grey-green that still reaches 4.5:1 on `surface-soft` (the hover and focus fill behind a phone number in Find donor's matches). That keeps it a half-step lighter than `ink-soft` rather than merged into it, but the two are close: size (12px metadata against 15px body) now carries most of the hierarchy. The earlier `#8a9690` measured only 2.9:1.
 - **`rule` (#e8e0cc) — soft sand.** Hairline dividers. The single most-used non-ink color in the system. Replaces the dark theme's rgba-white borders entirely.
@@ -372,7 +363,7 @@ The palette is rooted in three pillars: **ivory** (the institutional surface), *
 - **`emerald` (#2d5e3e) — forest green.** Primary CTA color, success states, progress fills. Echoes the ICG logo's dome. Calm and assertive.
 - **`warning` (#9c6b1f) and `danger` (#8b2e2e) — burnt amber and subdued claret.** Functional colors held back from saturation so they don't dominate. A delete button should look serious, not panicked.
 
-The **payment method palette** replaces the previous neon set with institutional muted tones: emerald, indigo, aubergine, burnt orange. They harmonize with each other and with the brand greens/golds, so the donut chart in the report doesn't look like a clown.
+The **payment method palette** (emerald, indigo, aubergine, burnt orange) colours the Method badges wherever payments are listed (the Payments list and a donor's payment history in Find donor), by method name: Cash and Online as a border, Bank Transfer and Card as text. Other methods get a plain badge. The Summary's ring and its key use the `chart-*` palette instead.
 
 The **chart palette** is reusable across visualizations. Drawn from the same six muted hues; no two adjacent slices clash. Each listed payment method takes the colour of its place in the Settings list (the first `chart-1`, the second `chart-2`, and so on, starting over after six), so a method keeps its colour while a method listed before it has no money yet. A seventh, neutral grey (`chart-7`) marks payments with no method recorded. It keeps its own value rather than borrowing `ink-muted`, which is now dark enough for text and would sit too close to the emerald Cash slice. An eighth, darker neutral (`chart-8`) marks "Other / unlisted" money, recorded under a method since removed from Settings; it never borrows a real method's colour, and it differs from `chart-7` by lightness because the two can sit side by side. The list badges keep their own `payment-*` colours by method name, so a badge and its ring slice need not match.
 
@@ -393,15 +384,16 @@ The brand wordmark gradient (`gold → emerald`) uses the dark-mode token values
 
 The **chart palette** is lifted across the board — the payment-method ring uses the dark `chart-*` values automatically, because its gradient names the CSS variables rather than their values, so a theme switch recolours it without a redraw.
 
-**Print mode forces light theme.** A printed report on paper should always look like the light theme regardless of what the screen showed; the print stylesheet overrides `--bg`, `--surface`, `--ink`, etc., to their light values.
+**Print mode forces light theme.** A printed report on paper should always look like the light theme regardless of what the screen showed; the dark tokens are declared inside `@media screen` in `tokens.css`, so print always gets the light `:root` values. Keep any new dark token inside that block.
 
 ## Typography
 
-**Three voices:**
+**Two voices:**
 
-1. **Display — Cormorant Garamond.** A refined serif used only for h1/h2 and the hero. Carries the "annual report" gravitas. Used sparingly — typography is a spice, not a sauce.
+1. **Display — Cormorant Garamond.** A refined serif used only for h1/h2. Carries the "annual report" gravitas. Used sparingly — typography is a spice, not a sauce.
 2. **UI — Inter.** All body, labels, controls, KPI numbers. Proven workhorse, excellent tabular numerals.
-3. **Arabic — Amiri.** Replaces Cairo. Amiri is a classical Naskh designed for Quranic typesetting; pairs naturally with serif Latin display in a way that Cairo (a modern sans) can't.
+
+**Arabic.** No Arabic face is loaded, because the app's own wording has no Arabic. Donor names and notes typed in Arabic script show in the device's own Arabic font. Free-text boxes (name, amounts, goal), the notes box and the search boxes carry `dir="auto"` so such text runs right-to-left; phone, date and choice fields are left alone.
 
 **Hierarchy is shallow on purpose.** A civic site is read sequentially, not scanned for action. The KPI cards use `numeric-xl` for the value and `eyebrow` (uppercase, letter-spaced) for the label — that single contrast carries most of the page's information density.
 
@@ -411,32 +403,38 @@ The **chart palette** is lifted across the board — the payment-method ring use
 
 ## Layout
 
-**Public pages (homepage, report):**
-- Container max-width: **1080px** — narrower than current 1280px. A tighter content well reads as more dignified, easier to scan, more like a printed page.
-- Generous vertical rhythm using `xl` (40px) between cards and `2xl` (72px) between major sections. The hero uses `3xl` (120px) of breathing room above and below.
+**Container:** 1080px (`--container`), widening to 1200px (`--container-wide`) on Pledges and Payments so their tables fit. A tighter content well reads as more dignified, easier to scan, more like a printed page.
 
-**Admin modals:** stay current width (~1200px max), high information density. Functionality wins over breath here — admins are working, not browsing.
+**Page rhythm:** page padding is `xl` top, `md` sides and `2xl` bottom. Cards and sections in a view sit `lg` (24px) apart.
 
-**Spacing scale follows an 8pt grid** (xs=4, sm=8, md=16, lg=24, xl=40, 2xl=72, 3xl=120). Everything in the codebase uses these tokens — no arbitrary `padding: 13px` anywhere.
+**Modals** are `min(560px, 100vw - 32px)` wide (sign-in 440px), with their height capped at `100dvh - 32px`.
 
-**Card grid:** 3 columns on desktop with **24px gap** (lg). Cards breathe.
+**Spacing scale follows an 8pt grid** (xs=4, sm=8, md=16, lg=24, xl=40, 2xl=72, 3xl=120). Layout spacing (page padding, and the gaps between cards, sections and controls) uses these tokens. Component insets are fixed values, and not all of them sit on the scale: the button, input, badge, stat-card and modal padding given in the component specs above, table cells at `8px 12px` and chips at `4px 12px`.
 
-**Hero block (homepage):** title in Cormorant Garamond display-xl, hairline gold rule beneath (1px solid `gold`, 80px wide), then `xl` whitespace, then a single intent line in `body-lg ink-soft`, then `xl` whitespace, then the filter chips. The hero is mostly air.
+**Stat grid:** the Summary stat cards use `repeat(auto-fit, minmax(200px, 1fr))` with a 24px gap, which puts all four in one row on desktop. Cards breathe.
+
+**Breakpoints.** "On phones" means `max-width: 720px` (two-row nav, table rows as stacked cards with a Sort by list, stat cards two to a row, 24px modal padding). Between 721px and 900px the signed-in email is cut short with an ellipsis; at 720px and below it is hidden. The tightest layout is `max-width: 340px`, for WCAG's 320px reflow width.
+
+**Targets.** `.btn` is at least 40px tall, and inputs 44px, at every width. At 720px and below, buttons, tabs, chips (filter and status) and Find donor's matches are at least 44px tall.
+
+**Motion.** Transitions are short state changes only (150ms, or 200ms for the progress fill). Under `prefers-reduced-motion: reduce`, `base.css` cuts every transition and animation to 0.01ms and turns off smooth scrolling.
 
 ## Elevation & Depth
 
-**No glass morphism. No `backdrop-filter: blur()`. No semi-transparent overlays.** These are out — they read tech-product, and they print badly.
+**No glass morphism, no `backdrop-filter: blur()`, and no translucent panels.** These are out — they read tech-product, and they print badly. The one semi-transparent layer is the modal scrim (see Modals), which dims the page without blurring it.
 
 **Two-tier shadow system:**
 
 - **Resting card:** `box-shadow: 0 1px 2px rgba(26, 46, 31, 0.04), 0 4px 16px rgba(26, 46, 31, 0.05);` Barely there. The card is grounded, not floating.
 - **Modal / hovered card:** `box-shadow: 0 4px 8px rgba(26, 46, 31, 0.06), 0 16px 40px rgba(26, 46, 31, 0.10);` Lifts moderately, never dramatically.
 
+In dark mode the tiers are `0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25)` (rest) and `0 4px 8px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45)` (lift), and the modal scrim is `rgba(10, 8, 4, 0.55)`, a warm near-black, not the forest tint.
+
 **Hairline rules do most of the structural work.** A `1px solid rule` (#e8e0cc) above a section is more dignified than a shadow.
 
 ## Shapes
 
-**Border radius is restrained.** `sm` (6px) for buttons/inputs/badges; `md` (12px) for cards and modals; `lg` (20px) reserved for the hero panel only; `full` (9999px) for pills, avatars, progress bars.
+**Border radius is restrained.** `sm` (6px) for buttons, inputs and toasts; `md` (12px) for cards and modals; `full` (9999px) for badges, chips, the progress bar and the swatches. `lg` (20px) stays on the scale but is unused.
 
 **No `2xl` or `3xl` rounding.** The previous design overused 16px+ rounded corners which reads "consumer mobile app." Smaller radii read more institutional.
 
@@ -444,65 +442,69 @@ The **chart palette** is lifted across the board — the payment-method ring use
 
 ## Components
 
-**Primary button** (`button-primary`): emerald background, white text, `sm` radius, label typography. The single most-used affordance — Sign In, Save, Donate. Hover lightens slightly to `emerald-soft`. No drop shadow on buttons. No gradients.
+**Primary button** (`button-primary`): emerald background, white text, `sm` radius, label typography. The single most-used affordance — Save, Add pledge, Log a payment, and Sign in again on the signed-out screen. Hover lightens slightly to `emerald-soft`. No drop shadow on buttons. No gradients.
 
-**Secondary button** (`button-secondary`): white surface, ink text, `1px solid rule` border. For Cancel, Reset, Back to Dashboard.
+**Secondary button** (`button-secondary`): white surface, ink text, `1px solid rule` border. For Cancel, Download .xlsx, Call/Text.
 
 **Ghost button** (`button-ghost`): transparent, ink-soft text, no border. For inline edit/delete affordances inside dense lists.
 
-**Danger button** (`button-danger`): claret background, white text. Used for irreversible actions. Confirms via the themed `ICGUtil.confirmDialog` modal before firing — for the most destructive actions (project delete) the dialog requires the operator to type the project's ID before the Delete button is enabled. Native browser `confirm()` is never used; it renders as a full-screen prompt on mobile.
+**Danger button** (`button-danger`): claret background, white text. Used for irreversible actions. Confirms through `confirmDialog` (`web/src/ui/dialog.ts`), a themed "Please confirm" modal with a secondary Cancel and a danger button. A pledge's Delete message says what happens to its payments: they stay matched to another pledge with the same phone, or there are none, or they will show "⚠ phone not in Pledges", and when they counted it adds how many and their total. The same danger button confirms Discard (a half-typed form, whose cancel reads "Keep editing") and Sign out anyway. Native `confirm()` is never used, because on mobile it opens as a full-screen prompt.
 
 **Inputs** (`input`): white surface, `1px solid field-border` border, focused state replaces border with `1px solid emerald` and adds a 3px `emerald-tint` outline ring. No fake "filled" backgrounds — inputs read as paper fields.
 
 **Cards** (`card`): white surface, `1px solid rule` border, two-tier resting shadow, `md` radius, 24px padding. The fundamental container.
 
-**Stat cards** (`stat-card`): same as card but with `eyebrow`-styled label above and `numeric-xl` value below in `gold`. The KPI row on the report page uses this five times across. On phones the cards pair up two to a row and the value drops to 22px so a five-figure total fits beside its neighbour; at 340px and below they stack in one column, because side by side at 320px a card has only about 100px for a total like $14,450.00 and it would spill over the card's edge.
+**Stat cards** (`stat-card`): same as card but with `eyebrow`-styled label above and `numeric-xl` value below in `gold`. The Summary's KPI row uses this four times (Total pledged, Total received, Balance outstanding, Overpaid / credit), all in one row on desktop. On phones the cards pair up two to a row and the value drops to 22px so a five-figure total fits beside its neighbour; at 340px and below they stack in one column, because side by side at 320px a card has only about 100px for a total like $14,450.00 and it would spill over the card's edge.
 
-**Progress bars** (`progress-track` + `progress-fill`): 6px tall, `full` radius, `surface-sunken` track inside a 1px inset `ink-muted` ring, fill colored per-project. The current 2px hair-thin bar is too timid; 6px reads as confident. The sunken track alone barely differs from the card (1.21:1 in light, 1.04:1 in dark), so without the ring the unfilled part vanishes and the bar has no visible end.
+**Progress bars** (`progress-track` + `progress-fill`): 6px tall, `full` radius, `surface-sunken` track inside a 1px inset `ink-muted` ring, `emerald` fill (the system `Highlight` in forced colours). The sunken track alone barely differs from the card (1.21:1 in light, 1.04:1 in dark), so without the ring the unfilled part vanishes and the bar has no visible end.
 
-**Modals**: `surface`, `md` radius, second-tier shadow, scrim is `rgba(26, 46, 31, 0.20)` (deep forest at 20% opacity) — *not* black. The forest scrim keeps the warm ivory atmosphere even when a modal is open. A long form scrolls inside the modal under its pinned Save/Cancel row, so the modal carries a bottom `scroll-padding` a little taller than that row (104px; 152px on phones, where an open pledge's four buttons wrap to two rows): a field reached with Tab scrolls clear of the buttons instead of stopping underneath them (WCAG 2.4.11, focus not obscured). Its height is capped with `100dvh` as well as `100vh`, so it fits above a phone browser's toolbar.
+**Modals**: `surface`, `md` radius, second-tier shadow, scrim is `rgba(26, 46, 31, 0.20)` (deep forest at 20% opacity; warm near-black `rgba(10, 8, 4, 0.55)` in dark) — *not* black. The forest scrim keeps the warm ivory atmosphere even when a modal is open. A long form scrolls inside the modal under its pinned Save/Cancel row, so the modal carries a bottom `scroll-padding` a little taller than that row (104px; 152px on phones, where an open pledge's four buttons wrap to two rows): a field reached with Tab scrolls clear of the buttons instead of stopping underneath them (WCAG 2.4.11, focus not obscured). Its height is capped with `100dvh` as well as `100vh`, so it fits above a phone browser's toolbar.
 
-**Nav bar**: `bg` (transparent over the page), no separator below — just generous padding. The nav lifts off the page only when scrolled (a `1px solid rule` appears via JS once `scrollY > 4`). It is sticky, so the page carries a top `scroll-padding` a little taller than it (88px; 136px on phones, where the tabs take a second row): a control reached with Tab or Shift+Tab, or a Help section jumped to from its contents, stops below the nav instead of underneath it. Nothing else adds its own offset, because a `scroll-margin` would stack on top of this one. The toasts, fixed to the bottom of the screen, get the same treatment from below: while one is showing (a failed save's stays until it is dealt with), the page's bottom `scroll-padding` follows the stack's height, and the page gains that much room at its end, so a row reached with Tab stops above the toasts, never under them. The desktop value assumes the nav keeps to one row, so between the phone layout and 900px, where the actions are tightest, the signed-in email is cut short with an ellipsis (8rem) rather than letting a long address push the actions onto a second row. On phones the five tabs share the second row, which scrolls sideways with its scrollbar hidden, so a tab that doesn't fit is cut off with no sign it is there. They fit a 360px phone as they are; at 340px and below (320px is WCAG's reflow width: a small phone, or a larger one with Display Zoom) they tighten to 12px text and 2px side padding, which still leaves every tab over 24px wide and 44px tall. The wordmark link is held to at least 24px tall for the same reason (WCAG 2.5.8): its line is only 21.6px, and below about 352px the action buttons wrap in so close under it that its spacing no longer makes up the difference.
-
-**Project cards** (homepage grid): `surface`, `md` radius, hairline `rule` border, hovers lift to second-tier shadow + a `1px solid rule-strong` border. Project color is shown as a 4px tall bar across the top (not a dot anywhere on the card) — this is a major visual signature for the redesign.
+**Nav bar**: sticky, filled with `bg` (opaque, so the list scrolls under it cleanly), with no separator or shadow, just padding (`md` `lg`; `sm` `md` 0 on phones). Because it is sticky, the page carries a top `scroll-padding` a little taller than it (88px; 136px on phones, where the tabs take a second row): a control reached with Tab or Shift+Tab, or a Help section jumped to from its contents, stops below the nav instead of underneath it. Nothing else adds its own offset, because a `scroll-margin` would stack on top of this one. The toasts, fixed to the bottom of the screen, get the same treatment from below: while one is showing (a failed save's stays until it is dealt with), the page's bottom `scroll-padding` follows the stack's height, and the page gains that much room at its end, so a row reached with Tab stops above the toasts, never under them. The desktop value assumes the nav keeps to one row, so between the phone layout and 900px, where the actions are tightest, the signed-in email is cut short with an ellipsis (8rem) rather than letting a long address push the actions onto a second row. On phones the five tabs share the second row, which scrolls sideways with its scrollbar hidden, so a tab that doesn't fit is cut off with no sign it is there. They fit a 360px phone as they are; at 340px and below (320px is WCAG's reflow width: a small phone, or a larger one with Display Zoom) they tighten to 12px text and 2px side padding, which still leaves every tab over 24px wide and 44px tall. The wordmark link is held to at least 24px tall for the same reason (WCAG 2.5.8): its line is only 21.6px, and below about 352px the action buttons wrap in so close under it that its spacing no longer makes up the difference.
 
 **Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing. The sorted column's heading turns `ink` and gains a ▲ or ▼ arrow, so the direction never rests on colour alone. On phones the header row is removed, since each card labels its own values, and a **Sort by** list above the table takes over sorting. A row tinted `danger-tint` (a duplicate pledge, a payment that isn't counted) switches its `ink-soft` and `ink-muted` text to `ink`, because in the light theme neither reaches 4.5:1 on the tint. A cell tinted `warning-tint` (a payment dated in the future) does the same for its column label on phones, which in `ink-muted` falls below 4.5:1 in both themes. Neither tint is ever the only sign, since both are too pale to see on a dim phone or by a colour-blind volunteer: a duplicate donor reads "· Listed more than once" after the phone number, a payment that is not counted has its `⚠` warning in Donor Name, and a future date reads "(future)".
 
 **Charts** (no chart library): the Summary's one chart, money collected by payment method, is a ring drawn in CSS: a `conic-gradient` with a hard stop between slices, each slice sized by its method's share and coloured `var(--chart-N)`, and the hole cut out with a `mask` so the card shows through. It is an image to screen readers (`role="img"` with a label), and the table beside it carries every amount, so it has no hover tooltip. Very small slices can look slightly soft at their edges. It and its key print in colour (`print-color-adjust: exact`), since browsers otherwise leave backgrounds off paper. A future chart with axes drops its grid lines to `rule` at 50% opacity, uses `ink-muted` for tick labels, and takes its colours from the `chart-*` palette.
 
-**Dashboard tiles** (`dash-tile`): the four large clickable cards on the admin dashboard (Add or edit donations, Bulk upload donations, Manage projects, Manage categories). Same `card` foundation, but tap-target sized for stubby fingers and arranged on a `md:grid-cols-2 lg:grid-cols-4` grid so they reflow gracefully across phone, tablet, and desktop.
+**Status chips** (`chip-toggle`): the Pledges status filter. A pill with a `surface` fill, an `ink-soft` label and a `rule-strong` border; pressed, it is an `emerald` fill with `surface` text, and `aria-pressed` carries the state.
 
-**Friday-prayer display mode** (`body[data-display="friday"]` + `.friday-*` classes): a full-screen presentation mode for projecting one campaign during jumu'ah announcements. Activated via `?display=friday&campaign=<slug>`. Hides nav, project grid, footer, and live-status; renders a centered stack of eyebrow → display title → optional Arabic name → progress bar → raised vs goal → percent. All type sizes use `clamp()` against existing palette tokens — no new design system primitives, just a layout repurposing of what's already there. Inherits the user's saved theme (no force-light) so a hall with controllable lighting can run dark mode if that suits the projector better. Its progress bar is taller, with a `rule` track inside a 2px inset `ink-soft` ring (5.4:1 on `bg` in light, 10:1 in dark): even `rule` is only 1.25:1 against the page (1.5:1 in dark), too faint for the bar's end to show through a projector in a lit hall.
+**Filter chip** (`chip`): the "Showing: X ×" pill a Data-health **Show** puts on a list, on `gold-tint` with a `rule-strong` border and `ink` text.
+
+**Toasts**: `surface`, `sm` radius, lift shadow, with an `emerald` (info) or `danger` (error) border and text. The stack is fixed bottom-centre, `min(480px, 100vw - 32px)` wide, and scrolls past 50vh.
+
+**Banner** (offline and version strips under the nav): `warning-tint` with `ink` text and a `warning` border.
+
+**Friday-prayer display mode** (`body[data-display="friday"]` + `.friday-*` classes): a full-screen presentation mode for projecting the drive during jumu'ah announcements. Opened from the Summary's **Friday display** link (`#display`); an old `?display=friday` link is rewritten to `#display`, and any other parameter (such as `campaign`) is ignored. It replaces the whole app shell (nav and tabs; toasts are hidden via `body[data-display] .toasts`) with a centred stack: eyebrow (Islamic Center of Greensboro) → title (the Settings tab's `campaignName`, or "Fundraiser" when blank) → progress bar → the amount raised in whole dollars, rounded down ("of $Y" added when a goal is set) → the floored percent (only when a goal is set) → the pledged-donor count. An Exit link sits top right, and a status row at the bottom shows the Updated time and, once the figures are over 15 minutes old, a warning-outlined "tap to reconnect" note. All type sizes use `clamp()` against existing palette tokens — no new design system primitives, just a layout repurposing of what's already there. Inherits the user's saved theme (no force-light) so a hall with controllable lighting can run dark mode if that suits the projector better. Its progress bar is taller, with a `rule` track inside a 2px inset `ink-soft` ring (5.4:1 on `bg` in light, 10:1 in dark): even `rule` is only 1.25:1 against the page (1.5:1 in dark), too faint for the bar's end to show through a projector in a lit hall.
 
 ## Do's and Don'ts
 
 ### Do
 
 - **Lead with whitespace.** Every section should feel calm at first glance. If a screenshot looks crowded, remove something.
-- **Use `gold` like a punctuation mark.** Once or twice per screen, never as decoration. A hairline gold rule under the hero title; a gold KPI number on a stat card; the wordmark gradient. That's it.
+- **Use `gold` like a punctuation mark.** Never as decoration. A hairline gold rule under each page title (and the Friday display's title); the gold totals (Summary's stat cards and received figure, Friday's raised amount); the wordmark gradient. Beyond those, gold only marks things: focus rings, the current tab's underline, the Overpaid badge's border, and in Help the contents and step numbers, the +/− on each section and the note rule.
 - **Use `emerald` as the action color.** Anything the user clicks to commit (save, sign in, contribute) is emerald. Consistency builds confidence.
 - **Pair Cormorant with Inter.** Display headings serif, everything else sans. Never mix serifs into body text.
 - **Right-align money.** Every numeric column. Tabular numerals. Bold only the most important number on each row.
-- **Use sentence case in all body and headings.** Eyebrow labels (kpi titles, meta) are uppercase. That's the only place caps appears.
-- **Print like a real document.** The print stylesheet is a first-class concern — the report should look like a board-meeting handout when it comes out of the printer. A handout says when its figures are from (the Summary's "Updated …" line prints) and never asks the reader to tap anything: an on-screen prompt goes in a `.screen-only` element, which print hides. A printed list says what it is: the filter the on-screen controls show, and how many rows a paged list left out, go in a `.print-only` element, which the screen hides. A donor's Find donor card prints as a statement for them: a `.print-only` heading (the masjid's name and the date printed) and a Total paid line are added, and what is written for volunteers (notes, warnings, the search) carries `.print-hidden`, which the print block hides in Find donor only. A figure never lives only inside a button, since print hides every button: each Data-health check shows its count as its own number, with **Show** beside it. Colours that carry meaning (the goal bar, the payment-method ring and its swatches, a flagged check's warning rule) are marked `print-color-adjust: exact` in one place, `base.css`'s print block, so they still print when the browser's "Background graphics" option is off.
+- **Use sentence case in all body and headings.** Eyebrow-styled text (stat, section and page labels, the Summary's "Updated …" line, table headings, the column labels on phones, the Overpaid badge) is uppercase. That's the only place caps appears.
+- **Print like a real document.** The print stylesheet is a first-class concern — the report should look like a board-meeting handout when it comes out of the printer. A handout says when its figures are from (the Summary's "Updated …" line prints) and never asks the reader to tap anything: an on-screen prompt goes in a `.screen-only` element, which print hides. A printed list says what it is: the filter the on-screen controls show, and how many rows a paged list left out, go in a `.print-only` element, which the screen hides. A donor's Find donor card prints as a statement for them: a `.print-only` heading (the masjid's name and the date printed) and a Total paid line are added, and what is written for volunteers (notes, warnings, the search) carries `.print-hidden`, which the print block hides in Find donor only. A figure never lives only inside a button, since print hides every `.btn` (and the toolbars and chip row): each Data-health check shows its count as its own number, with **Show** beside it. Colours that carry meaning (the goal bar, the payment-method ring and its swatches, a flagged check's warning rule) are marked `print-color-adjust: exact` in one place, `base.css`'s print block, so they still print when the browser's "Background graphics" option is off.
 - **Trust hairline rules.** A single `1px solid rule` line does more work than a heavy divider, gradient, or shadow.
 
 ### Don't
 
-- **Don't use glass morphism, blur backgrounds, or semi-transparent overlays.** They date the design and print poorly.
-- **Don't add gradients except on the wordmark.** The brand wordmark uses a `linear-gradient(to right, gold, emerald)` for the "ICG Fundraising" text only. Nothing else gets a gradient. (The payment-method ring is drawn with a `conic-gradient`, but its hard stops leave every slice one flat colour; nothing blends.)
+- **Don't use glass morphism, `backdrop-filter: blur()`, or translucent panels.** They date the design and print poorly. The one semi-transparent layer is the modal scrim, which dims the page without blurring it.
+- **Don't add gradients except on the wordmark.** The brand wordmark uses a `linear-gradient(to right, gold, emerald)` for the "ICG Fundraiser Tracker" wordmark only. Nothing else gets a gradient. (The payment-method ring is drawn with a `conic-gradient`, but its hard stops leave every slice one flat colour; nothing blends.)
 - **Don't use neon or saturated brand colors.** All colors in this system are muted antique versions of their references. If a color looks bright, it's wrong.
-- **Don't decorate.** No icon next to every label. No shimmer animations. No drop shadows on text. No emoji as section dividers (the `🔒` admin banner stays — it carries meaning. Sectional emoji do not.)
+- **Don't decorate.** No icon next to every label. No shimmer animations. No drop shadows on text. No emoji as section dividers.
 - **Don't use bg-clip text** *except for the wordmark.* It's a brand signature, not a heading style.
-- **Don't add geometric Islamic patterns.** We discussed this — we picked the restrained register, not the decorative one. A pattern background on the hero would tip into "Islamic-themed template." The dignity comes from typography and whitespace.
+- **Don't add geometric Islamic patterns.** We discussed this — we picked the restrained register, not the decorative one. A pattern background on the page would tip into "Islamic-themed template." The dignity comes from typography and whitespace.
 - **Don't animate things that don't need to move.** The Summary redraws on every save, so its payment-method ring appears without a fade or sweep that would replay each time. Anything else (numbers counting up, cards floating in, parallax) breaks the institutional register.
-- **Don't pure-black anywhere.** All "black" is `ink` (#1a2e1f). A subtle warmth keeps the page feeling printed.
+- **Don't pure-black anywhere.** All black text and fills are `ink` (#1a2e1f). The one exception is dark mode's shadows, which use black at partial opacity. A subtle warmth keeps the page feeling printed.
 
 ## Implementation notes
 
-- **CSS variables drive everything.** The full token set is mirrored as `:root` custom properties (`--color-ink`, `--space-lg`, `--radius-md`, etc.). All component CSS references variables; no hex codes outside the variable definitions.
+- **CSS variables carry colour, spacing and shape.** Colours (both themes), the scrim, the two shadows, spacing, radii, the two container widths and the two font families are `:root` custom properties in `web/src/styles/tokens.css` (`--color-ink`, `--space-lg`, `--radius-md`, etc.). The type scale is not mirrored as variables. It lives as classes in `base.css` (`.display-lg`, `.display-md`, `.heading-md`, `.body-md`, `.label`, `.meta`, `.eyebrow`/`.stat-label`, `.numeric-xl`, `.numeric-lg`). Component-specific sizes (tabs, buttons, table headers, the modal title, Help, the Friday display's `clamp()` sizes) are literals in `components.css`. No hex or `rgba()` value appears outside `tokens.css`.
+- **A few copies of the palette live outside the variables.** Browser chrome and install metadata cannot read CSS variables, so `bg` (light `#fbf9f3`, dark `#15110a`) is copied by hand into `web/index.html`'s two `theme-color` metas and `web/public/manifest.webmanifest`'s `background_color`/`theme_color`. The icons in `web/public/icons/` (the two SVGs, and the PNGs rasterised from them) use the light `bg`, `ink` and `chart-2` values. Change them together with the token, and re-export the PNGs when the icon colours change.
 - **High-contrast themes are honoured, not fought.** Windows high-contrast themes (`forced-colors: active`) swap every colour for the viewer's own and drop backgrounds to the page colour, so anything shown only as a fill would vanish. One `@media (forced-colors: active)` block at the end of `components.css` paints the progress fill and the pressed status chip in the system `Highlight` colour (the chip filled, not outlined, so its focus ring still shows, and that ring set back to `Highlight`: opting the chip out of the theme would otherwise leave it brand gold), underlines only the current tab, and keeps the payment-method ring and its key's dots in the chart's own colours (the theme would drop the ring's gradient outright, and the key must still match it). System colour keywords (`Highlight`, `Canvas`) follow the viewer's theme, so they are the one colour value allowed outside the variables.
 - **Accessibility claims are checked, not just written down.** `test/styles/contrast.test.ts` (inside `npm run check`) holds the token pairs above to their ratios in both themes. The e2e suite runs axe's WCAG 2.0–2.2 A and AA rules on every tab in both themes at 360px, and again at 320px in the light theme, where the tighter layout changes the spacing its target-size rule measures (`e2e/accessibility.spec.ts`), and checks reflow at 360px and 320px: no sideways page scroll, all five tabs inside their strip, and each Summary total inside its card (`e2e/no-overflow.spec.ts`).
-- **Tailwind CDN stays** for utility classes, but a `tailwind.config` block in each HTML extends the theme to map our tokens to Tailwind names (`text-ink`, `bg-surface`, `rounded-md` already aligned to our scale).
 - **Chart colours are CSS variables, not values read by script.** The payment-method ring's gradient names `var(--chart-N)`, so it follows the theme with no listener and no redraw.
-- **No build step, no NPM dependencies.** Same constraint as the rest of the project — the design system is just a CSS variables block and a Tailwind config.
+- **Plain CSS, built by Vite.** There is no Tailwind. `web/src/styles/tokens.css` holds the tokens, and `base.css` and `components.css` take every colour from them (the forced-colors system keywords above are the one exception). The fonts are self-hosted npm packages, `@fontsource-variable/inter` and `@fontsource/cormorant-garamond` at weight 500. `web/src/main.ts` imports them and `vite build` bundles them.

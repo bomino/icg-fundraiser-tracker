@@ -4,9 +4,9 @@ import { compute, findByPhone, type Computed } from '../../web/src/engine';
 import { toCents } from '../../web/src/money';
 import type { Payment, Pledge, Settings } from '../../web/src/types';
 
-// test/fixtures/parity-{input,expected}.json are a frozen expected-values fixture: about 40
-// pledges and 80 payments covering every awkward case the engine handles, with the values each
-// one should produce. The expected values were originally computed from a reference spreadsheet's
+// test/fixtures/parity-{input,expected}.json are a frozen expected-values fixture: 22 pledges,
+// 27 payments and 10 Find-donor lookups covering every awkward case the engine handles, with the
+// values each one should produce. The expected values were originally computed from a reference spreadsheet's
 // rules (see CLAUDE.md); the fixture is now the sole source of truth here and never regenerated
 // from anything in this repo.
 

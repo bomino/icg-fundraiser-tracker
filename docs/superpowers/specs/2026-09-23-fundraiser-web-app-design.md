@@ -3,8 +3,8 @@
 Note (2026-09-24): the Excel workbook referenced below is a separate project, not part of this app; parity is now checked against a frozen fixture (test/fixtures/).
 
 Date: 2026-09-23
-Status: awaiting review
-Source of truth for behaviour: `Masjid_Fundraiser_Tracker_v3.xlsx` (see repo `CLAUDE.md`)
+Status: implemented and deployed; kept as the design record
+Source of truth for behaviour: the rules in §5, checked against the frozen fixture `test/fixtures/parity-{input,expected}.json`. The v3 workbook they were first modelled on is a separate project.
 
 ## 1. Intent
 
@@ -28,6 +28,8 @@ Turn the masjid fundraiser tracker workbook into a small web app hosted on GitHu
 3. Two volunteers editing the same row can't silently overwrite each other's changes.
 4. A volunteer with no spreadsheet experience can log a payment on a phone and sees immediately whether it will be counted.
 
+Reversed 2026-09-24: parity is now with the frozen fixture, and the app deliberately departs from the workbook where §5.1 says so.
+
 ## 2. Architecture
 
 ```
@@ -38,11 +40,11 @@ api.ts   POST text/plain {idToken, op, payload} ─► doPost
                                                    ├ verifyToken (tokeninfo, cached) ─► Allowlist
                                                    ├ LockService (writes)            ─► Pledges
 store.ts ◄─ JSON {ok, data | error} ◄──────────── └ dispatch op                      ─► Payments
-engine.ts (pure) → derived rows, summary, health                                     ─► Settings
-ui/*     Summary · Pledges · Payments · Find donor
+engine/ (pure) → derived rows, summary, health, follow-up                            ─► Settings
+ui/*     Summary · Pledges · Payments · Find donor · Help · Friday display
 ```
 
-- **Full load and client-side calculation.** `load` returns every row of every tab. The engine recalculates everything in memory after each load or change. At the expected volume the payload is under 1 MB and the calculation takes milliseconds, so the O(n²) lookup cost of the sheet formulas goes away.
+- **Full load and client-side calculation.** `load` returns every row with an id from Pledges and Payments, plus Settings (never the history tabs or Allowlist). The engine recalculates everything in memory after each load or change. At the expected volume the payload is under 1 MB and the calculation takes milliseconds, so the O(n²) lookup cost of the sheet formulas goes away.
 - **No CORS preflight.** Requests are `POST` with `Content-Type: text/plain;charset=utf-8` and a JSON body. Apps Script can't answer an `OPTIONS` preflight, and its responses reach the browser through a `googleusercontent.com` redirect, which `fetch` follows.
 - **Config** comes from two build-time variables: `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID`. Neither is secret, because security rests on the server-side token check and allowlist. A build without them still succeeds and shows "Not set up yet", so the deploy workflow checks both before uploading the site and deploys nothing when either is missing or malformed (§8). Added 2026-09-25.
 
@@ -62,40 +64,44 @@ Row 1 holds the headers and data starts at row 2. There are no formulas anywhere
 - `updatedAt` is an ISO timestamp and `updatedBy` an email, both stamped by the server. An edit typed or pasted straight into a Pledges or Payments row that has an `id` is stamped too, by an `onEdit` simple trigger (`updatedBy` is `edited in Sheet` when Google doesn't share the editor's email), so a volunteer's older copy fails the version check instead of overwriting the fix. The trigger never adds an `id`. Added 2026-09-25.
 - Dates are stored as ISO `YYYY-MM-DD` text, so nothing is shifted by time zones.
 - Amounts are stored as numbers with at most 2 decimals. A blank cell means "not entered", which is different from 0 (§5).
+- Cells typed or pasted straight into the Sheet (see the `onEdit` bullet above) are read leniently. A real date cell in a date column loads as its date in the spreadsheet's own time zone. Anything else in a date column that isn't a valid ISO `YYYY-MM-DD` date (other text, or a number) loads as blank. An amount cell holding a number, or text that reads as one, loads as that number. Anything else (whitespace, a word, a checkbox) loads as blank, never 0.
 - Row order in the Sheet is insertion order. The engine keeps that order, because "first matching pledge" matters (§5.3).
 - The history tabs hold the version of a row that each edit or delete replaced, with when, which volunteer (the caller's email) and which action, so the organiser can copy a row's first 8 cells back (`docs/SETUP.md`, Data safety routine). The script runs as the owner, so the Sheet's own version history names only the owner, and restoring a version there rolls back every volunteer's entries since. `load` never reads these tabs. Added 2026-09-25, reversing §9's original exclusion of any edit history.
 
 ## 4. Apps Script API (`apps-script/Code.gs`)
 
-Every request looks like `{idToken, op, payload}`. Every response is `{ok: true, data}` or `{ok: false, error: {code, message}}`, always with HTTP 200, because Apps Script can't set status codes.
+Every request looks like `{idToken, op, payload}`. Every response is `{ok: true, data}` or `{ok: false, error: {code, message, field?, current?}}`: `field` on a validation `BAD_REQUEST`, `current` on `CONFLICT`. It is always HTTP 200, because Apps Script can't set status codes. An unknown `op` answers `BAD_REQUEST` "Unknown operation: <op>", and a missing tab answers `INTERNAL`, naming the tab.
 
 **Authentication on every call**
+- Before tokeninfo, `assertPlausibleToken_` rejects a token that isn't a 3-part JWT as `UNAUTHENTICATED`, and one whose payload names another `aud` as the `INTERNAL` mismatch below (no network call). A missing `CLIENT_ID` answers `INTERNAL` "The server is not configured: set the CLIENT_ID script property (see docs/SETUP.md)."
 - Call `https://oauth2.googleapis.com/tokeninfo?id_token=…`.
-- Require `aud == CLIENT_ID` (a Script property), `email_verified == "true"`, an `exp` in the future, and the email on the `Allowlist` tab.
-- Cache the verified email in `CacheService`, keyed by a hash of the token, for `min(300 s, exp − now)`.
+- Require `aud == CLIENT_ID` (a Script property), `email_verified == "true"`, `iss` ∈ {`accounts.google.com`, `https://accounts.google.com`}, an `exp` in the future, and the email on the `Allowlist` tab.
+- Cache the verified email in `CacheService`, keyed by `CLIENT_ID` plus a SHA-256 of the token, for `min(300 s, exp − now)`.
 - Error codes: `UNAUTHENTICATED` for a bad or expired token, `FORBIDDEN` for an email not on the allowlist. A token whose own payload names an audience other than `CLIENT_ID` answers `INTERNAL` "This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.", because signing in again can't fix it (§7). Added 2026-09-25.
 
 | op | payload | behaviour |
 |---|---|---|
 | `load` | — | `{pledges[], payments[], settings, me: email, rowsWithoutId: {pledges, payments}, apiVersion}`. Rows with a blank `id` are skipped; `rowsWithoutId` counts the skipped rows that look like entries (a non-blank phone, plus an amount on Payments), so a totals or notes row isn't counted. Ids are never filled in automatically. `apiVersion` is the script's `API_VERSION` (§7, Errors and state). |
-| `upsertPledge` / `upsertPayment` | row (without `id` for an insert; with `id` and `updatedAt` for an update) | Validates (§7). For an update, if the stored `updatedAt` ≠ the sent `updatedAt`, returns `CONFLICT` with the current row. Otherwise appends the stored row to the history tab (§3), then stamps and writes the row and returns it. |
+| `upsertPledge` / `upsertPayment` | row plus `id` (a client UUID) and no `updatedAt` for a create; row plus `id` and `updatedAt` for an update | Validates (§7). Create: `BAD_REQUEST` if the id isn't a UUID. If a row with that id exists with the same entry values, returns it unchanged (a retried create); otherwise `CONFLICT` "This entry was already saved with different values. Reopen it to check." with `current`. Update: `NOT_FOUND` if the row is gone; `CONFLICT` with `current` if the stored `updatedAt` ≠ the sent `updatedAt`; otherwise appends the stored row to the history tab (§3), then stamps and writes the row and returns it. |
 | `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then appends the row to the history tab (§3) and deletes it from the sheet. `NOT_FOUND` if the row is gone. A history write that fails fails the edit or delete. |
-| `setSetting` | `{key: "goal", value}` | Goal must be a number ≥ 0. `paymentMethods` can't be changed from the app; edit it in the Sheet. |
+| `setSetting` | `{key: "goal", value}` | Only `goal`, a number from 0 to 1,000,000,000, rounded to cents. `paymentMethods` and `campaignName` are edited in the Sheet. |
 
 Writes run under `LockService.getScriptLock().tryLock(10000)`, which throws `BUSY` "The tracker is busy. Try again in a moment." rather than waiting indefinitely, and rows are found by scanning column A for the `id`. `setup()` is run once by hand from the Apps Script editor.
 
 A body that isn't a JSON object answers `BAD_REQUEST` "The request could not be read." Any other unexpected failure answers `INTERNAL` "Something went wrong on the server. Try again." and is logged for the owner with its operation and stack; `BUSY` and `FORBIDDEN` are logged as one-line warnings. The caller's token is masked in every log line (see `docs/SETUP.md`, "Reading the server's log").
 
-## 5. Calculation engine (`web/src/engine.ts`)
+## 5. Calculation engine (`web/src/engine/`)
 
 This is a pure module with no DOM and no network access. Money is handled internally in **integer cents**: the value from the Sheet is converted with `Math.round(x * 100)`. That gives exact sums, and it's why `ROUND(…,2)` in the workbook has a direct counterpart. "Blank" means the cell or field is empty. It is not zero.
 
 ### 5.1 Match key (Pledges K / Payments G)
 `matchKey(phone)`:
 1. Empty phone gives an empty key.
-2. Otherwise, remove every `-`, `(`, `)`, `.`, `+` and space, trim, prefix with `#`, and **lower-case**. Lower-casing mirrors Excel's case-insensitive `COUNTIF`/`SUMIF`/`MATCH`.
-3. A phone made only of punctuation therefore produces the key `"#"`, exactly as the workbook does.
+2. Otherwise, remove all whitespace (tabs and non-breaking spaces included), `-`, the Unicode dashes U+2010–U+2015 and the minus sign U+2212, `(`, `)`, `.`, `+`, and the invisible marks listed below. Then prefix with `#` and **lower-case**. Lower-casing mirrors Excel's case-insensitive `COUNTIF`/`SUMIF`/`MATCH`.
+3. A phone with nothing left after stripping (only punctuation, spaces or marks) gets an empty key, not `"#"`.
 4. An empty key never matches anything.
+
+Deliberate deviation: the workbook gives a punctuation-only phone the key `"#"`, which joins every such phone to every other one. Here it gets an empty key, so it matches nothing and counts as a missing phone in B23.
 
 Deliberate deviation: keys are compared for exact string equality. Excel treats `*`, `?` and `~` inside a phone number as wildcards in `COUNTIF`/`SUMIF`; the app doesn't. Phones never legitimately contain those characters.
 
@@ -121,15 +127,14 @@ Known behaviour kept for parity: each duplicate row counts the donor's payments 
 
 ### 5.3 Payment derived fields
 **Donor Name (B)**
-- Blank if `phone` is blank.
+- `⚠ phone not in Pledges` if the payment's key is empty (blank or punctuation-only phone; it never matches a phoneless pledge) or no Pledges row has that key.
 - Otherwise find the **first** Pledges row, in Sheet order, whose key equals the payment's key.
-  - No match: `⚠ phone not in Pledges`.
   - That row's `amountPledged` is blank: `⚠ no amount on Pledges`.
   - That row's `name` is blank: blank.
   - Otherwise the name.
 
 **Flags**
-- **Not counted:** `phone` is not blank and the Donor Name starts with `⚠`. This is the red-row rule.
+- **Not counted:** the Donor Name starts with `⚠` (a blank-phone payment included). Since the server refuses a blank phone on payments, such rows come only from edits typed into the Sheet. This is the red-row rule.
 - **Future date:** `dateReceived` is not blank and is after today's local date. This is the amber rule.
 
 The warning strings are exported constants.
@@ -151,15 +156,16 @@ The warning strings are exported constants.
 Pledges totals band (row 3): Σ D, Σ F, Σ G where G > 0, Σ H.
 Payments totals band (row 3): count of payments with amount > 0 (shown as "N payments"), and Σ amount.
 
-### 5.5 Data Health (every value should be 0)
+### 5.5 Data Health (every value except Possible duplicate payments should be 0)
 | Workbook | Label | Rule |
 |---|---|---|
 | B21 | Payments not matched to a pledge | payments whose Donor Name starts with `⚠` |
 | B22 | Donors listed more than once | Pledges **rows** whose key is non-empty and shared with another row (two copies count as 2) |
-| B23 | Pledges missing a phone number | `amountPledged` > 0 and `phone` blank |
-| B24 | Payments missing a date or amount | `phone` not blank and (`dateReceived` blank or `amountReceived` blank) |
+| B23 | Pledges missing a phone number | `amountPledged` > 0 and the match key is empty (the phone is blank or holds only characters the key strips: punctuation, spaces, invisible marks) |
+| B24 | Payments missing a date or amount | match key not empty and (`dateReceived` blank or `amountReceived` blank) |
 | B25 | Payments dated in the future | `dateReceived` after today |
 | B26 | Donors whose payments predate their pledge | Pledges E not blank and E < `datePledged` (a blank `datePledged` never triggers) |
+| — (app-only, v1.1; no workbook cell) | Possible duplicate payments | payments whose match key, amount (in cents; 0 counts) and date received are all non-blank and equal to another payment's; every payment in such a group is counted. A prompt to check, not a certain error, since two real installments can match. Excluded from the parity fixture. |
 
 Known limitation kept for parity: B26 compares only the latest payment date. B25 is exact.
 
@@ -180,6 +186,9 @@ Each non-zero item links to the Pledges or Payments view, filtered to the rows t
 - The donor card prints as a statement for the donor (a narrowing of §9's "receipts and emails" exclusion, for printing only). **Print** calls `window.print()`. The page gains the heading "Islamic Center of Greensboro — pledge statement, printed <date>" and a **Total paid** line, and a print rule scoped to the Find donor view leaves off the search, the pledge and payment notes, the duplicate warning and Amount received. Total paid is the sum of the listed payments, not the donor's `receivedCents`, which is blank for a pledge with no amount. The statement has no tax-acknowledgment wording until the organiser and treasurer ask for it.
 - The lookup searches the volunteer's own last load, so a donor another volunteer has just pledged looks missing, and a second pledge for them double-counts (§5.2). When the last load is over 2 minutes old, "No donor found." adds "Your list was last updated N minutes ago. If they pledged with another volunteer since then, press Refresh before adding a pledge." A server-side duplicate-phone warning on create is deferred until duplicates show up in real use.
 
+### 5.8 Needs follow-up
+Needs follow-up (`needsFollowUp`, `web/src/engine/followUp.ts`, `FOLLOW_UP_AFTER_DAYS = 30`): a Pending or Partial pledge whose latest of last payment date, pledge date and the local date of its `updatedAt` is more than 30 days before today, or which has none of the three. Any saved edit restarts the clock, so a note typed after a call takes the donor off the list. Pure and date-injected.
+
 ## 6. Testing
 
 1. **Engine unit tests** (Vitest). There is one test per rule in §5 plus the awkward cases from `CLAUDE.md`:
@@ -195,25 +204,23 @@ Each non-zero item links to the Pledges or Payments view, filtered to the rows t
    - a phone made only of punctuation
    - a future-dated payment
    - a payment dated before its pledge
-2. **Excel parity test.** A committed fixture (`web/test/fixtures/parity-input.json`) holds about 40 pledges and 80 payments covering every case above. `tools/excel-oracle.ps1`:
-   - copies the v3 workbook and injects the fixture into the entry cells over COM;
-   - runs `CalculateFullRebuild()`;
-   - writes every calculated cell (Pledges E–I, Payments B, Summary B5–B37, and B42–B50 for a set of lookup inputs) to `parity-expected.json`.
-
-   A Vitest test runs the engine over the same input and asserts equality: cents for money, ISO dates for dates, exact strings for text. The expected file is committed, so CI doesn't need Excel. Re-run the script whenever the workbook's formulas change.
-3. **Apps Script.** Vitest loads `Code.gs` into a Node `vm` context with in-memory fakes for `SpreadsheetApp`, `UrlFetchApp`, `CacheService`, `LockService`, `PropertiesService` and `Utilities`. That covers token checks, the allowlist, validation, upsert and delete, and conflicts in CI. A shared table of validation cases runs against both the client's `validate.ts` and the server's `Code.gs`, so the two stay in step. The real-Sheet behaviour the fakes can't prove (apostrophe-prefixed text, date parsing) is checked in the manual end-to-end pass.
-4. **CI** runs `tsc --noEmit`, `vitest run` and `vite build`. Deploy happens only if all three pass.
-5. **End to end, by hand, before first use:** sign in with an allowlisted account and with one that isn't; add, edit and delete in both views; edit the same row in two tabs to trigger the conflict message; check on a phone.
+2. **Frozen parity fixture.** `test/fixtures/parity-input.json` holds 22 pledges, 27 payments and 10 donor-lookup queries covering every case above, and `parity-expected.json` holds the values each must produce: Pledges E–I, Payments B, Summary B5–B16, B21–B26 and B30–B37, and lookup B42–B50. `test/engine/parity.test.ts` asserts the engine reproduces them: cents for money, ISO dates for dates, exact strings for text, and % of Goal (B14) to 9 decimal places, since the two sides divide along different floating-point paths. The expected values were computed once from the v3 workbook by a script that has since been removed from this repo. The fixture is now ordinary committed data, changed only when a rule is changed on purpose. Possible duplicate payments (the app-only check) has no cells in it and is excluded.
+3. **Apps Script.** Vitest loads `Code.gs` into a Node `vm` context with in-memory fakes for `SpreadsheetApp`, `ContentService`, `UrlFetchApp`, `CacheService`, `LockService`, `PropertiesService`, `Session` and `Utilities`. That covers token checks, the allowlist, validation, upsert and delete, and conflicts in CI. A shared table of validation cases runs against both the client's `validate.ts` and the server's `Code.gs`, so the two stay in step. The real-Sheet behaviour the fakes can't prove (apostrophe-prefixed text, date parsing) is checked in the manual end-to-end pass.
+4. **CI**'s build job runs `npm run check` (`tsc --noEmit`, `vitest run`, `vite build`), then, on every run except a pull request's, checks the repo variables (§8). Deploy needs only that job.
+5. **Playwright e2e** (`e2e/*.spec.ts`, `npm run test:e2e`) runs in Chromium. Most specs drive demo mode on Vite's dev server: adding a pledge, logging a payment, a save's in-flight "Saving…" state, filters, the Friday display, no horizontal overflow at 360px, and axe WCAG A/AA checks. `production-bundle.spec.ts` instead loads the production build under the repo base path, with Google sign-in and Apps Script stubbed. It is a separate CI job that never blocks the Pages deploy. `e2e/perf-probe.ts` (`npm run perf`) is a manual render-time probe and is not run in CI.
+6. **End to end, by hand, before first use:** sign in with an allowlisted account and with one that isn't; add, edit and delete in both views; edit the same row in two tabs to trigger the conflict message; check on a phone.
 
 ## 7. UI (`web/src/ui/`)
 
 Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts` and `toast.ts`. Mobile-first layout.
 
 **Screens**
-- **Top bar:** app name, the signed-in email, and sign-out. The tabs are Summary, Pledges, Payments and Find donor. The last view used is remembered in `localStorage`.
+- **Top bar:** the name "ICG Fundraiser Tracker" (a link to Summary); the tabs Summary, Pledges, Payments, Find donor and Help (the built-in volunteer guide); then the signed-in email, **Refresh** (re-runs `load`), a Light mode / Dark mode toggle and Sign out. The last view used is remembered in `localStorage`; the Friday display never is. Coming back to the tab also reloads if the last load is over 2 minutes old, but not while a dialog is open or the Friday display is showing.
+- **Friday display:** a projector view for jumu'ah announcements at `#display`. A `?display=friday` link is rewritten to that address. The Summary's **Friday display** button opens it and **Exit** leaves it. It replaces the whole app shell with "Islamic Center of Greensboro", the `campaignName` title (`Fundraiser` when blank), a progress bar, the amount received in whole dollars ("raised of $<goal>" when a goal is set), the floored percent of goal (shown only with a goal), "N donors have pledged" and "Updated <time>". It reloads whenever its figures are 3 minutes old. It checks every 30 s, on entry and when the tab becomes visible, but reloads only while the tab is visible and the current sign-in has more than 2 minutes left. A failed reload keeps the last figures. Once the last load is over 15 minutes old it shows "Figures may be out of date — tap to reconnect", the only thing on it that can open sign-in. While it shows, every other sign-in prompt is held back, and reload questions wait until it closes. A `FORBIDDEN` never replaces it with the not-on-the-list screen: its own reload only logs the error, and a reconnect shows an error toast.
+- **Help:** the volunteer guide, built into the app (`web/src/ui/helpView.ts`) rather than kept as a separate document. It reuses the forms' field help (`web/src/ui/help.ts`) and shows the site's commit and API version for support. Every app message it quotes is listed in `QUOTED_MESSAGES`, and a test fails when one no longer appears in the source. Added 2026-09-24.
 - **Signed out:** Sign out lands on its own page, "You are signed out", instead of asking for sign-in again. The app can't end the volunteer's Google session, so an immediate prompt would offer the next person on a shared computer "Continue as <volunteer>". The page says so, links to Google sign-out labelled for shared computers only (it also signs the browser out of Gmail), and has a "Sign in again" button. "Use a different account" on the not-on-the-list screen still goes straight to Google's account chooser. The Help guide recommends a Guest or private window on shared and projector computers, closed after signing out.
-- **Summary:** an "Updated <date, time>" line giving the last load from the Sheet (printed too, while its "tap Refresh" prompt is screen-only), KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0, with a note chosen by sign: above 0, logged money not counted toward any pledge; below 0, money counted twice, usually a donor listed twice; both point to Data Health, since the net can hide one cause behind the other), the Data Health list (every check's count printed as a number, with a "Show" link beside any above 0, followed by a neutral note when `load` reports rows with no id, which no health check can see), the method breakdown, and a "Download .xlsx" export.
-- **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
+- **Summary:** an "Updated <date, time>" line giving the last load from the Sheet (printed too, while its "tap Refresh" prompt is screen-only), KPI tiles (B5–B8), a goal progress bar (B14; its percentage is floored so it never reads 100% before the goal is met) with an Edit goal button that opens a small dialog (Fundraiser goal ($); a blank goal is refused with "Enter a goal.") that saves in the background like the other forms, status counts, Unmatched Payments (highlighted when ≠ 0, with a note chosen by sign: above 0, logged money not counted toward any pledge; below 0, money counted twice, usually a donor listed twice; both point to Data Health, since the net can hide one cause behind the other), the Data Health list (every check's count printed as a number, with a "Show" link beside any above 0, followed by a neutral note when `load` reports rows with no id, which no health check can see), the method breakdown, and a "Download .xlsx" export.
+- **Pledges and Payments:** a totals band; a search box (Pledges: phone, name, notes; Payments: phone, donor name, method, notes), which also matches phone digits however the number was typed and redraws 150 ms after the last keystroke; sortable column headers; and an **Add pledge** / **Log a payment** button. Pledges has a row of status chips (All, Pending, Partial, Paid, Overpaid, Needs follow-up (§5.8); with no column sorted, Needs follow-up lists the largest balance first). Payments has a From/To date filter on Date Received, with Today, This week (Saturday to today) and Clear dates. While any filter is on, Payments' "Showing N of M" adds "· $X logged" (the filtered rows' money, not-counted payments included), followed by a line of per-method subtotals for those rows. Lists draw 100 rows at a time (25 at 720px wide or narrower), with a "Show more (N left)" button.
   - With no column sorted, the most recently added row comes first (the reverse of Sheet order), so a just-added row is on the first page (an edited row keeps its place). A third tap on a sorted header returns to the default order.
   - Derived columns are read-only and styled differently.
   - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date. The tint is never the only sign: a duplicate pledge's phone number is followed by "· Listed more than once", a not-counted payment shows its `⚠` reason in Donor Name, and a future date is followed by "(future)" (not `⚠`, since the payment still counts).
@@ -234,28 +241,31 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - **Export:** "Download .xlsx" first reloads from the Sheet (through the same load as Refresh), so a tab left open all evening still exports every volunteer's entries; if that reload fails, no file is made. SheetJS then builds a workbook that opens on a Summary sheet, followed by a Pledges sheet (entries plus derived columns) and a Payments sheet, each list ending with "Last changed by" and "Last changed at" (`updatedBy`, and `updatedAt` in the downloading device's local time). It's a treasurer copy, not a backup, and not a round-trip format: it has no row ids and no Allowlist, so the backup is the Sheet's own **File → Make a copy** (`docs/SETUP.md`, Data safety routine). Changed 2026-09-25. It's laid out to be read in Excel as it opens: columns sized to their contents (capped at about 40 characters), money in the app's accounting style ($1,650.30, a credit as ($50.00)), and a header filter on Pledges and Payments. The Summary sheet's first row, "Figures as of", gives the date and time the figures were loaded from the Sheet — that reload, finishing just after the click — and the file is named for that minute (`ICG-Fundraiser-2026-09-24-1401.xlsx`), so two copies from one day are told apart. There are no print titles (a malformed `_xlnm.Print_Titles` name makes Excel offer to repair the file) and no frozen header row (SheetJS CE can't write one).
 
 **Validation**, identical on client and server:
-- `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23.
-- Amounts are numbers ≥ 0 with at most 2 decimals. A pledge's amount may be blank; a payment's may not (0 is allowed), because a payment with no amount still counts toward # Payments and moves Last Payment, which drops a donor who paid nothing off Needs follow-up. Health check B24 still catches blank amounts on rows typed into the Sheet or saved before this rule.
-- Dates are blank or valid `YYYY-MM-DD`.
+- `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23. A payment's phone counts as blank when nothing is left after the match key's NFKC step and stripping (the server's `PHONE_IGNORED` strips the same characters), so '(--)' or '＋（）' is refused. Each field's 500-character limit is checked first, so an overlong blank phone reports as overlong on both sides.
+- Amounts are numbers ≥ 0 with at most 2 decimals, and at most 1,000,000,000 ("That amount is too large."). "At most 2 decimals" allows a few units of float error relative to the amount, so 0.1 + 0.2 is a valid 0.30 and 999,999,999.99 passes. A pledge's amount may be blank; a payment's may not (0 is allowed), because a payment with no amount still counts toward # Payments and moves Last Payment, which drops a donor who paid nothing off Needs follow-up. Health check B24 still catches blank amounts on rows typed into the Sheet or saved before this rule. The goal has the same 1,000,000,000 cap.
+- Dates are blank or valid `YYYY-MM-DD`: a real calendar date in 1900 or later.
 - `method` is blank or one of the configured methods.
 - Text fields are at most 500 characters.
-- Spreadsheet-formula injection: any value starting with `=`, `+`, `-` or `@` is written to the Sheet with a leading `'`. Phones starting with `+` are stored with the `'` prefix and read back without it.
+- A pledge's name may not start with `⚠` ("A name cannot start with ⚠."), because every not-counted signal keys off that mark.
+- Every non-empty text value written to Pledges, Payments and the history tabs (ids, phones, names, dates, notes, updatedAt/updatedBy) gets a leading `'` (`toCell_`), which Sheets hides and drops on read. This keeps leading zeros and `+`, stops dates being reinterpreted, and stops formula injection. It is the only text-forcing mechanism: never also format those columns as Plain text (§3).
 
 **Errors and state**
 - A first-load skeleton. After 5 s its line changes to "Still loading — the shared sheet can take up to 20 seconds. Please keep this page open.", so a slow first load isn't mistaken for a hang and reloaded.
-- Saves are optimistic: the table updates at once, is rolled back on failure, and a toast shows the error.
+- Save and Delete close the dialog at once and finish in the background, since an Apps Script round trip takes 1–16 s. The store's optimistic change shows immediately and is rolled back on failure. While a create or edit is in flight, its row is faded, labelled "Saving…" and can't be opened, because an edit opened then would carry an `updatedAt` that is about to be replaced. A delete answered with `NOT_FOUND` counts as done, since the row is already gone.
+- A save that fails with anything other than `CONFLICT` or `NOT_FOUND` becomes an error toast, "Couldn't save <row>. <message>", with **Reopen**. Reopen refills the form exactly as typed, shows the error inline on its field and focuses it, and keeps the same options, so a new row keeps its id. An edit reopens on the row's current version, and Reopen waits while a newer save of that row is in flight. A failed delete shows the toast "Couldn't delete <row>. <message>", with no Reopen.
 - While a save, delete or goal change is still in flight, Sign out asks "A change is still saving. Signing out now could lose it. Sign out anyway?", and closing or reloading the tab triggers the browser's own leave-page question, because a page that has gone can't show the failure. The same holds while a failed save's Reopen toast is showing, or waiting behind an open form to show, since it holds the only copy of what was typed: Sign out asks "A change could not be saved. Signing out now loses it. Sign out anyway?", and closing the tab asks too. Phones mostly don't ask (iOS ignores the leave-page question), so the Help guide tells volunteers there to wait until "Saving…" clears.
-- `CONFLICT` shows a dialog, "Someone else changed this row since you opened it", with a Reload option. A reload always re-runs `load`.
-- `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.
+- `CONFLICT` and `NOT_FOUND` ask a Reload question instead. These questions come one at a time, and each waits until no dialog is open and the Friday display isn't showing. The question names the interrupted change: "Couldn't save Aisha. Someone else changed this row since you opened it. Reload to see the latest version, then make your change again." (a delete reads "Couldn't delete …"). For `NOT_FOUND` the question ends "…Someone else deleted this row. Reload to see the latest list." Any other `CONFLICT`, such as a retried create that was saved with different values, shows the server's own message. A reload always re-runs `load`.
+- `UNAUTHENTICATED` resends the request once with a new token. Getting one opens the sign-in dialog, a modal of its own that sits above any open form, with Google's button and a Cancel, and it starts Google's prompt, which can sign an already-chosen account straight back in (`auto_select`). Cancel or Escape rejects every waiting request with `UNAUTHENTICATED` "Sign-in was cancelled.". That rejection is not retried, and no early renewal starts for 60 s afterwards. A click in the page's main area (not the nav bar), or returning to the tab, renews a token that is within 5 minutes of expiry. While the Friday display is showing, sign-in is held back and the request fails instead ("Sign-in is needed. Tap to sign in again."). The one thing that can still prompt there is a tap on its "Figures may be out of date — tap to reconnect" note.
+- `api.ts` retries on its own before any error is shown. A request that can't connect, or answers HTTP 404/502/503/504 (Google's echo redirect sometimes 404s after the script already ran), is retried up to twice, after 600 ms and then 1.5 s. If the device is offline, it waits for the connection instead, up to 20 s, and fails at once if the device is still offline after that. `BUSY` is retried up to twice, each after a random 1–3 s pause. An attempt is abandoned after 45 s and retried once, straight away. Retrying is safe: creates are idempotent by id (§3), a delete's `NOT_FOUND` counts as done, `setSetting` overwrites the same key, and an update that gets `CONFLICT` counts as saved when the returned `current` row already holds the draft's values (amounts compared to the cent). That covers an earlier attempt that landed but whose answer was lost. Some failures come only from the client: `NETWORK` when the tracker can't be reached or the attempt timed out ("Could not reach the tracker. Check your connection and try again.", plus the "Anyone" hint when an unreachable device is online) or when it answers with any non-OK HTTP status, including a 404/502/503/504 that is still failing after the retries ("The tracker answered with an error (<status>). Try again."), and `INTERNAL` "The tracker sent back an unexpected page. The Apps Script deployment must allow access to \"Anyone\"." when it answers with something other than JSON.
 - The Google ID token is kept in the tab's `sessionStorage` while it is fresh, so reloading the same tab within the token's hour loads without the sign-in dialog. A kept token issued for another client ID is ignored, so reloading after the site's client ID is corrected signs in afresh. A new tab signs in again, and Sign out removes the kept token before it leaves the page. "Could not load the tracker" offers Try again, which reloads the page, so a site rebuilt with a corrected script address or client ID is the one that tries; the kept token makes that reload cost no sign-in. Pull-to-refresh is turned off (`overscroll-behavior-y: contain`); the Refresh button reloads the data.
-- `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser." At startup it offers Use a different account. A `FORBIDDEN` from Refresh, the auto-refresh on return or the refresh that "Download .xlsx" starts with (someone taken off the Allowlist while their page was open) closes any open form and replaces the page with the same screen, offering Try again, which reloads the page. A `FORBIDDEN` on a save stays an error toast with Reopen, and the Friday display keeps its figures, so a mistaken Allowlist edit neither discards unsaved entries nor reaches the projector.
-- A network failure or `navigator.onLine === false` shows a banner. The app makes no attempt to work offline.
+- `FORBIDDEN` shows a "Not on the volunteer list" screen. At startup it reads "`<email>` is not on the volunteer list. Ask the organiser to add your Google account, or sign in with a different one." and offers Use a different account. A `FORBIDDEN` from Refresh, the auto-refresh on return or the refresh that "Download .xlsx" starts with (someone taken off the Allowlist while their page was open) closes any open form and replaces the page with that screen, which then reads "`<email>` is not on the volunteer list. If you still help with the fundraiser, ask the organiser to add your Google account back, then press Try again." and offers Try again, which reloads the page. A `FORBIDDEN` on a save stays an error toast with Reopen, and the Friday display keeps its figures, so a mistaken Allowlist edit neither discards unsaved entries nor reaches the projector.
+- While the device reports it is offline (`navigator.onLine` when the page opens, then the browser's `online`/`offline` events), a banner under the top bar says "You are offline. Changes cannot be saved until the connection is back." A failed request never shows that banner. After `api.ts`'s own retries (above), the failure is reported like any other error: an error toast (with Reopen on a save), or the "Could not load the tracker" screen at startup. An unreachable server reads "Could not reach the tracker. Check your connection and try again." If the device is online, the message adds a hint that the Apps Script deployment may not allow access to "Anyone". The app makes no attempt to work offline.
 - A site and `Code.gs` deployed out of step show a banner after any load. The site is built for the `API_VERSION` in its own copy of `Code.gs` and compares it with `load`'s `apiVersion`. A missing or lower server version reads "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).", a higher one "The tracker was updated. Reload this page to get the latest version." Neither blocks saving, and the server never rejects a request over its version. Added 2026-09-25.
 
 **Wording** follows the workbook's column names and the guide's plain language.
 
 **Visual design** follows `DESIGN.md` (ICG Heritage), agreed 2026-09-23:
-- Every token (colours, dark-mode colours, type scale, radii, spacing, shadows) is mirrored as `:root` CSS custom properties in `web/src/styles/tokens.css`. Component CSS refers only to those variables, with no hex values outside the token file.
+- Colours (light and dark), shadows, radii, spacing, container widths and font families are mirrored as `:root` CSS custom properties in `web/src/styles/tokens.css`. The type scale is classes in `base.css`, not variables. Component CSS has no colour values outside the token file.
 - Light mode is the default. Dark mode follows `prefers-color-scheme` on first visit, and a nav toggle saves the user's choice in `localStorage`. Print forces the light tokens.
 - Fonts: Cormorant Garamond (500) for display headings and Inter for everything else, self-hosted through `@fontsource` so no third-party font requests are made. Amiri isn't loaded, since the app's own wording has no Arabic. Donor names and notes may still be typed in Arabic script; they show in the device's own Arabic font.
 - Text direction: every text box (donor name, amounts, goal), notes box and search box carries `dir="auto"`, so text that starts in Arabic script runs right-to-left and anything else stays left-to-right. Phone, date and choice fields are left alone. Find donor's match list gives each phone `dir="ltr"`, because a phone placed right after an Arabic-script name would otherwise show its digit groups in reverse order.
@@ -275,10 +285,10 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 ```
 /                                    (new git repo — the xlsx/docx stay out of it unless the user says otherwise)
 ├─ package.json, tsconfig.json, vite.config.ts   (one package; Vite root = web/)
-├─ web/            index.html, src/{engine,api,auth,store,main}.ts, src/ui/*, src/styles/*
-├─ test/           Vitest suites for engine, client modules, and Code.gs (via vm)
+├─ web/            index.html, public/{manifest.webmanifest,icons/}, src/{api,auth,store,main,matchKey,validate,…}.ts, src/engine/*, src/ui/*, src/styles/*
+├─ test/           Vitest suites (engine, client, Code.gs via vm) and fixtures/parity-*.json
+├─ e2e/            Playwright specs (+ perf-probe.ts), playwright.config.ts at the root
 ├─ apps-script/    Code.gs, appsscript.json
-├─ tools/          excel-oracle.ps1
 ├─ docs/           this spec, SETUP.md
 └─ .github/workflows/pages.yml
 ```
@@ -308,12 +318,11 @@ Before uploading the site, the build job checks the two repo variables on every 
 - receipts and emails, apart from the printable donor statement on the Find donor card (§5.7), which carries no tax-acknowledgment wording
 - multiple campaigns
 - importing an xlsx
-- editing `paymentMethods` or the allowlist from the app
-- pagination (revisit above about 5,000 rows)
-- updating the user guide (a separate task once the app exists)
+- editing `paymentMethods`, `campaignName` or the allowlist from the app
+- server-side paging of `load` (revisit above about 5,000 rows). Reversed for display: since v1.1 the lists draw 100 rows at a time (25 at phone width) with Show more, for render speed at event scale. Every row is still loaded and computed.
+- updating the workbook's own user guide, which belongs to that separate project. The app's volunteer guide is built in, as its Help tab (§7). Changed 2026-09-24.
 
-## 10. Open questions
+## 10. Resolved questions
 
-None are blocking. Two noted for review:
-- Should the app's source live in this folder (making it a git repo alongside the xlsx and docx) or in a new folder or repo? The default is to make this folder the repo and add `*.xlsx` and `*.docx` to `.gitignore`, so the workbook, which may one day hold donor data, is never pushed.
-- Is a GitHub Pages URL acceptable, given that the app shell is public even though the data isn't?
+- The app is its own repo, separate from the workbook. `.gitignore` blocks `*.xlsx`, `*.docx` and Office lock files so an export or a stray workbook copy is never committed.
+- The app is served from GitHub Pages; the shell is public and the data stays behind the allowlisted server.
