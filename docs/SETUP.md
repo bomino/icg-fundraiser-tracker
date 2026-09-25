@@ -8,7 +8,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 2. In the Sheet, open **Extensions → Apps Script**.
 3. Replace the contents of `Code.gs` with `apps-script/Code.gs` from this repo.
 4. Open **Project Settings**, tick **Show "appsscript.json" manifest file in editor**, then replace that file with `apps-script/appsscript.json`.
-5. Back in the editor, pick `setup` from the function list and press **Run**. Approve the permissions. The Sheet now has the **Pledges**, **Payments**, **Settings** and **Allowlist** tabs, and your own email is on the Allowlist.
+5. Back in the editor, pick `setup` from the function list and press **Run**. Approve the permissions. The Sheet now has the **Pledges**, **Payments**, **Settings** and **Allowlist** tabs, and your own email is on the Allowlist. It also has **Pledges history** and **Payments history**, where the app keeps the old copy of every row a volunteer edits or deletes (see [Data safety routine](#data-safety-routine)).
 6. Add each volunteer's Google email to the **Allowlist** tab, one per row. To remove access later, delete their row. It takes effect on their next click.
 7. Don't format the Pledges or Payments data columns as **Plain text** in the Sheet UI. The app forces text (ids, phone numbers, dates) by writing a leading apostrophe on every value; a Plain text column stores that apostrophe as a literal character instead of hiding it, which corrupts ids and phone numbers. Leave the columns on Automatic.
 8. Add pledges and payments through the app, not by typing into the **Pledges** or **Payments** tabs. The app ignores any row with an empty `id` in column A, so a row typed straight into the Sheet without one won't appear or count anywhere. If you must add rows by hand, give each one a unique `id` (any text not used by another row).
@@ -55,7 +55,11 @@ Then run `npm install`, then `npm run dev`, and open <http://localhost:5173>.
 
 The Sheet is the only copy of the fundraiser's records — there is no separate database or backup service behind it. Do these as the organiser:
 
-1. **Version history is the undo button.** In the Google Sheet, **File → Version history → See version history**, find the version from before a bad change, and press **Restore this version**.
+1. **Bring back a deleted or changed row by copying it, never by restoring the file.** Whenever a volunteer edits or deletes a pledge or payment, the app first copies the old row to the **Pledges history** or **Payments history** tab. Its last three columns say when (`changedAt`), who (`changedBy`, the volunteer's email) and what (`action`: `edit` or `delete`). On a Sheet set up before these tabs existed, each one appears with the first edit or delete after `Code.gs` is updated.
+   - To bring a row back, copy exactly its first 8 cells, `id` to `updatedBy`. For a deleted row, paste them into the first empty row of **Pledges** or **Payments**. For an edited row, paste them over the live row with the same `id` instead, or it is counted twice. The row keeps its `id`, so volunteers see it after pressing **Refresh**.
+   - For a change the history tabs don't have (one from before they existed, or one made directly in the Sheet), open **File → Version history → See version history**, click a version from before the mistake, copy the row's first 8 cells there, and paste them into the current Sheet the same way.
+   - **Don't press Restore this version** to get a row back. It rolls back the whole file, every tab, so every pledge and payment any volunteer entered or changed since that version is lost, along with Allowlist and Settings changes.
+   - The app never loads the history tabs, so volunteers never see or download them. They do keep deleted rows, phone numbers included: to remove a donor's details for good, delete their rows there too.
 2. **Download a copy monthly, and after each event.** On **Summary**, press **Download .xlsx**, and keep the file somewhere safe — a laptop, a shared drive — outside the Sheet itself.
 3. **Share the Sheet with a second trusted person as an Editor** (not just Viewer), so access to the fundraiser's records is never locked to one person's Google account.
 4. **Never delete the Sheet or its Apps Script project.** It is the tracker's only database; deleting either takes every pledge and payment with it.
@@ -80,7 +84,7 @@ If every row says *No logs are available for this execution*, even for a request
 
 1. In the Google Cloud console, open that project and copy its **Project number** (on the project's dashboard, or under **IAM & Admin → Settings**).
 2. In Apps Script, open **Project Settings**, and under **Google Cloud Project** press **Change project**. Paste the number and press **Set project**.
-3. Straight away, pick `setup` from the editor's function list, press **Run** and approve the permissions again. Google makes everyone who approved the script approve it again after the switch, and the app's requests run as you, so they can fail until you have. If Google says it hasn't verified the app, press **Advanced** and carry on: it's your own script. With all four tabs in place, `setup` changes nothing.
+3. Straight away, pick `setup` from the editor's function list, press **Run** and approve the permissions again. Google makes everyone who approved the script approve it again after the switch, and the app's requests run as you, so they can fail until you have. If Google says it hasn't verified the app, press **Advanced** and carry on: it's your own script. `setup` only adds tabs that are missing, so it changes none of your records.
 
 From then on, read the log in the Google Cloud console: open the project, then **Logging → Logs Explorer**, and search for the lines below.
 

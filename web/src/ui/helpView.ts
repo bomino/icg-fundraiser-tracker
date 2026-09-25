@@ -160,7 +160,7 @@ const PROBLEMS: readonly Problem[] = [
   {
     message: [said(SAID.deleted)],
     meaning: ['Another volunteer deleted the row you were editing.'],
-    action: ['Press ', b('Reload'), '. If the row should still exist, add it again.'],
+    action: ['Press ', b('Reload'), '. If the row should still exist, do not add it again: ask the organiser to bring it back, then make your change.'],
   },
   {
     message: [b(SAID.notSetUp), ', ', said(`${SAID.notConfigured}…`), ', ', said(SAID.unexpectedPage), ' or ', said(`The "…" ${SAID.tabMissing} …`)],
@@ -379,7 +379,7 @@ function howTo(): Child[] {
         ['Deleting a payment asks: ', said(SAID.deletePayment)],
         ['Deleting a pledge asks: ', said(SAID.deletePledge)],
       ),
-      note('There is no undo. If you delete something by mistake, add it again.'),
+      note('There is no undo button. If you delete something by mistake, do not add it again: ask the organiser to bring the row back. The tracker keeps a copy of every deleted row for them.'),
     ),
     topic(
       'Fix a payment typed with the wrong phone number',
@@ -579,16 +579,51 @@ function forTheOrganiser(): Child[] {
       ),
     ),
     topic(
+      'Bring back a deleted or changed row',
+      p(
+        'Whenever a volunteer edits or deletes a pledge or payment, the tracker first copies the old row to the ',
+        b('Pledges history'),
+        ' or ',
+        b('Payments history'),
+        ' tab. The last three columns say when (',
+        b('changedAt'),
+        '), who (',
+        b('changedBy'),
+        ') and whether it was an ',
+        b('edit'),
+        ' or a ',
+        b('delete'),
+        ' (',
+        b('action'),
+        ').',
+      ),
+      steps(
+        ['Find the row in the history tab. The newest are at the bottom.'],
+        ['Select its first 8 cells, from ', b('id'), ' to ', b('updatedBy'), ', and copy them. Leave out the last three.'],
+        ['For a deleted row, paste them into the first empty row of the Pledges or Payments tab. For an edited row, paste them over the row with the same id instead, or it will be counted twice.'],
+        ['The row keeps its id, so volunteers see it after pressing ', b('Refresh'), '.'],
+      ),
+      p(
+        'If the history tabs do not have it (a change from before they existed, or one made directly in the sheet), open ',
+        b('File → Version history → See version history'),
+        ', click a version from before the mistake, copy the row’s first 8 cells there, then go back to the current sheet and paste them in the same way.',
+      ),
+      note(
+        'Do not press ',
+        b('Restore this version'),
+        ' to get a row back. It rolls back the whole sheet, so every pledge and payment any volunteer entered or changed since that version is lost.',
+      ),
+      p('The history tabs keep deleted rows, phone numbers included. To remove a donor’s details for good, delete their rows from the history tab too.'),
+    ),
+    topic(
       'Data safety routine',
       p('The Sheet is the only copy of the fundraiser’s records. A little routine protects it.'),
       bullets(
         [
-          b('Undo a bad change with Version history'),
-          ' — in the Google Sheet, ',
-          b('File → Version history → See version history'),
-          ', find the version from before the mistake, and press ',
+          b('Bring back one row at a time'),
+          ' — copy it from a history tab or an old version, as described above, instead of pressing ',
           b('Restore this version'),
-          '.',
+          ', which undoes every volunteer’s work since that version.',
         ],
         [
           b('Download a copy'),
