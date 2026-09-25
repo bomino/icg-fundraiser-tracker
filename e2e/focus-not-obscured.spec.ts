@@ -14,6 +14,11 @@ const VIEWPORTS = [
 // wide gap that shows the end of the previous section instead.
 const HELP_JUMP_SLACK_PX = 24;
 
+// The page's top scroll padding assumes the desktop nav stays on one row. Just above the phone
+// layout the actions are tightest, and a real Google address is far longer than the demo's.
+const NARROW_DESKTOP_WIDTHS = [721, 800, 900] as const;
+const LONG_EMAIL = 'abdulrahman.mohammed.alhashimi@outlook.com';
+
 interface Edges {
   top: number;
   bottom: number;
@@ -102,5 +107,29 @@ for (const [device, viewport] of VIEWPORTS) {
       expect(section.top).toBeGreaterThanOrEqual(nav.bottom);
       expect(section.top).toBeLessThanOrEqual(nav.bottom + HELP_JUMP_SLACK_PX);
     });
+  });
+}
+
+for (const width of NARROW_DESKTOP_WIDTHS) {
+  test(`a long signed-in email keeps the nav within the top scroll padding at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 700 });
+    await openApp(page, 'pledges');
+    const actions = page.locator('.nav-actions');
+    // The widest labels the actions take: dark mode on, and a reload in progress.
+    await actions.getByRole('button', { name: 'Dark mode' }).click();
+    await actions.getByRole('button', { name: 'Refresh' }).evaluate((button) => {
+      button.textContent = 'Refreshing…';
+    });
+    await actions.locator('.meta').evaluate((meta, email) => {
+      meta.textContent = email;
+    }, LONG_EMAIL);
+    // The fallback font is wider, so the nav can wrap for a moment while the web fonts load.
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+
+    const nav = await edges(page.locator('.nav-bar'));
+    const scrollPaddingTop = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop));
+    expect(nav.bottom - nav.top).toBeLessThanOrEqual(scrollPaddingTop);
   });
 }

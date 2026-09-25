@@ -17,6 +17,8 @@ html { scroll-padding-top: 88px; }
 /* A real border, not an inset shadow: the shadow anti-aliased into faint side lines around the rounded tab. */
 .tab[aria-current='page'] { color: var(--color-ink); border-bottom-color: var(--color-gold); }
 .nav-actions { display: flex; align-items: center; gap: var(--space-sm); }
+/* The 88px scroll padding assumes one row. Just above the phone layout a long signed-in email would push the actions onto a second (about 132px), so it is cut short there. */
+@media (max-width: 900px) { .nav-actions .meta { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 /* On phones the header must stay short (it is sticky): brand and actions share one row, tabs take the full second row. */
 @media (max-width: 720px) {
   html { scroll-padding-top: 136px; }
