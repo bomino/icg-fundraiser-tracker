@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ApiError, type Api } from '../../web/src/api';
+import { todayIso } from '../../web/src/dates';
 import { WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
 import { createStore, type State, type Store } from '../../web/src/store';
 import type { Payment, PaymentDraft } from '../../web/src/types';
@@ -153,7 +154,8 @@ describe('pledges view', () => {
 describe('pledges view: status chips and follow-up', () => {
   const followUpPledges = [
     pledge({ id: 'f1', phone: '555-200-0001', name: 'Alpha Partial', amountPledged: 1000, datePledged: '2026-01-01' }),
-    pledge({ id: 'f2', phone: '555-200-0002', name: 'Fresh Pending', amountPledged: 500, datePledged: TODAY }),
+    // The view measures Needs follow-up against the real clock, so fresh has to mean fresh on the day the tests run.
+    pledge({ id: 'f2', phone: '555-200-0002', name: 'Fresh Pending', amountPledged: 500, datePledged: todayIso() }),
     pledge({ id: 'f3', phone: '555-200-0003', name: 'Paid Stale', amountPledged: 200, datePledged: '2020-01-01' }),
     pledge({ id: 'f4', phone: '555-200-0004', name: 'Zeta Pending', amountPledged: 3000, datePledged: '2020-01-01' }),
   ];

@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { todayIso } from '../../web/src/dates';
 import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
 import { downloadList, type FilteredList } from '../../web/src/ui/export';
@@ -39,7 +40,8 @@ const rowIds = (list: FilteredList) => (list.list === 'Pledges' ? list.rows.map(
 describe('Download this list on Pledges', () => {
   const pledges = [
     pledge({ id: 'f1', phone: '555-200-0001', name: 'Alpha Partial', amountPledged: 1000, datePledged: '2026-01-01' }),
-    pledge({ id: 'f2', phone: '555-200-0002', name: 'Fresh Pending', amountPledged: 500, datePledged: TODAY }),
+    // The view measures Needs follow-up against the real clock, so fresh has to mean fresh on the day the tests run.
+    pledge({ id: 'f2', phone: '555-200-0002', name: 'Fresh Pending', amountPledged: 500, datePledged: todayIso() }),
     pledge({ id: 'f3', phone: '555-200-0003', name: 'Paid Stale', amountPledged: 200, datePledged: '2020-01-01' }),
     pledge({ id: 'f4', phone: '555-200-0004', name: 'Zeta Pending', amountPledged: 3000, datePledged: '2020-01-01' }),
   ];
