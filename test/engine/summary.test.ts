@@ -224,10 +224,11 @@ describe('nearMatches', () => {
     expect(ids(pledges, '555-010-0321')).toEqual([]);
   });
 
+  // Not +1: matchKey already drops a US country code, so that number is an exact match, never a suggestion.
   it('matches a country code on one number with a trunk 0, or nothing, on the other', () => {
-    const pledges = [pledge({ id: 'uk', phone: '+44 7700 900123' }), pledge({ id: 'us', phone: '555-010-0101' }), pledge({ id: 'ng', phone: '0803 123 4567' })];
+    const pledges = [pledge({ id: 'uk', phone: '+44 7700 900123' }), pledge({ id: 'mx', phone: '55 1234 5678' }), pledge({ id: 'ng', phone: '0803 123 4567' })];
     expect(ids(pledges, '07700 900123')).toEqual(['uk']);
-    expect(ids(pledges, '+1 555 010 0101')).toEqual(['us']);
+    expect(ids(pledges, '+52 55 1234 5678')).toEqual(['mx']);
     expect(ids(pledges, '+234 803 123 4567')).toEqual(['ng']);
   });
 
@@ -252,6 +253,7 @@ describe('nearMatches', () => {
   it('suggests nothing for a phone a pledge already has, or a blank one', () => {
     const pledges = [pledge({ phone: '555-010-0124' }), pledge({ phone: '(555) 010-0123' })];
     expect(ids(pledges, '555.010.0123')).toEqual([]);
+    expect(ids(pledges, '+1 555 010 0123')).toEqual([]);
     expect(ids([pledge({ phone: '' }), pledge({ phone: '--' })], '')).toEqual([]);
   });
 
@@ -264,7 +266,7 @@ describe('nearMatches', () => {
     const pledges = [
       pledge({ id: 'slip1', phone: '555-010-0102' }),
       pledge({ id: 'slip2', phone: '555-010-0103' }),
-      pledge({ id: 'country', phone: '+1 555-010-0101' }),
+      pledge({ id: 'country', phone: '+52 555-010-0101' }),
       pledge({ id: 'slip3', phone: '555-010-0104' }),
     ];
     expect(ids(pledges, '555-010-0101')).toEqual(['country', 'slip1', 'slip2']);
@@ -274,6 +276,6 @@ describe('nearMatches', () => {
     const slips = ['555-010-0102', '555-010-0103', '555-010-0104', '555-010-0105'].map((phone) => pledge({ phone }));
     expect(ids(slips, '555-010-0101')).toEqual([]);
     expect(ids(slips.slice(1), '555-010-0101')).toHaveLength(3);
-    expect(ids([...slips, pledge({ id: 'country', phone: '+1 555-010-0101' })], '555-010-0101')).toEqual(['country']);
+    expect(ids([...slips, pledge({ id: 'country', phone: '+52 555-010-0101' })], '555-010-0101')).toEqual(['country']);
   });
 });

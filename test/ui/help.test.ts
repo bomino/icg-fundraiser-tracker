@@ -212,7 +212,7 @@ describe('createHelpView', () => {
 
   it('warns about the side effects the General donations pledge really has', () => {
     const howTo = Array.from(createHelpView().querySelectorAll('#help-how-to .help-topic')).find((topic) => topic.querySelector('h3')?.textContent === NO_PHONE_MONEY_TOPIC);
-    for (const effect of [STATUS.overpaid, 'Overpaid / credit', HEALTH_LABELS.possibleDuplicatePayments, 'Unmatched payments stays at $0.00', 'Needs follow-up']) expect(howTo?.textContent).toContain(effect);
+    for (const effect of [STATUS.overpaid, 'Overpaid / credit', HEALTH_LABELS.possibleDuplicatePayments, 'is already logged.', 'Unmatched payments stays at $0.00', 'Needs follow-up']) expect(howTo?.textContent).toContain(effect);
 
     const general = pledge({ id: 'general', phone: GENERAL_DONATIONS.phone, name: GENERAL_DONATIONS.name, amountPledged: 0 });
     const aisha = pledge({ phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 1000, datePledged: '2026-09-01' });
@@ -235,11 +235,10 @@ describe('createHelpView', () => {
   });
 
   it('has an online gift logged at what the donor gave, so the website’s fee never becomes their balance', () => {
-    const topics = Array.from(createHelpView().querySelectorAll('.help-topic'));
-    const topicText = (title: string) => topics.find((topic) => topic.querySelector('h3')?.textContent === title)?.textContent;
-    expect(topicText('Log a payment')).toContain('type the amount the donor gave, as shown on their receipt');
-    expect(topicText('Handle a donor who paid more than they pledged')).toContain('for example, their employer matched the gift');
-    expect(topicText('Payment methods and the goal')).toContain('by the amount of its fees');
+    const view = createHelpView();
+    expect(topicOf(view, 'Log a payment').textContent).toContain('type the amount the donor gave, as shown on their receipt');
+    expect(topicOf(view, 'Handle a donor who paid more than they pledged').textContent).toContain('for example, their employer matched the gift');
+    expect(topicOf(view, 'Payment methods, the goal and the drive’s name').textContent).toContain('by the amount of its fees');
 
     const donor = pledge({ phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 100, datePledged: '2026-08-01' });
     const loggedAt = (amountReceived: number) =>

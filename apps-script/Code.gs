@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 5;
+const API_VERSION = 6;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -217,7 +217,7 @@ function readRows_(tab) {
 // and on Payments an amount. Totals and notes rows under the data have neither, and are left out.
 function looksLikeEntry_(tab, row) {
   const record = toRecord_(tab, row);
-  if (record.phone.replace(PHONE_IGNORED, '') === '') return false;
+  if (isBlankPhone_(record.phone)) return false;
   return tab !== 'Payments' || record.amountReceived !== null;
 }
 
@@ -304,6 +304,11 @@ function invalid_(field, message) {
   return new ApiError('BAD_REQUEST', message, { field: field });
 }
 
+// Both the save check and the no-id row count ask this, so they can't disagree on what a phone is.
+function isBlankPhone_(phone) {
+  return phone.normalize('NFKC').replace(PHONE_IGNORED, '') === '';
+}
+
 function isIsoDate_(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
@@ -342,7 +347,7 @@ function validateRow_(tab, payload, methods) {
   });
   if (tab === 'Pledges' && row.name.indexOf(WARNING_MARK) === 0) throw invalid_('name', 'A name cannot start with ' + WARNING_MARK + '.');
   if (tab === 'Payments') {
-    if (row.phone.normalize('NFKC').replace(PHONE_IGNORED, '') === '') throw invalid_('phone', "Enter the donor's phone number.");
+    if (isBlankPhone_(row.phone)) throw invalid_('phone', "Enter the donor's phone number.");
     if (row.amountReceived === null) throw invalid_('amountReceived', 'Enter the amount received.');
     if (row.method !== '' && methods.indexOf(row.method) < 0) throw invalid_('method', 'Pick a method from the list.');
   }

@@ -435,7 +435,7 @@ function howTo(): Child[] {
         ['Notes', PAYMENT_HELP.notes],
       ),
       note(
-        'If a number on no pledge is close to one that is — one digit different, two digits side by side swapped, or the same 10-digit number with a country code or a leading 0 in front of only one of them — a question appears under the warning, for example ',
+        'If a number on no pledge is close to one that is — one digit different, two digits side by side swapped, or the same 10-digit number with a country code (other than the US +1, which already matches) or a leading 0 in front of only one of them — a question appears under the warning, for example ',
         said(`${SAID.isThisFrom} Aisha Rahman (555-010-0101)?`),
         ' Check the name with the donor or on the envelope first: two different donors can have numbers one digit apart. If it is them, press ',
         b(SAID.useTheirNumber),
@@ -526,7 +526,7 @@ function howTo(): Child[] {
       p('This money counts toward Total received, the goal and the Friday display, and Unmatched payments stays at $0.00. Two things look odd but are expected:'),
       bullets(
         ['General donations shows as ', b(STATUS.overpaid), ' and counts as one Overpaid donor, and all its money is added to ', b('Overpaid / credit'), ' on the Summary, because its pledge amount is 0. Leave it at 0: raising it would add to Total pledged and to the count of donors who pledged.'],
-        ['Two gifts of the same amount on the same day, such as two $20 gifts on a Friday, appear under ', b(HEALTH_LABELS.possibleDuplicatePayments), '. That is a false alarm: keep both.'],
+        ['Two gifts of the same amount on the same day, such as two $20 gifts on a Friday, appear under ', b(HEALTH_LABELS.possibleDuplicatePayments), ', and when you log the second one, an amber note on the form says one like it ', said(SAID.alreadyLogged), ' That is a false alarm: press Save anyway, and keep both.'],
       ),
       note('Date pledged stays empty so that no gift, however old, is flagged as coming before the pledge. Someone who has pledged, or will pay over time, needs their own made-up number instead: see ', b('Record a donor who won’t give a phone number'), ' in How to….'),
     ),
@@ -615,7 +615,7 @@ function howTo(): Child[] {
         ['On ', b('Payments'), ', open that payment and delete it.'],
       ),
       p('If only part of the money was given back, do not delete the payment. Edit its amount down to what the masjid kept, and add the same kind of note to the pledge.'),
-      note('The donor’s balance goes back up, and they show on ', b('Needs follow-up'), ' in the usual way, so someone can call them. A deleted payment no longer shows on Payments or in the downloaded copy, so the note on the pledge is the record of what happened.'),
+      note('The donor’s balance goes back up, and they show on ', b('Needs follow-up'), ' in the usual way, so someone can call them. A deleted payment no longer shows on Payments or in the downloaded copy, so the note on the pledge is what tells volunteers what happened. The organiser can still find the deleted payment in the sheet’s ', b('Payments history'), ' tab.'),
     ),
     topic(
       'A donor gives post-dated checks',
@@ -624,7 +624,7 @@ function howTo(): Child[] {
         ['When the donor hands the checks over, open their pledge and add a line to Notes, for example “3 post-dated checks held: Nov, Dec, Jan”. Save. Anyone who sees them on ', b('Needs follow-up'), ' then knows not to call them for money already given.'],
         ['On the day each check is deposited, log it as a payment dated that day, and update the note.'],
       ),
-      p('If one was already logged with its future date, it shows as an amber date on Payments and under ', b(HEALTH_LABELS.futureDated), ' in Data health. Delete it, add it to the note, and log it again on the day it is deposited.'),
+      p('If one was already logged with its future date, its date on Payments is shaded amber and marked ', said(SAID.future), ', and it shows under ', b(HEALTH_LABELS.futureDated), ' in Data health. Delete it, add it to the note, and log it again on the day it is deposited.'),
       note('This is the suggested way. If the organiser prefers another, such as counting the checks as soon as they are handed over, follow theirs.'),
     ),
     topic(

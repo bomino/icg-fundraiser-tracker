@@ -45,6 +45,7 @@ const CODE_GS_HASHES: readonly string[] = [
   'a31b0be676c13b86d466f74db90359ea434f86ddd3bf9a68ded9ca3acb90803c',
   '6929403b81533bd144d9b870737ad418bd2a6175ab52443bb1103c1f5f4a2285',
   '875937965d9f8822f143f71bc1270714d2c4f4102523890c87c1397ffdb7e159',
+  '1f6654d9250f990f1f0478c13aa8725746785757b87e42eec817899c0a905fc6',
 ];
 
 describe('API_VERSION', () => {
@@ -200,6 +201,12 @@ describe('load', () => {
     payments.appendRow(['', '555-0104', '', '', '', 'Amount to follow', '', '']);
     payments.appendRow(['', '', '', 100, '', 'Total', '', '']);
     expect(server.post('load', {}, token).data).toMatchObject({ pledges: [], payments: [], rowsWithoutId: { pledges: 1, payments: 1 } });
+  });
+  // The same blank-phone rule as a save, NFKC step included, or a row the app would call phoneless counts here.
+  it('reads a phone of only full-width punctuation as blank when counting rows with no id', () => {
+    server.sheet('Pledges').appendRow(['', '＋（）', 'Total', '', 1250, '', '', '']);
+    server.sheet('Payments').appendRow(['', '＋（）', '', 100, '', 'Total', '', '']);
+    expect(server.post('load', {}, token).data.rowsWithoutId).toEqual({ pledges: 0, payments: 0 });
   });
   it('cleans up rows that were edited by hand in the Sheet', () => {
     const sheet = server.sheet('Pledges');
