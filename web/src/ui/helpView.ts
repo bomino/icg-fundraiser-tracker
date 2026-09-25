@@ -241,7 +241,7 @@ function theScreens(): Child[] {
       p('One row per donor. You type the ', b('Phone Number'), ', ', b('Donor Name'), ', ', b('Date Pledged'), ', ', b('Amount Pledged'), ' and ', b('Notes'), '. The tracker works out the rest from the Payments screen: ', b('Last Payment'), ', ', b('Received'), ', ', b('Balance Due'), ', ', b('# Payments'), ' and ', b('Status'), '.'),
       bullets(
         ['The line above the table shows the running totals: pledged, received, outstanding and number of payments.'],
-        ['A phone number followed by ', said(SAID.listedMoreThanOnce), ' is a donor listed more than once, and the row is shaded red. Their payments are being counted twice until you fix it.'],
+        ['A phone number followed by ', said(SAID.listedMoreThanOnce), ' is on more than one pledge, and those rows are shaded red. That donor’s payments are being counted twice until you fix it.'],
         ['A faded row marked ', said(SAID.saving), ' is still being saved. It cannot be opened until the save finishes, usually within a few seconds.'],
         ['Tap any row to edit or delete it.'],
         [
@@ -499,7 +499,7 @@ function warningsAndHealth(): Child[] {
     topic(
       'Marks and colours on the lists',
       terms(
-        [said(SAID.listedMoreThanOnce), 'After a phone number on Pledges: the donor is listed more than once. The row is shaded red.'],
+        [said(SAID.listedMoreThanOnce), 'After a phone number on Pledges: that phone number is on more than one pledge, so the donor’s payments are counted twice. The row is shaded red.'],
         [b('⚠ in Donor Name'), 'On Payments: the payment is not counted. The row is shaded red.'],
         [said(SAID.future), 'After a date on Payments: the payment is dated in the future. The date is shaded amber.'],
       ),
