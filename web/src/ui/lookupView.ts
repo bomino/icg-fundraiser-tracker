@@ -17,7 +17,7 @@ import { renderTable, type Column } from './table';
 
 // A one-letter search at event scale matches nearly every donor; drawing them all froze a phone
 // while a queue waited. The cap is what keeps each keystroke instant, so the list needs no debounce.
-const MATCH_LIMIT = 20;
+export const MATCH_LIMIT = 20;
 
 const HISTORY: Column<DerivedPayment>[] = [
   { key: 'date', label: 'Date', value: (d) => d.payment.dateReceived, display: (d) => formatDate(d.payment.dateReceived) },
@@ -173,7 +173,7 @@ export function createLookupView(deps: ListViewDeps) {
       if (matches.length === 0) {
         announce('No donor found.');
         // At the door, a donor nobody can find is almost always a new pledge.
-        const addPledge = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add a pledge');
+        const addPledge = h('button', { type: 'button', class: 'btn btn-primary', 'data-focus-key': 'lookup-add-pledge' }, 'Add a pledge');
         addPledge.addEventListener('click', () => openNewPledge(text));
         // Unless another volunteer added them after this list was loaded: a second pledge would count their payments twice.
         const age = staleListAge(deps.store.lastLoadedAt());

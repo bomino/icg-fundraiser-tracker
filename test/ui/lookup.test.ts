@@ -141,10 +141,10 @@ describe('find donor', () => {
     search(document.body, '(555) 999-0000');
     expect(document.body.textContent).toContain('No donor found.');
     const addPledge = () => {
-      (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
+      button('Add a pledge').click();
       expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('(555) 999-0000');
-      (document.querySelector('dialog[open] input[name=name]') as HTMLInputElement).value = 'Zainab';
-      (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      type('name', 'Zainab');
+      submit();
     };
     addPledge();
     addPledge();
@@ -160,7 +160,7 @@ describe('find donor', () => {
     for (const text of ['Zainab', 'Zainab 2']) {
       document.body.replaceChildren(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
       search(document.body, text);
-      (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
+      button('Add a pledge').click();
       expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value, text).toBe('');
     }
   });
@@ -338,8 +338,8 @@ describe('find donor', () => {
   it('opens Log a payment from the donor card knowing how old the list is', () => {
     document.body.append(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(5) } as unknown as Store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
-    (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
-    search(document.querySelector('dialog[open]') as HTMLElement, '555 999 0000');
+    button('Log a payment').click();
+    type('phone', '555 999 0000');
     expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain('Do not add a second pledge.');
   });
 

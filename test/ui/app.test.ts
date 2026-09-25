@@ -761,6 +761,29 @@ describe('mountApp', () => {
       expect(document.activeElement).toBe(editPledge());
     });
 
+    it('keeps focus in Find donor once a pledge added from No donor found is saved, though Add a pledge has gone', async () => {
+      // #given a number nobody has pledged with, and Add a pledge pressed from the keyboard
+      history.replaceState(null, '', '#find');
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      const search = root.querySelector('#lookup-input') as HTMLInputElement;
+      search.value = '555-010-0199';
+      search.dispatchEvent(new Event('input'));
+      openWithKeyboard(mainButton('Add a pledge'));
+      fill('name', 'Zara Ali');
+
+      // #when it is saved, so the same search now finds the new donor's card
+      submitDialog();
+
+      // #then focus lands on the view's heading, not the top of the page, and stays there when the save settles
+      await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
+      expect(root.querySelector('.lookup-card h2')?.textContent).toBe('Zara Ali');
+      expect(document.activeElement).toBe(root.querySelector('main h1'));
+      answerAll();
+      await vi.waitFor(() => expect(store.hasUnsettledWrites()).toBe(false));
+      expect(document.activeElement).toBe(root.querySelector('main h1'));
+    });
+
     it('keeps a focused Data-health Show through a redraw, and moves focus to the list’s heading once Show opens it', async () => {
       history.replaceState(null, '', '#summary');
       const { store, publish } = fakeStore({ payments: [payment({ id: 'y1', phone: '555-999-0000', amountReceived: 5, method: 'Cash' })] });
