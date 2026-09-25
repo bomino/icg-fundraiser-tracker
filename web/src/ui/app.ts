@@ -83,7 +83,7 @@ function adoptDisplayParam() {
 export function mountApp(root: HTMLElement, deps: AppDeps): void {
   mountToasts();
   let listFilter: { view: ViewName; filter: ListFilter } | null = null;
-  // Set by a Summary "Show N", whose button goes with the Summary; a Sections tab keeps its own focus.
+  // Set by a Summary "Show", whose button goes with the Summary; a Sections tab keeps its own focus.
   let focusListHeading = false;
   let exitDisplay: (() => void) | null = null;
   let shellShown = false;
@@ -120,7 +120,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   const main = h('main', { class: 'container', id: 'main' });
   const refresh = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Refresh');
   // Set once a refresh finds this account taken off the Allowlist. A failed load keeps every row in
-  // memory and Download .xlsx is built from them, so from then on nothing may draw the lists again.
+  // memory, so from then on nothing may draw the lists again.
   let removed = false;
   const showRemoved = (err: ApiError) => {
     removed = true;
@@ -148,34 +148,34 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
         loading = null;
       }
     })());
+  // Only a refresh (Refresh's, the return-to-tab one or Download's), and never on the projector: a save
+  // refused this way keeps its Reopen, so one mistaken Allowlist edit cannot throw away every
+  // volunteer's unsaved entry or blank the display.
+  const takenOffAllowlist = (err: unknown): err is ApiError => err instanceof ApiError && err.code === 'FORBIDDEN' && !exitDisplay;
   const reload = async () => {
     try {
       await load();
     } catch (err) {
-      // Only a refresh, and never on the projector: a save refused this way keeps its Reopen, so one
-      // mistaken Allowlist edit cannot throw away every volunteer's unsaved entry or blank the display.
-      if (err instanceof ApiError && err.code === 'FORBIDDEN' && !exitDisplay) showRemoved(err);
+      if (takenOffAllowlist(err)) showRemoved(err);
       else reportError(err);
     }
   };
   // Refreshed first: a laptop kept on the collection table all evening never leaves the tab, so it
   // never reloads on its own, and its copy would lack every other volunteer's entries. A failed
   // refresh rejects, so no out-of-date file is made. Built from the store afterwards, not from the
-  // state the Summary was drawn with, which the refresh has just replaced.
+  // state the Summary was drawn with, which the refresh has just replaced. The refresh's redraw keeps
+  // keyboard focus on Download through render()'s own restore, by its data-focus-key.
   let exporting = false;
   const exportWorkbook = async () => {
     if (exporting) return;
     exporting = true;
     try {
-      const pressed = document.activeElement;
       await load();
-      // The refresh redrew the Summary, button included, which would drop a keyboard volunteer back to
-      // the top of the page; one who has moved on meanwhile keeps their new focus.
-      if (pressed instanceof HTMLElement && !pressed.isConnected && document.activeElement === document.body) {
-        main.querySelector<HTMLElement>('[data-focus-key="download"]')?.focus();
-      }
       const state = deps.store.state();
       if (state) await downloadWorkbook(state, deps.store.lastLoadedAt());
+    } catch (err) {
+      if (!takenOffAllowlist(err)) throw err;
+      showRemoved(err);
     } finally {
       exporting = false;
     }

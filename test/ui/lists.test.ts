@@ -26,6 +26,13 @@ const type = (input: HTMLInputElement, value: string) => {
   input.value = value;
   input.dispatchEvent(new Event('input'));
 };
+// What the screen shows, and so what a status region reads out: .print-only text is hidden everywhere but on paper.
+const onScreenText = (element: Element) => {
+  const copy = element.cloneNode(true) as Element;
+  copy.querySelectorAll('.print-only').forEach((hidden) => hidden.remove());
+  return copy.textContent;
+};
+const downloadListButton = (view: HTMLElement) => Array.from(view.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === 'Download this list') as HTMLButtonElement;
 const openModalTitles = () => Array.from(document.querySelectorAll('dialog[open] .modal-title')).map((title) => title.textContent);
 const pressFormCancel = () => (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] .modal-actions button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
 const askToDelete = () => {
@@ -173,9 +180,16 @@ describe('pledges view: status chips and follow-up', () => {
     expect(status.textContent).toBe('');
     chip(view, 'Paid').click();
     expect(view.querySelector('[role=status]')).toBe(status);
-    expect(status.textContent).toBe('Showing 1 of 4');
+    expect(onScreenText(status)).toBe('Showing 1 of 4');
     chip(view, 'Pending').click();
-    expect(status.textContent).toBe('Showing 2 of 4');
+    expect(onScreenText(status)).toBe('Showing 2 of 4');
+  });
+
+  it('keeps Download this list out of that status region, which would read it out again with every new count', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    chip(view, 'Paid').click();
+    expect(downloadListButton(view).closest('[role=status]')).toBeNull();
   });
 
   it('arriving with a drill-down filter resets an active status chip to All, so the filtered rows are not hidden behind it', () => {
@@ -263,7 +277,14 @@ describe('payments view: date range', () => {
     expect(status.textContent).toBe('');
     type(dateInput(view, 'payments-date-from'), '2026-06-01');
     expect(view.querySelector('[role=status]')).toBe(status);
-    expect(status.textContent).toBe('Showing 2 of 4');
+    expect(onScreenText(status)).toBe('Showing 2 of 4');
+  });
+
+  it('keeps Download this list out of that status region, which would read it out again with every new count', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    type(dateInput(view, 'payments-date-from'), '2026-06-01');
+    expect(downloadListButton(view).closest('[role=status]')).toBeNull();
   });
 
   it('arriving with a drill-down filter clears an active date range, so out-of-range/undated rows are not hidden behind it', () => {

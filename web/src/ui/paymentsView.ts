@@ -85,7 +85,8 @@ export function createPaymentsView(deps: ListViewDeps) {
     };
     const tableSlot = h('div');
     // The region stays put while drawTable swaps the line inside it, so a screen reader hears each new count.
-    const showing = h('div', { class: 'list-status', role: 'status' });
+    const showing = h('div', { role: 'status' });
+    const downloadSlot = h('div');
     const drawTable = () => {
       const rows = state.computed.payments.filter(
         (d) =>
@@ -116,15 +117,15 @@ export function createPaymentsView(deps: ListViewDeps) {
         }),
       );
       const filterName = describeFilter([filter?.label, dateRangeFilter(dateFrom, dateTo), searchFilter(query)]);
-      showing.replaceChildren(
-        ...showingLine({
-          filter: filterName,
-          shown: sorted.length,
-          total: state.computed.payments.length,
-          download: () => downloadList({ list: 'Payments', filter: filterName, rows: sorted }, deps.store.lastLoadedAt()),
-          reportError: deps.reportError,
-        }),
-      );
+      const { line, download } = showingLine({
+        filter: filterName,
+        shown: sorted.length,
+        total: state.computed.payments.length,
+        download: () => downloadList({ list: 'Payments', filter: filterName, rows: sorted }, deps.store.lastLoadedAt()),
+        reportError: deps.reportError,
+      });
+      showing.replaceChildren(...(line ? [line] : []));
+      downloadSlot.replaceChildren(...(download ? [download] : []));
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
     search.value = query;
@@ -171,7 +172,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Money received'), h('h1', { class: 'display-md' }, 'Payments')), add),
       h('p', { class: 'totals-band' }, `${totals.paymentsWithAmount} payments · ${formatCents(totals.loggedCents)} logged`),
       h('div', { class: 'toolbar' }, search, dateRange, clearDates, filter ? filterChip(filter, clearFilter) : null),
-      showing,
+      h('div', { class: 'list-status' }, showing, downloadSlot),
       tableSlot,
     );
   };

@@ -101,6 +101,16 @@ it('makes no file, and says so, when the refresh fails', async () => {
   expect(refresh.disabled).toBe(false);
 });
 
+// Its refresh is a refresh like Refresh's: a removed account's open page must not go on showing every donor.
+it('clears the page to "Not on the volunteer list", and makes no file, when its refresh finds this account removed', async () => {
+  const { root, button, fail } = mount();
+
+  button('Download .xlsx').click();
+  await fail(new ApiError('FORBIDDEN', 'me@example.com is not on the volunteer list.'));
+
+  expect({ file: vi.mocked(downloadWorkbook).mock.calls.length, heading: root.querySelector('h1')?.textContent, toast: document.querySelector('.toast-error')?.textContent }).toEqual({ file: 0, heading: 'Not on the volunteer list', toast: undefined });
+});
+
 it('starts one refresh and makes one file when Download is pressed twice', async () => {
   const { button, load, land } = mount();
 

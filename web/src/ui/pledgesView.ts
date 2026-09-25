@@ -97,7 +97,8 @@ export function createPledgesView(deps: ListViewDeps) {
     };
     const tableSlot = h('div');
     // The region stays put while drawTable swaps the line inside it, so a screen reader hears each new count.
-    const showing = h('div', { class: 'list-status', role: 'status' });
+    const showing = h('div', { role: 'status' });
+    const downloadSlot = h('div');
     const drawTable = () => {
       const rows = state.computed.pledges.filter(
         (d) => (!filter || filter.ids.has(d.pledge.id)) && matchesChip(d) && matchesQuery(query, [d.pledge.phone, d.pledge.name, d.pledge.notes], d.key),
@@ -127,15 +128,15 @@ export function createPledgesView(deps: ListViewDeps) {
         }),
       );
       const filterName = describeFilter([filter?.label, statusChip === ALL_CHIP ? '' : statusChip, searchFilter(query)]);
-      showing.replaceChildren(
-        ...showingLine({
-          filter: filterName,
-          shown: sorted.length,
-          total: state.computed.pledges.length,
-          download: () => downloadList({ list: 'Pledges', filter: filterName, rows: sorted }, deps.store.lastLoadedAt()),
-          reportError: deps.reportError,
-        }),
-      );
+      const { line, download } = showingLine({
+        filter: filterName,
+        shown: sorted.length,
+        total: state.computed.pledges.length,
+        download: () => downloadList({ list: 'Pledges', filter: filterName, rows: sorted }, deps.store.lastLoadedAt()),
+        reportError: deps.reportError,
+      });
+      showing.replaceChildren(...(line ? [line] : []));
+      downloadSlot.replaceChildren(...(download ? [download] : []));
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', 'data-focus-key': 'pledges-search' });
     search.value = query;
@@ -168,7 +169,7 @@ export function createPledgesView(deps: ListViewDeps) {
       h('p', { class: 'totals-band' }, `Pledged ${formatCents(totals.pledgedCents)} · Received ${formatCents(totals.receivedCents)} · Outstanding ${formatCents(totals.outstandingCents)} · ${totals.pledgePaymentCount} payments`),
       h('div', { class: 'toolbar' }, search, filter ? filterChip(filter, clearFilter) : null),
       chipRow,
-      showing,
+      h('div', { class: 'list-status' }, showing, downloadSlot),
       tableSlot,
     );
   };

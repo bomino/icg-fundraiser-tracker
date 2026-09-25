@@ -2,8 +2,8 @@ import { escapeForSelector, rowOpenButton } from './table';
 
 /**
  * How to find a focused control again once a redraw has replaced it: by its data-focus-key, or, for a
- * row's open button, by the row's id. The view's heading and table are where focus lands after Show N
- * or a delete, so they are followed too.
+ * row's open button, by the row's id. The view's heading and table are where focus lands after a
+ * Data-health Show or a delete, so they are followed too.
  */
 export type FocusSpot = { key: string } | { rowId: string } | { place: 'heading' | 'table' };
 

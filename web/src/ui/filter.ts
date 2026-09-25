@@ -39,15 +39,21 @@ export interface ShowingOptions {
   reportError(err: unknown, context?: string): void;
 }
 
+export interface ShowingLine {
+  line: HTMLElement | null;
+  /** Kept apart from the line, which goes in a status region: a button inside one is read out again with every new count. */
+  download: HTMLElement | null;
+}
+
 /** "Showing N of M", and a Download this list button while any row matches. */
-export function showingLine(options: ShowingOptions): HTMLElement[] {
-  if (options.filter === '') return [];
+export function showingLine(options: ShowingOptions): ShowingLine {
+  if (options.filter === '') return { line: null, download: null };
   // Print hides the search box, chips and date range, so on paper the line names the filter itself.
   const line = h('p', { class: 'meta' }, `Showing ${options.shown} of ${options.total}`, h('span', { class: 'print-only' }, ` · ${options.filter}`));
-  if (options.shown === 0) return [line];
-  const download = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Download this list');
+  if (options.shown === 0) return { line, download: null };
+  const download = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'download-list' }, 'Download this list');
   download.addEventListener('click', () => {
     options.download().catch((err: unknown) => options.reportError(err, "Couldn't download the file"));
   });
-  return [line, download];
+  return { line, download };
 }

@@ -575,6 +575,22 @@ describe('mountApp', () => {
       expect(document.activeElement).toBe(mainButton('Add pledge'));
     });
 
+    it('keeps focus on a filtered list’s Download this list when a store publish redraws the list', () => {
+      // #given a filtered Pledges list with focus on its Download this list
+      const { store, publish } = fakeStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      (Array.from(root.querySelectorAll<HTMLButtonElement>('.chip-toggle')).find((chip) => chip.textContent === 'Pending') as HTMLButtonElement).click();
+      const download = mainButton('Download this list');
+      download.focus();
+
+      // #when another volunteer's save lands
+      publish();
+
+      // #then focus is on the redrawn button, not thrown back to the top of the page
+      expect(mainButton('Download this list')).not.toBe(download);
+      expect(document.activeElement).toBe(mainButton('Download this list'));
+    });
+
     it('returns focus to the row that was opened once Save has redrawn it, and keeps it there when the save settles', async () => {
       const store = await slowStore();
       mountApp(root, { store, auth: fakeAuth() });
@@ -713,7 +729,7 @@ describe('mountApp', () => {
       expect(document.activeElement).toBe(editPledge());
     });
 
-    it('keeps a focused Show N through a redraw, and moves focus to the list’s heading once Show N opens it', async () => {
+    it('keeps a focused Data-health Show through a redraw, and moves focus to the list’s heading once Show opens it', async () => {
       history.replaceState(null, '', '#summary');
       const { store, publish } = fakeStore({ payments: [payment({ id: 'y1', phone: '555-999-0000', amountReceived: 5, method: 'Cash' })] });
       mountApp(root, { store, auth: fakeAuth() });
@@ -729,7 +745,7 @@ describe('mountApp', () => {
       await vi.waitFor(() => expect(root.querySelector('main h1')?.textContent).toBe('Payments'));
       expect(document.activeElement).toBe(root.querySelector('main h1'));
       const heading = document.activeElement;
-      // A save landing just after Show N redraws the list; the heading must keep focus.
+      // A save landing just after Show redraws the list; the heading must keep focus.
       publish();
       expect(root.querySelector('main h1')).not.toBe(heading);
       expect(document.activeElement).toBe(root.querySelector('main h1'));
