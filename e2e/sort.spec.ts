@@ -32,3 +32,20 @@ test('on a wide screen the sorted heading shows its direction with an arrow scre
   await heading.click();
   await expect.poll(arrow).toContain('▼');
 });
+
+test('the arrow stays on the line with its heading, so sorting never makes the heading row taller', async ({ page }) => {
+  await openApp(page, 'pledges');
+  const headingRow = page.locator('.data-table thead');
+  const height = async () => (await headingRow.boundingBox())?.height;
+  const unsorted = await height();
+
+  for (const label of await page.locator('.data-table thead button').allTextContents()) {
+    const heading = page.getByRole('button', { name: label, exact: true });
+    await heading.click();
+    await expect(page.locator('.data-table th[aria-sort] button')).toHaveText(label);
+    expect(await height(), label).toBe(unsorted);
+    // Twice more returns the list to its default order before the next heading.
+    await heading.click();
+    await heading.click();
+  }
+});

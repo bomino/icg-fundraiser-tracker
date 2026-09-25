@@ -95,9 +95,11 @@ textarea.input { resize: vertical; }
 .data-table th button { all: unset; cursor: pointer; font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); }
 .data-table th[aria-sort] button { color: var(--color-ink); }
 /* Colour alone could not show the direction. aria-sort already tells screen readers, so the arrow's alt text is empty;
-   the plain declaration first is kept by browsers that reject the alt-text form (Firefox before 128, Safari before 17.4). */
-.data-table th[aria-sort='ascending'] button::after { content: ' ▲'; content: ' ▲' / ''; }
-.data-table th[aria-sort='descending'] button::after { content: ' ▼'; content: ' ▼' / ''; }
+   the plain declaration first is kept by browsers that reject the alt-text form (Firefox before 128, Safari before 17.4).
+   A no-break space, not a plain one, keeps the arrow beside the label's last word: under a narrow heading (# Payments)
+   it would otherwise wrap onto a line of its own and make the whole heading row taller when sorted. */
+.data-table th[aria-sort='ascending'] button::after { content: '\a0▲'; content: '\a0▲' / ''; }
+.data-table th[aria-sort='descending'] button::after { content: '\a0▼'; content: '\a0▼' / ''; }
 .data-table th.num { text-align: right; white-space: normal; }
 /* `all: unset` above (and on .match, in Lookup, and .row-open below) strips the global :focus-visible outline; restore it explicitly. */
 .data-table th button:focus-visible, .match:focus-visible, .row-open:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
