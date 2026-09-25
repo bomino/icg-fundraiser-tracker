@@ -1,6 +1,8 @@
+import type { NewRow } from '../api';
 import { todayIso } from '../dates';
 import { WARNING_MARK, createDonorResolver } from '../engine';
 import { parseAmount } from '../format';
+import { newId as makeId } from '../id';
 import { matchKey } from '../matchKey';
 import { isPending } from '../store';
 import type { Payment, PaymentDraft, Pledge } from '../types';
@@ -12,12 +14,14 @@ import { NOT_A_NUMBER, PAYMENT_HELP } from './help';
 
 export interface PaymentFormOptions {
   existing?: Payment;
+  /** The id a new payment is created under. Left out, the form makes one; Reopen passes it back, so a retried Save names the same row. */
+  newId?: string;
   /** Default phone for a new payment, e.g. opened from a donor's pledge or the Find donor card. */
   phone?: string;
   methods: readonly string[];
   pledges: readonly Pledge[];
-  /** Saves against `existing` as this form holds it; a reopened form may hold a newer version than the first one did. */
-  onSave(draft: PaymentDraft, existing: Payment | undefined): Promise<void>;
+  /** Saves against `existing` as this form holds it (a reopened form may hold a newer version than the first one did), or `{ id }` naming a new payment. */
+  onSave(draft: PaymentDraft, row: Payment | NewRow): Promise<void>;
   onDelete?: (existing: Payment) => Promise<void>;
   /** The row being edited as the store has it now, so a reopened form starts from the current version. */
   latest?: () => Payment | undefined;
@@ -26,6 +30,8 @@ export interface PaymentFormOptions {
 
 export function openPaymentForm(options: PaymentFormOptions, restore?: FormRestore): void {
   const existing = options.existing;
+  // One id per opened form: a Save retried after a lost response must name the same row.
+  const newId = options.newId ?? makeId();
   const resolveDonor = createDonorResolver(options.pledges);
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
@@ -71,11 +77,11 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     },
     validate: (draft) => validatePayment(draft, options.methods),
     describe: (draft) => (draft.phone ? `the payment from ${draft.phone}` : 'the payment'),
-    onSave: (draft) => options.onSave(draft, existing),
+    onSave: (draft) => options.onSave(draft, existing ?? { id: newId }),
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     deleteMessage: 'Delete this payment? It will be removed from every total.',
     reportError: options.reportError,
-    reopen: (again) => openPaymentForm({ ...options, existing: existing && (options.latest?.() ?? existing) }, again),
+    reopen: (again) => openPaymentForm({ ...options, newId, existing: existing && (options.latest?.() ?? existing) }, again),
     restore,
     busy: () => (existing ? isPending(existing) : false),
   });

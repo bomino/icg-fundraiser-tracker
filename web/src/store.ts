@@ -1,6 +1,5 @@
-import { ApiError, type Api } from './api';
+import { ApiError, type Api, type NewRow } from './api';
 import { compute, type Computed } from './engine';
-import { newId as makeId } from './id';
 import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
 
 export interface State {
@@ -21,9 +20,12 @@ export interface Store {
   load(): Promise<void>;
   /** Epoch ms of the last successful load, or null before the first one. */
   lastLoadedAt(): number | null;
-  /** newId names a created row; pass the same one when retrying so the server can spot the repeat. */
-  savePledge(draft: PledgeDraft, existing?: Pledge, newId?: string): Promise<void>;
-  savePayment(draft: PaymentDraft, existing?: Payment, newId?: string): Promise<void>;
+  /**
+   * `row` is the row being edited, or `{ id }` naming a new one. It is required, so a create cannot
+   * quietly get a fresh id per attempt: a retry must pass the same id so the server can spot the repeat.
+   */
+  savePledge(draft: PledgeDraft, row: Pledge | NewRow): Promise<void>;
+  savePayment(draft: PaymentDraft, row: Payment | NewRow): Promise<void>;
   deletePledge(row: Pledge): Promise<void>;
   deletePayment(row: Payment): Promise<void>;
   setGoal(goal: number): Promise<void>;
@@ -192,8 +194,8 @@ export function createStore(api: Api, today: () => string): Store {
     throw outcome.error;
   }
 
-  const provisionalFields = (existing: Row | undefined, newId: string) => ({
-    id: existing?.id ?? newId,
+  const provisionalFields = (existing: Row | undefined, id: string) => ({
+    id,
     updatedAt: existing?.updatedAt ?? '',
     updatedBy: existing?.updatedBy ?? loaded().me,
   });
@@ -225,10 +227,14 @@ export function createStore(api: Api, today: () => string): Store {
         }
       }
     },
-    savePledge: (draft, existing, newId = makeId()) =>
-      save(pledgeRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePledge(draft, existing ?? { id: newId })),
-    savePayment: (draft, existing, newId = makeId()) =>
-      save(paymentRows, { ...provisionalFields(existing, newId), ...draft }, existing, () => api.savePayment(draft, existing ?? { id: newId })),
+    savePledge: (draft, row) => {
+      const existing = row.updatedAt === undefined ? undefined : row;
+      return save(pledgeRows, { ...provisionalFields(existing, row.id), ...draft }, existing, () => api.savePledge(draft, row));
+    },
+    savePayment: (draft, row) => {
+      const existing = row.updatedAt === undefined ? undefined : row;
+      return save(paymentRows, { ...provisionalFields(existing, row.id), ...draft }, existing, () => api.savePayment(draft, row));
+    },
     deletePledge: (row) => remove(pledgeRows, row, () => api.deletePledge(row)),
     deletePayment: (row) => remove(paymentRows, row, () => api.deletePayment(row)),
     async setGoal(goal) {

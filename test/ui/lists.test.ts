@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ApiError, type Api } from '../../web/src/api';
 import { compute } from '../../web/src/engine';
 import { createStore, type State, type Store } from '../../web/src/store';
 import type { Payment, PaymentDraft } from '../../web/src/types';
 import type { ListFilter } from '../../web/src/ui/filter';
-import { openPaymentForm } from '../../web/src/ui/paymentForm';
+import { openPaymentForm, type PaymentFormOptions } from '../../web/src/ui/paymentForm';
 import { openPledgeForm } from '../../web/src/ui/pledgeForm';
 import { createPaymentsView } from '../../web/src/ui/paymentsView';
 import { createPledgesView } from '../../web/src/ui/pledgesView';
@@ -318,6 +318,15 @@ describe('payment form', () => {
     await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0][0]).toEqual({ phone: '555-010-0103', dateReceived: TODAY_LOCAL(), amountReceived: 1200, method: '', notes: '' });
   });
+
+  it('saves a new payment under the id it was opened with', async () => {
+    const onSave = vi.fn<PaymentFormOptions['onSave']>(async () => undefined);
+    openPaymentForm({ newId: 'chosen-id', phone: '555-010-0103', methods: METHODS, pledges, onSave, reportError: vi.fn() });
+    type(document.querySelector('input[name=amountReceived]') as HTMLInputElement, '20');
+    (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][1]).toEqual({ id: 'chosen-id' });
+  });
 });
 
 describe('pledge form', () => {
@@ -405,6 +414,16 @@ describe('instant save from the lists', () => {
     (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
   };
   const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+  // The open form's first Save fails as if the connection dropped; it is then reopened from the error toast and saved again.
+  const saveThenRetryFromToast = async (save: Mock<Store['savePayment']>, values: Record<string, string>) => {
+    save.mockImplementationOnce(async () => { throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.'); });
+    fillAndSave(values);
+    await vi.waitFor(() => expect(button('Reopen')).toBeDefined());
+    button('Reopen').click();
+    fillAndSave({});
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    return save.mock.calls.map((call) => call[1]);
+  };
 
   it('reopens a failed new pledge exactly as typed and retries it under the same id, so it can never be added twice', async () => {
     // #given a save that fails with a lost connection
@@ -425,9 +444,28 @@ describe('instant save from the lists', () => {
     // #then both attempts name the same new row
     await vi.waitFor(() => expect(savePledge).toHaveBeenCalledTimes(2));
     const [first, second] = savePledge.mock.calls;
-    expect(first[2]).toEqual(expect.any(String));
-    expect(second[2]).toBe(first[2]);
+    expect(first[1]).toEqual({ id: expect.any(String) });
+    expect(second[1]).toEqual(first[1]);
     expect(second[0]).toEqual(first[0]);
+  });
+
+  it('retries a failed new payment from Payments under the same id', async () => {
+    const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
+    document.body.append(createPaymentsView({ store: { ...store, savePayment } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    button('Log a payment').click();
+    const [first, second] = await saveThenRetryFromToast(savePayment, { phone: '555-010-0103', amountReceived: '20' });
+    expect(first).toEqual({ id: expect.any(String) });
+    expect(second).toEqual(first);
+  });
+
+  it('retries a failed payment logged from the pledge dialog under the same id', async () => {
+    const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
+    document.body.append(createPledgesView({ store: { ...store, savePayment } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    (document.querySelector('tr[data-id="p3"] .row-open') as HTMLButtonElement).click();
+    button('Log a payment').click();
+    const [first, second] = await saveThenRetryFromToast(savePayment, { amountReceived: '20' });
+    expect(first).toEqual({ id: expect.any(String) });
+    expect(second).toEqual(first);
   });
 
   it('reopens a failed payment edit with the edited values, saving against the row as it is now', async () => {

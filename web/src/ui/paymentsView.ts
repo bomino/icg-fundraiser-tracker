@@ -1,6 +1,5 @@
 import type { DerivedPayment } from '../engine';
 import { formatCents, formatDate } from '../format';
-import { newId as makeId } from '../id';
 import { toCents } from '../money';
 import { isPending, type State } from '../store';
 import type { Payment } from '../types';
@@ -42,13 +41,11 @@ export function createPaymentsView(deps: ListViewDeps) {
       }
     }
     const openEditor = (existing?: Payment) => {
-      // One id per opened form: a Save retried after a lost response must name the same row.
-      const newId = existing ? undefined : makeId();
       openPaymentForm({
         existing,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
-        onSave: (draft, current) => deps.store.savePayment(draft, current, newId),
+        onSave: (draft, row) => deps.store.savePayment(draft, row),
         onDelete: (current) => deps.store.deletePayment(current),
         latest: () => deps.store.state()?.payments.find((p) => p.id === existing?.id),
         reportError: deps.reportError,

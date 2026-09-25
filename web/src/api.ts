@@ -28,8 +28,14 @@ export interface Versioned {
   updatedAt: string;
 }
 
+/** A row not created yet, named by the id the client chose for it. */
+export interface NewRow {
+  id: string;
+  updatedAt?: undefined;
+}
+
 /** A new row carries only the id the client chose; an existing row also carries the version it was read at. */
-export type RowRef = { id: string; updatedAt?: undefined } | Versioned;
+export type RowRef = NewRow | Versioned;
 
 export interface Api {
   load(): Promise<LoadResult>;

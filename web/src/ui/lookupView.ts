@@ -1,6 +1,5 @@
 import { findByName, findByPhone, paymentsForKey, type DerivedPayment, type DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
-import { newId as makeId } from '../id';
 import { toCents } from '../money';
 import { isPending, type State } from '../store';
 import { methodBadge, statusBadge } from './badges';
@@ -52,13 +51,11 @@ export function createLookupView(deps: ListViewDeps) {
   return function render(state: State): HTMLElement {
     const results = h('div', { class: 'view' });
     const openPaymentFor = (donor: DerivedPledge) => {
-      // One id per opened form: a Save retried after a lost response must name the same row.
-      const paymentId = makeId();
       openPaymentForm({
         phone: donor.pledge.phone,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
-        onSave: (draft) => deps.store.savePayment(draft, undefined, paymentId),
+        onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });
     };

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compute } from '../../web/src/engine';
-import type { Api } from '../../web/src/api';
+import { ApiError, type Api } from '../../web/src/api';
 import { createStore, type State, type Store } from '../../web/src/store';
 import { createLookupView } from '../../web/src/ui/lookupView';
 import type { PaymentDraft } from '../../web/src/types';
@@ -22,6 +22,13 @@ const search = (view: HTMLElement, text: string) => {
   input.value = text;
   input.dispatchEvent(new Event('input'));
 };
+const type = (name: string, value: string) => {
+  const input = document.querySelector(`dialog[open] [name=${name}]`) as HTMLInputElement;
+  input.value = value;
+  input.dispatchEvent(new Event('input'));
+};
+const submit = () => (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement;
 
 describe('find donor', () => {
   it('finds by phone in any format and shows payment history as text', () => {
@@ -80,6 +87,26 @@ describe('find donor', () => {
     expect(savePayment.mock.calls[0][0]).toMatchObject({ phone: '555-010-0101', amountReceived: 25 });
   });
 
+  it('retries a failed payment logged from the donor card under the same id', async () => {
+    // #given a payment logged from the card whose save fails with a lost connection
+    const savePayment = vi.fn<Store['savePayment']>(async () => { throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.'); });
+    document.body.append(createLookupView({ store: { savePayment } as unknown as Store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 010 0101');
+    button('Log a payment').click();
+    type('amountReceived', '25');
+    submit();
+    // #when the volunteer reopens it from the error toast and saves again
+    await vi.waitFor(() => expect(button('Reopen')).toBeDefined());
+    savePayment.mockImplementationOnce(async () => undefined);
+    button('Reopen').click();
+    submit();
+    // #then both attempts name the same new row
+    await vi.waitFor(() => expect(savePayment).toHaveBeenCalledTimes(2));
+    const [first, second] = savePayment.mock.calls.map((call) => call[1]);
+    expect(first).toEqual({ id: expect.any(String) });
+    expect(second).toEqual(first);
+  });
+
   it('labels a payment that is still saving in the donor card history', async () => {
     const api = {
       load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me' }),
@@ -87,7 +114,7 @@ describe('find donor', () => {
     } as unknown as Api;
     const liveStore = createStore(api, () => TODAY);
     await liveStore.load();
-    void liveStore.savePayment({ phone: '555-010-0101', dateReceived: '2025-02-01', amountReceived: 10, method: 'Cash', notes: '' });
+    void liveStore.savePayment({ phone: '555-010-0101', dateReceived: '2025-02-01', amountReceived: 10, method: 'Cash', notes: '' }, { id: 'lookup-saving-1' });
     const view = createLookupView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State);
     search(view, '(555) 010 0101');
     const saving = Array.from(view.querySelectorAll('.lookup-card tbody tr')).filter((tr) => tr.classList.contains('row-pending'));

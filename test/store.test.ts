@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { ApiError, type Api } from '../web/src/api';
-import { createStore, isPending } from '../web/src/store';
-import type { Pledge } from '../web/src/types';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { ApiError, type Api, type NewRow } from '../web/src/api';
+import { createStore, isPending, type Store } from '../web/src/store';
+import type { Payment, PaymentDraft, Pledge, PledgeDraft } from '../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from './support/factories';
 
 function deferred<T>() {
@@ -65,10 +65,10 @@ describe('store', () => {
     const pending = deferred<Pledge>();
     const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);
     await store.load();
-    const saving = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' });
+    const saving = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' }, { id: 'new-1' });
     const provisional = store.state()?.pledges.at(-1) as Pledge;
     expect(provisional.name).toBe('Bilal');
-    expect(provisional.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(provisional.id).toBe('new-1');
     expect(isPending(provisional)).toBe(true);
     pending.resolve({ ...aisha, id: provisional.id, phone: '2', name: 'Bilal', updatedAt: 'v1' });
     await saving;
@@ -77,14 +77,19 @@ describe('store', () => {
     expect(isPending(saved)).toBe(false);
   });
 
+  it('cannot save without the row: the edited one, or the id a new one is created under', () => {
+    expectTypeOf<Parameters<Store['savePledge']>>().toEqualTypeOf<[PledgeDraft, Pledge | NewRow]>();
+    expectTypeOf<Parameters<Store['savePayment']>>().toEqualTypeOf<[PaymentDraft, Payment | NewRow]>();
+  });
+
   it('creates under the id it was given and sends no version, so a retry reuses the row', async () => {
     const savePledge = vi.fn<Api['savePledge']>(async () => { throw new ApiError('NETWORK', 'offline'); });
     const store = createStore(fakeApi({ savePledge }), () => TODAY);
     await store.load();
     const draft = { ...draftOf(aisha), phone: '2', name: 'Bilal' };
-    await expect(store.savePledge(draft, undefined, '11111111-2222-4333-8444-555555555555')).rejects.toMatchObject({ code: 'NETWORK' });
+    await expect(store.savePledge(draft, { id: '11111111-2222-4333-8444-555555555555' })).rejects.toMatchObject({ code: 'NETWORK' });
     savePledge.mockImplementationOnce(async (d, row) => ({ ...aisha, ...d, id: row.id, updatedAt: 'v1' }));
-    await store.savePledge(draft, undefined, '11111111-2222-4333-8444-555555555555');
+    await store.savePledge(draft, { id: '11111111-2222-4333-8444-555555555555' });
     expect(savePledge.mock.calls.map((call) => call[1])).toEqual([{ id: '11111111-2222-4333-8444-555555555555' }, { id: '11111111-2222-4333-8444-555555555555' }]);
     expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', '11111111-2222-4333-8444-555555555555']);
     expect(store.state()?.pledges.some(isPending)).toBe(false);
@@ -128,7 +133,7 @@ describe('store', () => {
     const pending = deferred<Pledge>();
     const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);
     await store.load();
-    const saving = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' }, undefined, 'new-1');
+    const saving = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' }, { id: 'new-1' });
     await store.load();
     expect(store.state()?.pledges.map((p) => p.name)).toEqual(['Aisha', 'Bilal']);
     expect(isPending({ id: 'new-1' })).toBe(true);
@@ -188,7 +193,7 @@ describe('store', () => {
       () => TODAY,
     );
     await store.load();
-    const saving = store.savePledge({ ...draftOf(aisha), name: 'Bilal' }, undefined, 'new-1');
+    const saving = store.savePledge({ ...draftOf(aisha), name: 'Bilal' }, { id: 'new-1' });
     expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', 'new-1']);
     await saving;
     expect(store.state()?.pledges.map((p) => p.id)).toEqual(['p1', 'new-1']);
@@ -205,7 +210,7 @@ describe('store', () => {
   it('removes a failed new row entirely', async () => {
     const store = createStore(fakeApi({ savePledge: async () => { throw new ApiError('NETWORK', 'offline'); } }), () => TODAY);
     await store.load();
-    await expect(store.savePledge(draftOf(aisha))).rejects.toMatchObject({ code: 'NETWORK' });
+    await expect(store.savePledge(draftOf(aisha), { id: 'new-1' })).rejects.toMatchObject({ code: 'NETWORK' });
     expect(store.state()?.pledges).toHaveLength(1);
   });
 
@@ -327,7 +332,7 @@ describe('store', () => {
       const first = store.load();
       loads[0].resolve();
       await first;
-      const save = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' }, undefined, 'new-1');
+      const save = store.savePledge({ ...draftOf(aisha), phone: '2', name: 'Bilal' }, { id: 'new-1' });
       const stale = store.load();
       saving.resolve({ ...aisha, id: 'new-1', phone: '2', name: 'Bilal', updatedAt: 'v1' });
       await save;
