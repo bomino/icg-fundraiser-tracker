@@ -97,17 +97,18 @@ export function createLookupView(deps: ListViewDeps) {
     const announce = (text: string) => {
       if (found.textContent !== text) found.textContent = text;
     };
-    const openPaymentFor = (donor: DerivedPledge) => {
+    const logPaymentFrom = (phone: string, current: State) => {
       openPaymentForm({
-        phone: donor.pledge.phone,
-        methods: state.settings.paymentMethods,
-        pledges: state.pledges,
-        computed: state.computed,
+        phone,
+        methods: current.settings.paymentMethods,
+        pledges: current.pledges,
+        computed: current.computed,
         pledgesLoadedAt: deps.store.lastLoadedAt(),
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });
     };
+    const openPaymentFor = (donor: DerivedPledge) => logPaymentFrom(donor.pledge.phone, state);
     const editPledge = (donor: DerivedPledge) => {
       // Pins the card to this pledge: after an edit to the phone the volunteer searched by, the search alone would say "No donor found".
       chosenId = donor.pledge.id;
@@ -143,6 +144,9 @@ export function createLookupView(deps: ListViewDeps) {
         phone: /^\d+$/.test(matchKey(text).slice(1)) ? text : undefined,
         pledges: state.pledges,
         onSave: (draft, row) => deps.store.savePledge(draft, row),
+        // A walk-in donor often pledges and pays at once. Read now, not at render: the pledge whose save has
+        // just started is already in the store, and the donor preview must find it.
+        onLogPayment: (phone) => logPaymentFrom(phone, deps.store.state() ?? state),
         reportError: deps.reportError,
       });
     };

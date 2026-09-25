@@ -176,6 +176,30 @@ describe('find donor', () => {
     expect(second).not.toBe(first);
   });
 
+  it('lets a walk-in donor pledge and pay in one step from Add a pledge, matched to the pledge just saved', async () => {
+    // #given a live store, so the payment form finds the pledge the moment its save starts
+    const api = {
+      load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me' }),
+      savePledge: () => new Promise(() => undefined),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    document.body.append(createLookupView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State));
+    search(document.body, '555 777 0001');
+    button('Add a pledge').click();
+    type('name', 'Zara');
+    type('amountPledged', '50');
+
+    // #when the one-step button is pressed
+    button('Save and log a payment').click();
+
+    // #then only the payment form is open, already matched to the new donor
+    await vi.waitFor(() => expect(dialogTitle()).toBe('Log a payment'));
+    expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
+    expect((document.querySelector('dialog[open] [name=phone]') as HTMLInputElement).value).toBe('555 777 0001');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Zara · owes $50.00 of $50.00');
+  });
+
   it('leaves the phone blank on Add a pledge after a search with letters in it, digits or not', () => {
     for (const text of ['Zainab', 'Zainab 2']) {
       document.body.replaceChildren(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));

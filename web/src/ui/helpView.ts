@@ -494,7 +494,7 @@ function howTo(): Child[] {
       'Someone pledges and pays at once',
       p('When a donor makes a pledge and hands over money in the same visit — or gives money without ever having pledged — record both in one go, typing the phone number only once.'),
       steps(
-        ['Go to ', b('Pledges'), ' and press ', b('Add pledge'), '.'],
+        ['Go to ', b('Pledges'), ' and press ', b('Add pledge'), '. If you have just searched for them on ', b('Find donor'), ', press ', b('Add a pledge'), ' there instead.'],
         ['Fill in the pledge as usual, starting with the phone number.'],
         ['Press ', b('Save and log a payment'), '. The pledge saves, and the payment form opens with the phone number filled in and the donor’s name under it.'],
         ['The cursor is already in Amount received. Type the amount, pick the payment method, and press ', b('Save'), '.'],
