@@ -140,6 +140,24 @@ describe('pledges view', () => {
     expect(document.querySelector('th[aria-sort]')).toBeNull();
   });
 
+  it('keeps keyboard focus on a heading through its sort cycle, though each press redraws the table', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    const nameHeader = () => Array.from(document.querySelectorAll<HTMLButtonElement>('th button')).find((b) => b.textContent === 'Donor Name') as HTMLButtonElement;
+    nameHeader().focus();
+    const sortShownOnFocus = () => (document.activeElement as HTMLElement).closest('th')?.getAttribute('aria-sort');
+
+    (document.activeElement as HTMLButtonElement).click();
+    expect(document.activeElement).toBe(nameHeader());
+    expect(sortShownOnFocus()).toBe('ascending');
+    (document.activeElement as HTMLButtonElement).click();
+    expect(sortShownOnFocus()).toBe('descending');
+    (document.activeElement as HTMLButtonElement).click();
+
+    expect(document.activeElement).toBe(nameHeader());
+    expect(sortShownOnFocus()).toBeNull();
+  });
+
   it('opens Log a payment from a pledge knowing how old the list is', async () => {
     const view = createPledgesView({ store: { ...store, lastLoadedAt: () => Date.now() - STALE_LOAD_MS } as Store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);

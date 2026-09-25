@@ -49,3 +49,19 @@ test('the arrow stays on the line with its heading, so sorting never makes the h
     await heading.click();
   }
 });
+
+test('a heading keeps keyboard focus through its three-press cycle', async ({ page }) => {
+  await openApp(page, 'pledges');
+  const heading = page.getByRole('button', { name: 'Amount Pledged', exact: true });
+  const sorted = page.locator('th', { has: heading });
+  await heading.focus();
+
+  await page.keyboard.press('Enter');
+  await expect(sorted).toHaveAttribute('aria-sort', 'ascending');
+  await page.keyboard.press('Enter');
+  await expect(sorted).toHaveAttribute('aria-sort', 'descending');
+  await page.keyboard.press('Enter');
+
+  await expect(sorted).not.toHaveAttribute('aria-sort');
+  await expect(heading).toBeFocused();
+});

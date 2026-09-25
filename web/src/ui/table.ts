@@ -127,8 +127,16 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
       const classes = [column.numeric ? 'num' : '', column.columnClass ?? ''].filter(Boolean).join(' ');
       const heading = (content: Child) => h('th', { scope: 'col', class: classes || undefined, 'aria-sort': sorted === null ? undefined : sorted === 'asc' ? 'ascending' : 'descending' }, content);
       if (!onSort) return heading(h('span', { class: 'eyebrow' }, column.label));
-      const button = h('button', { type: 'button' }, column.label);
-      button.addEventListener('click', () => onSort(column.key));
+      // A focus key, so a store publish's redraw can find the heading again too.
+      const focusKey = `sort:${column.key}`;
+      const button = h('button', { type: 'button', 'data-focus-key': focusKey }, column.label);
+      button.addEventListener('click', () => {
+        const hadFocus = document.activeElement === button;
+        onSort(column.key);
+        // onSort redraws the table, this heading included. Following it lets a keyboard step through the
+        // three-press cycle without tabbing back, and a screen reader hear the heading's new aria-sort.
+        if (hadFocus) document.querySelector<HTMLElement>(`[data-focus-key="${escapeForSelector(focusKey)}"]`)?.focus();
+      });
       return heading(button);
     }),
   );
