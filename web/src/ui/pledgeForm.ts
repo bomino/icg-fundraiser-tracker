@@ -9,6 +9,7 @@ import { h } from './dom';
 import { field } from './field';
 import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
+import { dialNumber } from './phoneLinks';
 
 export interface PledgeFormOptions {
   existing?: Pledge;
@@ -51,6 +52,19 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   fields.phone.input.addEventListener('input', updateHint);
   updateHint();
 
+  // Here, not on the Pledges rows: each row is a button that opens this dialog, and a link cannot sit inside a button.
+  const call = h('a', { class: 'btn btn-secondary' }, 'Call');
+  const text = h('a', { class: 'btn btn-secondary' }, 'Text');
+  const contact = h('div', { class: 'toolbar' }, call, text);
+  const updateContact = () => {
+    const number = dialNumber(fields.phone.input.value);
+    contact.hidden = number === '';
+    call.href = `tel:${number}`;
+    text.href = `sms:${number}`;
+  };
+  fields.phone.input.addEventListener('input', updateContact);
+  updateContact();
+
   // Snapshot at open time, to ask before discarding an in-progress edit for "Log a payment".
   const initial = {
     phone: fields.phone.input.value,
@@ -81,7 +95,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   }
 
   const onDelete = options.onDelete;
-  const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
+  const form = h('form', { class: 'form' }, fields.phone.wrapper, contact, duplicateHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
   const dialog = runForm<PledgeDraft>({
     title: existing ? 'Edit pledge' : 'Add pledge',
     form,

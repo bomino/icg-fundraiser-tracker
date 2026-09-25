@@ -367,6 +367,30 @@ describe('pledge form', () => {
     expect(hint.textContent).toContain('Aisha Rahman');
   });
 
+  it('offers Call and Text for the phone as typed, dialling only its digits and plus sign, and only when it has digits', () => {
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+    const link = (name: string) => Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === name) as HTMLAnchorElement;
+    expect(link('Call').getAttribute('href')).toBe('tel:5550100103');
+    expect(link('Text').getAttribute('href')).toBe('sms:5550100103');
+    const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
+    type(phone, '+1 (555) 010.0199');
+    expect(link('Call').getAttribute('href')).toBe('tel:+15550100199');
+    expect(link('Text').getAttribute('href')).toBe('sms:+15550100199');
+    expect(link('Call').closest('[hidden]')).toBeNull();
+    type(phone, '--');
+    expect(link('Call').closest('[hidden]')).not.toBeNull();
+    expect(link('Text').closest('[hidden]')).not.toBeNull();
+  });
+
+  it('hides Call and Text on a new pledge until a phone number is typed', () => {
+    openPledgeForm({ pledges, onSave: vi.fn(), reportError: vi.fn() });
+    const call = Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === 'Call') as HTMLAnchorElement;
+    expect(call.closest('[hidden]')).not.toBeNull();
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '555 0102');
+    expect(call.closest('[hidden]')).toBeNull();
+    expect(call.getAttribute('href')).toBe('tel:5550102');
+  });
+
   it('rejects an amount that is not a number', () => {
     const onSave = vi.fn();
     openPledgeForm({ pledges, onSave, reportError: vi.fn() });

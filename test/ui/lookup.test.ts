@@ -37,6 +37,19 @@ describe('find donor', () => {
     expect(view.textContent).toContain('Partial');
   });
 
+  it('makes the phone on the donor card a call link of its digits, left as text when it has none', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    const phoneCell = () => Array.from(view.querySelectorAll('.lookup-card dt')).find((dt) => dt.textContent === 'Phone')?.nextElementSibling as HTMLElement;
+    search(view, '(555) 010 0101');
+    const link = phoneCell().querySelector('a') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('tel:5550100101');
+    expect(link.textContent).toBe('555-010-0101');
+    search(view, 'dashes');
+    (view.querySelector('.match') as HTMLButtonElement).click();
+    expect(phoneCell().querySelector('a')).toBeNull();
+    expect(phoneCell().textContent).toBe('--');
+  });
+
   it('lists name matches, then opens the chosen donor', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, 'aisha');

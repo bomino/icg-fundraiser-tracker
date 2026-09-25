@@ -253,7 +253,9 @@ function theScreens(): Child[] {
           b('Overpaid'),
           ' chips filter to that status. ',
           b('Needs follow-up'),
-          ' finds Pending or Partial donors with no pledge or payment activity in the last 30 days, biggest balance first.',
+          ' finds Pending or Partial donors with no payment, and no change saved to their pledge, in the last 30 days, biggest balance first. See ',
+          b('Follow up with donors who still owe'),
+          ' in How to….',
         ],
       ),
     ),
@@ -273,7 +275,7 @@ function theScreens(): Child[] {
       p('When lots of donors match, only the first 20 are listed, under a line such as ', said(`Showing 20 of 312 — ${SAID.keepTyping}`), ' Type a few more letters or digits and the list shrinks.'),
       p('If nobody matches, it says ', said(SAID.noDonorFound), ' and offers ', b('Add a pledge'), '. If you searched by phone number, that number is already filled in on the pledge form. If you only typed part of the number, type the rest before saving.'),
       p('If your list was last refreshed more than a couple of minutes ago, it also says how long ago, and adds ', said(SAID.refreshBeforePledge), ' Another volunteer may have just added that donor, and two pledges for the same donor count their payments twice.'),
-      p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made.'),
+      p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made. On a phone, tap their phone number to call them.'),
     ),
     topic(
       'Search and sort',
@@ -291,7 +293,7 @@ function theScreens(): Child[] {
           b('Overpaid'),
           ' chips filter to that status. ',
           b('Needs follow-up'),
-          ' finds Pending or Partial donors with no pledge or payment activity in the last 30 days, biggest balance first.',
+          ' finds Pending or Partial donors with no payment, and no change saved to their pledge, in the last 30 days, biggest balance first.',
         ],
         [
           'On Payments, ',
@@ -374,6 +376,22 @@ function howTo(): Child[] {
     topic(
       'Edit a pledge or payment',
       steps(['Find the row on Pledges or Payments (use the search box).'], ['Tap the row. The form opens with its current values.'], ['Change what you need and press ', b('Save'), '.']),
+    ),
+    topic(
+      'Follow up with donors who still owe',
+      steps(
+        ['On ', b('Pledges'), ', tap ', b('Needs follow-up'), '. The donors who owe the most are at the top.'],
+        ['Tap a donor to open their pledge. Press ', b('Call'), ' or ', b('Text'), ', just under the phone number, to ring or message them from your phone.'],
+        ['After calling, add a note such as “Called 24 Sep – paying Friday” and press ', b('Save'), '.'],
+      ),
+      p('The note shows on the donor’s row and their Find donor card, so other volunteers can see they were called once their list refreshes. Saving it also takes the donor off Needs follow-up for 30 days, so nobody calls them again straight away.'),
+      note(
+        'Any change saved to a pledge restarts its 30 days, even fixing a typo in the name. After many pledges are tidied up at once, those donors stay off Needs follow-up for a month, so check the ',
+        b('Pending'),
+        ' and ',
+        b('Partial'),
+        ' chips too.',
+      ),
     ),
     topic(
       'Delete a pledge or payment',

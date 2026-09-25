@@ -7,6 +7,7 @@ import { isPending, type State } from '../store';
 import { methodBadge, statusBadge } from './badges';
 import { h } from './dom';
 import { openPaymentForm } from './paymentForm';
+import { phoneLink } from './phoneLinks';
 import { openPledgeForm } from './pledgeForm';
 import type { ListViewDeps } from './pledgesView';
 import { matchesQuery } from './search';
@@ -26,7 +27,7 @@ const HISTORY: Column<DerivedPayment>[] = [
 
 function donorCard(donor: DerivedPledge, payments: DerivedPayment[], onLogPayment: () => void): HTMLElement {
   const rows: Array<[string, Node | string]> = [
-    ['Phone', donor.pledge.phone],
+    ['Phone', phoneLink(donor.pledge.phone)],
     ['Date pledged', formatDate(donor.pledge.datePledged)],
     ['Amount pledged', formatCents(toCents(donor.pledge.amountPledged))],
     ['Amount received', formatCents(donor.receivedCents)],

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../web/src/api';
 import { createDemoApi } from '../web/src/demo';
-import { compute } from '../web/src/engine';
+import { compute, needsFollowUp } from '../web/src/engine';
 import { todayIso } from '../web/src/dates';
 
 describe('demo api', () => {
@@ -17,6 +17,15 @@ describe('demo api', () => {
     expect(names).toContain('⚠ phone not in Pledges');
     expect(names).toContain('⚠ no amount on Pledges');
     expect(computed.health.every((check) => check.ids.length > 0)).toBe(true);
+  });
+
+  it('seeds donors who need a follow-up, in both seeds', async () => {
+    // e2e/needs-follow-up.spec.ts asserts on a non-empty list, on whatever day the suite runs.
+    for (const big of [false, true]) {
+      const data = await createDemoApi(0, { big }).load();
+      const computed = compute(data.pledges, data.payments, data.settings, todayIso());
+      expect(computed.pledges.some((row) => needsFollowUp(row, todayIso())), big ? 'big seed' : 'small seed').toBe(true);
+    }
   });
 
   it('round-trips a save and stamps the demo user', async () => {

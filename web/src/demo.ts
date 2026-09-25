@@ -7,6 +7,9 @@ import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './typ
 const DEMO_USER = 'demo@example.com';
 const SEEDED_BY = 'organiser@example.com';
 const SEEDED_AT = '2026-09-01T12:00:00.000Z';
+// A seeded pledge was last saved on the day it was pledged. A saved change counts as follow-up
+// activity (engine/followUp.ts), so the shared, recent SEEDED_AT would empty Needs follow-up.
+const pledgeSavedOn = (datePledged: string) => `${datePledged}T12:00:00.000Z`;
 const DEFAULT_LATENCY_MS = 300;
 const VERSION_FIELDS = new Set(['id', 'updatedAt', 'updatedBy']);
 const METHODS = ['Cash', 'Bank Transfer', 'Card', 'Check', 'Online', 'Other'];
@@ -66,7 +69,7 @@ function seedPledges(): Pledge[] {
     datePledged,
     amountPledged,
     notes,
-    updatedAt: SEEDED_AT,
+    updatedAt: pledgeSavedOn(datePledged),
     updatedBy: SEEDED_BY,
   }));
 }
@@ -122,14 +125,15 @@ function seedBigPledges(): Pledge[] {
     const last = BIG_LAST_NAMES[(index * 7 + 3) % BIG_LAST_NAMES.length];
     // 1-in-29 pledges have no amount yet, matching the small seed's "amount to be confirmed" case.
     const amountPledged = index % 29 === 0 ? null : 100 + ((index * 37) % 4900);
+    const datePledged = addDaysIso('2026-01-01', index % 240);
     return {
       id: `demo-pledge-big-${index + 1}`,
       phone: `555-3${String(index).padStart(4, '0')}`,
       name: `${first} ${last}`,
-      datePledged: addDaysIso('2026-01-01', index % 240),
+      datePledged,
       amountPledged,
       notes: index % 50 === 0 ? 'Sample note for the event-scale performance check.' : '',
-      updatedAt: SEEDED_AT,
+      updatedAt: pledgeSavedOn(datePledged),
       updatedBy: SEEDED_BY,
     };
   });

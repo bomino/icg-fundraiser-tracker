@@ -10,7 +10,8 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 
 - **Pledges, Payments and Summary**, with totals, statuses and data-health checks verified against a frozen test fixture (`test/engine/parity.test.ts`).
 - **Donor lookup** by phone number (any formatting, whole or just the last few digits) or name, with a card showing a donor's pledge, payments and status — and a **Log a payment** button that carries the phone number straight into the payment form. When nobody matches, **Add a pledge** opens the pledge form with the searched number filled in; on a list not refreshed for a couple of minutes, it first suggests pressing Refresh, in case another volunteer has just added that donor.
-- **Status chips and Needs follow-up** on Pledges: filter to Pending/Partial/Paid/Overpaid, or to Pending/Partial donors with no activity in 30+ days, biggest balance first. A **date range** filter on Payments.
+- **Status chips and Needs follow-up** on Pledges: filter to Pending/Partial/Paid/Overpaid, or to Pending/Partial donors with no payment or saved pledge change in 30+ days, biggest balance first. A **date range** filter on Payments.
+- **Tap to call**: **Call** and **Text** buttons under the phone number in the pledge form, and a tappable number on the Find donor card. A note saved after a call ("Called 24 Sep – paying Friday") takes the donor off Needs follow-up for 30 days.
 - **A possible-duplicate-payments check** (app-only, on top of the six core data-health checks) flags payments that share a phone number, amount and date.
 - **Friday display**: a full-screen, name-free projector view of progress toward the goal that never interrupts an announcement with a sign-in prompt.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
