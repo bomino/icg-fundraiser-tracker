@@ -57,7 +57,7 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], actions: Ca
   const saving = isPending(donor.pledge);
   const editPledge = h('button', { type: 'button', class: 'btn btn-secondary', 'aria-disabled': saving ? 'true' : undefined, 'data-focus-key': 'lookup-edit-pledge' }, saving ? 'Saving…' : 'Edit pledge');
   if (!saving) editPledge.addEventListener('click', actions.editPledge);
-  const print = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Print');
+  const print = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'lookup-print' }, 'Print');
   print.addEventListener('click', () => window.print());
   // Same rule as the pledge dialog: no phone means there is nowhere for the payment to match to.
   let logPayment: HTMLButtonElement | null = null;
@@ -197,7 +197,7 @@ export function createLookupView(deps: ListViewDeps) {
           ...matches.slice(0, MATCH_LIMIT).map((d) => {
             // dir isolates the phone from the name: after an Arabic-script name its digit groups would
             // otherwise display in reverse order, and the phone is what the volunteer checks before tapping.
-            const button = h('button', { type: 'button', class: 'match' }, d.pledge.name || '(no name)', h('span', { class: 'meta', dir: 'ltr' }, `  ${d.pledge.phone}  `), statusBadge(d.status));
+            const button = h('button', { type: 'button', class: 'match', 'data-focus-key': `lookup-match:${d.pledge.id}` }, d.pledge.name || '(no name)', h('span', { class: 'meta', dir: 'ltr' }, `  ${d.pledge.phone}  `), statusBadge(d.status));
             button.addEventListener('click', () => {
               chosenId = d.pledge.id;
               draw();

@@ -289,9 +289,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
             location.hash = target;
           },
         });
-    const focus = focusedSpot();
-    main.replaceChildren(content);
-    if (focus) restoreFocus(focus);
+    // Help is built once, so a publish hands back the very element on screen; putting it back would
+    // only drop the focus of whichever section heading or Contents link had it.
+    if (main.firstElementChild !== content) {
+      const focus = focusedSpot();
+      main.replaceChildren(content);
+      if (focus) restoreFocus(focus);
+    }
     rememberView(view);
   }
 

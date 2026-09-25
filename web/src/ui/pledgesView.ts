@@ -187,7 +187,7 @@ export function createPledgesView(deps: ListViewDeps) {
           visibleCount = tablePageSize();
           drawTable();
           chipRow.querySelectorAll('.chip-toggle').forEach((el, i) => el.setAttribute('aria-pressed', String(STATUS_CHIPS[i] === statusChip)));
-        }),
+        }, `pledges-status:${label}`),
       ),
     );
     drawTable();

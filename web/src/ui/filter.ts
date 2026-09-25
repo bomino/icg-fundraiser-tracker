@@ -8,14 +8,14 @@ export interface ListFilter {
 
 export function filterChip(filter: ListFilter, onClear: () => void): HTMLElement {
   // Starts with the visible words, so a voice-control user who says "click Showing" reaches it.
-  const chip = h('button', { type: 'button', class: 'chip', 'aria-label': `Showing: ${filter.label}, clear filter` }, `Showing: ${filter.label} ×`);
+  const chip = h('button', { type: 'button', class: 'chip', 'aria-label': `Showing: ${filter.label}, clear filter`, 'data-focus-key': 'list-filter' }, `Showing: ${filter.label} ×`);
   chip.addEventListener('click', onClear);
   return chip;
 }
 
 /** A single button in a mutually-exclusive chip row (see pledgesView's status chips). */
-export function toggleChip(label: string, pressed: boolean, onToggle: () => void): HTMLElement {
-  const chip = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(pressed) }, label);
+export function toggleChip(label: string, pressed: boolean, onToggle: () => void, focusKey: string): HTMLElement {
+  const chip = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(pressed), 'data-focus-key': focusKey }, label);
   chip.addEventListener('click', onToggle);
   return chip;
 }

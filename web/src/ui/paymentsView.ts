@@ -177,9 +177,9 @@ export function createPaymentsView(deps: ListViewDeps) {
     dateFromInput.value = dateFrom;
     const dateToInput = h('input', { type: 'date', class: 'input', 'data-focus-key': 'payments-date-to' });
     dateToInput.value = dateTo;
-    const today = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Today');
-    const thisWeek = h('button', { type: 'button', class: 'btn btn-ghost' }, 'This week');
-    const clearDates = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Clear dates');
+    const today = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'payments-today' }, 'Today');
+    const thisWeek = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'payments-this-week' }, 'This week');
+    const clearDates = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'payments-clear-dates' }, 'Clear dates');
     const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput), today, thisWeek);
     const redrawDateControls = () => {
       clearDates.hidden = !dateFilterActive();

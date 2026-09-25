@@ -179,7 +179,7 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
   const table = h('div', { class: 'table-wrap', tabindex: -1 }, h('table', { class: 'data-table' }, h('thead', {}, head), body));
   const remaining = options.rows.length - visibleRows.length;
   if (remaining <= 0 || !options.onShowMore) return table;
-  const showMore = h('button', { type: 'button', class: 'btn btn-ghost show-more' }, `Show more (${remaining} left)`);
+  const showMore = h('button', { type: 'button', class: 'btn btn-ghost show-more', 'data-focus-key': 'show-more' }, `Show more (${remaining} left)`);
   showMore.addEventListener('click', () => {
     // The first row this click reveals, so focus can follow it once onShowMore's redraw lands -
     // otherwise a keyboard/screen-reader user loses their place every time they page further in.

@@ -621,6 +621,38 @@ describe('mountApp', () => {
       expect(document.activeElement).toBe(mainButton('Download this list'));
     });
 
+    const typeInSearch = (text: string) => {
+      const search = root.querySelector('main input[type=search]') as HTMLInputElement;
+      search.value = text;
+      search.dispatchEvent(new Event('input'));
+    };
+    const byText = (selector: string, text: string) => () => Array.from(root.querySelectorAll<HTMLElement>(`main ${selector}`)).find((element) => element.textContent === text) ?? null;
+    const manyPledges = Array.from({ length: 120 }, (_, i) => pledge({ id: `m${i}`, phone: `555-300-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 10 }));
+    it.each<{ control: string; route: string; fields?: Partial<State>; prepare?: () => void; find: () => HTMLElement | null }>([
+      { control: 'a status chip', route: '#pledges', find: byText('.chip-toggle', 'Partial') },
+      { control: 'Show more', route: '#pledges', fields: { pledges: manyPledges, computed: compute(manyPledges, [], SETTINGS, TODAY) }, find: () => root.querySelector('main .show-more') },
+      { control: 'Today', route: '#payments', find: byText('button', 'Today') },
+      { control: 'This week', route: '#payments', find: byText('button', 'This week') },
+      { control: 'Clear dates', route: '#payments', prepare: () => byText('button', 'This week')()?.click(), find: byText('button', 'Clear dates') },
+      { control: 'the Friday display link', route: '#summary', find: () => root.querySelector('main a[href="#display"]') },
+      { control: 'a Find donor match', route: '#find', prepare: () => typeInSearch('Aisha'), find: () => root.querySelector('main .match') },
+      { control: 'the donor card’s Print', route: '#find', prepare: () => typeInSearch('555-010-0101'), find: byText('button', 'Print') },
+      { control: 'a Help section heading', route: '#help', find: () => root.querySelector('main summary') },
+      { control: 'a Help Contents link', route: '#help', find: () => root.querySelector('main .help-toc a') },
+    ])('keeps focus on $control when a store publish redraws the view', ({ route, fields, prepare, find }) => {
+      history.replaceState(null, '', route);
+      const { store, publish } = fakeStore(fields);
+      mountApp(root, { store, auth: fakeAuth() });
+      prepare?.();
+      find()?.focus();
+      expect(document.activeElement).toBe(find());
+
+      publish();
+
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(find());
+    });
+
     it('returns focus to the row that was opened once Save has redrawn it, and keeps it there when the save settles', async () => {
       const store = await slowStore();
       mountApp(root, { store, auth: fakeAuth() });

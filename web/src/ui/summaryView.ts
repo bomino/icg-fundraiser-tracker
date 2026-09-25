@@ -117,7 +117,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   return h(
     'section',
     { class: 'view' },
-    h('header', { class: 'view-header' }, h('div', {}, freshness(deps.store.lastLoadedAt()), h('h1', { class: 'display-md' }, 'Fundraiser summary')), h('div', { class: 'toolbar' }, h('a', { href: '#display', class: 'btn btn-ghost' }, 'Friday display'), download)),
+    h('header', { class: 'view-header' }, h('div', {}, freshness(deps.store.lastLoadedAt()), h('h1', { class: 'display-md' }, 'Fundraiser summary')), h('div', { class: 'toolbar' }, h('a', { href: '#display', class: 'btn btn-ghost', 'data-focus-key': 'summary-display' }, 'Friday display'), download)),
     h(
       'section',
       { class: 'card' },
