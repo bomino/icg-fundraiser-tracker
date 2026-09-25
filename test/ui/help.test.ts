@@ -144,8 +144,9 @@ describe('createHelpView', () => {
     const text = createHelpView().textContent ?? '';
     expect(text).toContain(`last ${FOLLOW_UP_AFTER_DAYS} days`);
     expect(text).toContain(`first ${TABLE_PAGE_SIZE} rows`);
-    expect(text).toContain(`after ${DISPLAY_STALE_AFTER_MS / 60_000} minutes`);
-    expect(text).toContain(`after ${AUTO_REFRESH_AFTER_MS / 60_000} minutes`);
+    // Each minutes figure is tied to its own sentence, or one constant changing to the other's value would still pass.
+    expect(text).toContain(`after ${DISPLAY_STALE_AFTER_MS / 60_000} minutes a small note says`);
+    expect(text).toContain(`come back to it after ${AUTO_REFRESH_AFTER_MS / 60_000} minutes`);
   });
 
   it('describes the form fields with the same help the forms show', () => {
