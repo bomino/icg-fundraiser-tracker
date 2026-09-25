@@ -56,12 +56,14 @@ Row 1 holds the headers and data starts at row 2. There are no formulas anywhere
 | `Payments` | `id` · `phone` · `dateReceived` · `amountReceived` · `method` · `notes` · `updatedAt` · `updatedBy` |
 | `Settings` | key/value rows: `goal` (default 10000), `paymentMethods` (default `Cash,Bank Transfer,Card,Check,Online,Other`) |
 | `Allowlist` | `email` (one per row, compared case-insensitively) |
+| `Pledges history` / `Payments history` | the `Pledges`/`Payments` columns, then `changedAt` · `changedBy` · `action` (`edit` or `delete`) |
 
 - `id` is a UUID chosen by the client (`crypto.randomUUID()`) — the server only validates its shape. A create is therefore idempotent by id: a Save retried after a lost response cannot add a duplicate.
 - `updatedAt` is an ISO timestamp and `updatedBy` an email, both stamped by the server.
 - Dates are stored as ISO `YYYY-MM-DD` text, so nothing is shifted by time zones.
 - Amounts are stored as numbers with at most 2 decimals. A blank cell means "not entered", which is different from 0 (§5).
 - Row order in the Sheet is insertion order. The engine keeps that order, because "first matching pledge" matters (§5.3).
+- The history tabs hold the version of a row that each edit or delete replaced, with when, which volunteer (the caller's email) and which action, so the organiser can copy a row's first 8 cells back (`docs/SETUP.md`, Data safety routine). The script runs as the owner, so the Sheet's own version history names only the owner, and restoring a version there rolls back every volunteer's entries since. `load` never reads these tabs. Added 2026-09-25, reversing §9's original exclusion of any edit history.
 
 ## 4. Apps Script API (`apps-script/Code.gs`)
 
@@ -76,8 +78,8 @@ Every request looks like `{idToken, op, payload}`. Every response is `{ok: true,
 | op | payload | behaviour |
 |---|---|---|
 | `load` | — | `{pledges[], payments[], settings, me: email}` |
-| `upsertPledge` / `upsertPayment` | row (without `id` for an insert; with `id` and `updatedAt` for an update) | Validates (§7). For an update, if the stored `updatedAt` ≠ the sent `updatedAt`, returns `CONFLICT` with the current row. Otherwise stamps and writes the row and returns it. |
-| `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then deletes the sheet row. `NOT_FOUND` if the row is gone. |
+| `upsertPledge` / `upsertPayment` | row (without `id` for an insert; with `id` and `updatedAt` for an update) | Validates (§7). For an update, if the stored `updatedAt` ≠ the sent `updatedAt`, returns `CONFLICT` with the current row. Otherwise appends the stored row to the history tab (§3), then stamps and writes the row and returns it. |
+| `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then appends the row to the history tab (§3) and deletes it from the sheet. `NOT_FOUND` if the row is gone. A history write that fails fails the edit or delete. |
 | `setSetting` | `{key: "goal", value}` | Goal must be a number ≥ 0. `paymentMethods` can't be changed from the app; edit it in the Sheet. |
 
 Writes run under `LockService.getScriptLock().tryLock(10000)`, which throws `BUSY` "The tracker is busy. Try again in a moment." rather than waiting indefinitely, and rows are found by scanning column A for the `id`. `setup()` is run once by hand from the Apps Script editor.
@@ -275,7 +277,7 @@ The Vite `base` is set to the repo name.
 ## 9. Out of scope
 
 - offline use
-- an edit history beyond `updatedAt`/`updatedBy`
+- an in-app edit history or undo. (This line first excluded any edit history beyond `updatedAt`/`updatedBy`; since 2026-09-25 the Sheet's history tabs keep each edited or deleted row's old version for the organiser, §3. Goal changes are still not recorded.)
 - roles or permissions
 - receipts and emails
 - multiple campaigns

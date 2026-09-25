@@ -10,6 +10,7 @@ const ENTRY_FIELDS = {
   Pledges: ['phone', 'name', 'datePledged', 'amountPledged', 'notes'],
   Payments: ['phone', 'dateReceived', 'amountReceived', 'method', 'notes'],
 };
+const HISTORY_HEADERS = ['changedAt', 'changedBy', 'action'];
 const AMOUNT_FIELDS = ['amountPledged', 'amountReceived'];
 const DATE_FIELDS = ['datePledged', 'dateReceived'];
 const DEFAULT_SETTINGS = [['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other']];
@@ -67,9 +68,9 @@ function dispatch_(op, payload, email) {
     case 'upsertPayment':
       return withLock_(() => upsert_('Payments', payload, email));
     case 'deletePledge':
-      return withLock_(() => remove_('Pledges', payload));
+      return withLock_(() => remove_('Pledges', payload, email));
     case 'deletePayment':
-      return withLock_(() => remove_('Payments', payload));
+      return withLock_(() => remove_('Payments', payload, email));
     case 'setSetting':
       return withLock_(() => setSetting_(payload));
     default:
@@ -248,18 +249,19 @@ function amountFromCell_(value) {
   return null;
 }
 
+function toSheetRow_(tab, record) {
+  return HEADERS[tab].map((field) => toCell_(record[field]));
+}
+
 // The apostrophe is the only text-forcing mechanism — do not also format Pledges/Payments
 // columns as plain text ('@') in setup(): a '@'-formatted cell stores the apostrophe itself
 // instead of stripping it, corrupting every id/date/text value written this way.
 // It forces Sheets to store text verbatim: keeps leading zeros and '+', stops dates being
 // reinterpreted, and prevents a value like '=HYPERLINK(...)' running as a formula.
-function toSheetRow_(tab, record) {
-  return HEADERS[tab].map((field) => {
-    const value = record[field];
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string' && value !== '') return "'" + value;
-    return value;
-  });
+function toCell_(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' && value !== '') return "'" + value;
+  return value;
 }
 
 function invalid_(field, message) {
@@ -357,18 +359,34 @@ function upsert_(tab, payload, email) {
   const found = findRow_(sheet, tab, payload.id);
   assertUnchanged_(found, payload.updatedAt);
   record.id = payload.id;
+  appendHistory_(tab, found.record, email, 'edit');
   sheet.getRange(found.rowNumber, 1, 1, HEADERS[tab].length).setValues([toSheetRow_(tab, record)]);
   return record;
 }
 
-function remove_(tab, payload) {
+function remove_(tab, payload, email) {
   assertValidId_(payload.id);
   if (typeof payload.updatedAt !== 'string') throw invalid_('updatedAt', 'Missing the row version.');
   const sheet = sheet_(tab);
   const found = findRow_(sheet, tab, payload.id);
   assertUnchanged_(found, payload.updatedAt);
+  appendHistory_(tab, found.record, email, 'delete');
   sheet.deleteRow(found.rowNumber);
   return { id: payload.id };
+}
+
+// The script runs as the owner, so the Sheet's own version history can't say which volunteer
+// changed a row, and restoring an old version there undoes everyone's work since. This keeps the
+// version an edit or delete replaces, laid out so its first cells can be pasted straight back.
+// It runs before the change and any failure fails the change, so nothing changes unrecorded.
+function appendHistory_(tab, record, email, action) {
+  const change = { changedAt: new Date().toISOString(), changedBy: email, action: action };
+  historySheet_(tab).appendRow(toSheetRow_(tab, record).concat(HISTORY_HEADERS.map((field) => toCell_(change[field]))));
+}
+
+// Also created on first use, so a Sheet set up before history was kept needs no setup() re-run.
+function historySheet_(tab) {
+  return ensureTab_(SpreadsheetApp.getActiveSpreadsheet(), tab + ' history', HEADERS[tab].concat(HISTORY_HEADERS), () => {});
 }
 
 function readSettings_() {
@@ -411,12 +429,15 @@ function setup() {
     const owner = Session.getEffectiveUser().getEmail();
     if (owner) sheet.appendRow([owner]);
   });
+  Object.keys(HEADERS).forEach((tab) => historySheet_(tab));
 }
 
 function ensureTab_(spreadsheet, name, headers, initialise) {
-  if (spreadsheet.getSheetByName(name)) return;
+  const existing = spreadsheet.getSheetByName(name);
+  if (existing) return existing;
   const sheet = spreadsheet.insertSheet(name);
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.setFrozenRows(1);
   initialise(sheet);
+  return sheet;
 }

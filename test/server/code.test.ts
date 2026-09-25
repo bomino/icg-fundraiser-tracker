@@ -9,6 +9,9 @@ const pledgeDraft = { phone: '555-010-0101', name: 'Aisha Rahman', datePledged: 
 const paymentDraft = { phone: '555-010-0101', dateReceived: '2025-01-15', amountReceived: 200, method: 'Cash', notes: '' };
 // The client names new rows itself so a retried create cannot add a second copy.
 const newRow = <T extends object>(draft: T) => ({ ...draft, id: randomUUID() });
+const PLEDGE_COLUMNS = ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'];
+const PAYMENT_COLUMNS = ['id', 'phone', 'dateReceived', 'amountReceived', 'method', 'notes', 'updatedAt', 'updatedBy'];
+const HISTORY_COLUMNS = ['changedAt', 'changedBy', 'action'];
 
 beforeEach(() => {
   server = createServer();
@@ -16,16 +19,19 @@ beforeEach(() => {
 });
 
 describe('setup', () => {
-  it('creates the four tabs with headers, defaults and the owner allowlisted', () => {
-    expect(server.sheet('Pledges').getDataRange().getValues()[0]).toEqual(['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy']);
+  it('creates the tabs with headers, defaults and the owner allowlisted', () => {
+    expect(server.sheet('Pledges').getDataRange().getValues()[0]).toEqual(PLEDGE_COLUMNS);
     expect(server.sheet('Payments').getDataRange().getValues()[0][3]).toBe('amountReceived');
     expect(server.sheet('Settings').getDataRange().getValues()).toEqual([['key', 'value'], ['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other']]);
     expect(server.sheet('Allowlist').getDataRange().getValues()).toEqual([['email'], [OWNER]]);
+    expect(server.sheet('Pledges history').getDataRange().getValues()).toEqual([[...PLEDGE_COLUMNS, ...HISTORY_COLUMNS]]);
+    expect(server.sheet('Payments history').getDataRange().getValues()).toEqual([[...PAYMENT_COLUMNS, ...HISTORY_COLUMNS]]);
   });
   it('is safe to run twice', () => {
     server.call('setup');
     expect(server.sheet('Allowlist').getDataRange().getValues()).toHaveLength(2);
     expect(server.sheet('Settings').getDataRange().getValues()).toHaveLength(3);
+    expect(server.sheet('Pledges history').getDataRange().getValues()).toHaveLength(1);
   });
 });
 
@@ -322,6 +328,80 @@ describe('writes', () => {
     expect(logged).not.toContain(token);
     expect(logged).not.toContain(JSON.stringify({ idToken: token, op: 'load', payload: {} }));
     errorSpy.mockRestore();
+  });
+});
+
+// The script runs as the owner, so the Sheet's own version history names only the owner; these
+// tabs are the one record of what an edit or delete replaced, and of which volunteer did it.
+describe('change history', () => {
+  const VOLUNTEER = 'volunteer@example.com';
+  const CHANGED_AT = expect.stringMatching(/^'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  let volunteer: string;
+
+  beforeEach(() => {
+    server.sheet('Allowlist').appendRow([VOLUNTEER]);
+    volunteer = server.tokenFor(VOLUNTEER);
+  });
+
+  it('keeps the version an edit replaced, cell for cell, with when, who and what', () => {
+    const saved = server.post('upsertPledge', newRow({ ...pledgeDraft, phone: '0551234', notes: '=1+1' }), token).data;
+    const before = [...server.sheet('Pledges').raw[1]];
+    expect(server.post('upsertPledge', { ...pledgeDraft, name: 'Aisha R.', id: saved.id, updatedAt: saved.updatedAt }, volunteer).ok).toBe(true);
+    expect(server.sheet('Pledges history').raw.slice(1)).toEqual([[...before, CHANGED_AT, `'${VOLUNTEER}`, "'edit"]]);
+  });
+
+  it('keeps a deleted row and names the volunteer who deleted it', () => {
+    const saved = server.post('upsertPayment', newRow(paymentDraft), token).data;
+    const before = [...server.sheet('Payments').raw[1]];
+    expect(server.post('deletePayment', { id: saved.id, updatedAt: saved.updatedAt }, volunteer).ok).toBe(true);
+    expect(server.sheet('Payments history').raw.slice(1)).toEqual([[...before, CHANGED_AT, `'${VOLUNTEER}`, "'delete"]]);
+  });
+
+  it('records nothing for a create, a retried create that finds its own row, or a change refused as stale', () => {
+    const draft = newRow(pledgeDraft);
+    const saved = server.post('upsertPledge', draft, token).data;
+    server.post('upsertPledge', draft, token);
+    server.post('upsertPledge', { ...pledgeDraft, id: saved.id, updatedAt: 'stale' }, token);
+    server.post('deletePledge', { id: saved.id, updatedAt: 'stale' }, token);
+    expect(server.sheet('Pledges history').raw).toEqual([[...PLEDGE_COLUMNS, ...HISTORY_COLUMNS]]);
+  });
+
+  it('creates a missing history tab on the first change, for a Sheet set up before history was kept', () => {
+    const saved = server.post('upsertPayment', newRow(paymentDraft), token).data;
+    server.sheets.delete('Payments history');
+    expect(server.post('deletePayment', { id: saved.id, updatedAt: saved.updatedAt }, token).ok).toBe(true);
+    const history = server.sheet('Payments history').getDataRange().getValues();
+    expect(history[0]).toEqual([...PAYMENT_COLUMNS, ...HISTORY_COLUMNS]);
+    expect(history.slice(1).map((row) => row.slice(0, 8))).toEqual([PAYMENT_COLUMNS.map((column) => saved[column])]);
+  });
+
+  // An edit or delete that leaves no trace would defeat the record; the store rolls the row back.
+  it('fails an edit or delete whose history cannot be written, and leaves the row alone', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
+    const before = structuredClone(server.sheet('Pledges').raw);
+    server.sheet('Pledges history').appendRow = () => {
+      throw new Error('Service Spreadsheets timed out');
+    };
+    expect(server.post('upsertPledge', { ...pledgeDraft, name: 'Aisha R.', id: saved.id, updatedAt: saved.updatedAt }, token).error?.code).toBe('INTERNAL');
+    expect(server.post('deletePledge', { id: saved.id, updatedAt: saved.updatedAt }, token).error?.code).toBe('INTERNAL');
+    expect(server.sheet('Pledges').raw).toEqual(before);
+    errorSpy.mockRestore();
+  });
+
+  // The organiser's documented restore: copy a history row's first 8 cells back into the live tab.
+  it('brings a deleted row back when its first 8 cells are pasted below the others', () => {
+    const saved = server.post('upsertPledge', newRow({ ...pledgeDraft, phone: '+15550100101' }), token).data;
+    server.post('deletePledge', { id: saved.id, updatedAt: saved.updatedAt }, token);
+    server.sheet('Pledges').appendRow(server.sheet('Pledges history').raw[1].slice(0, 8));
+    expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
+  });
+
+  it('brings an edited row back when its first 8 cells are pasted over the live row', () => {
+    const saved = server.post('upsertPayment', newRow(paymentDraft), token).data;
+    server.post('upsertPayment', { ...paymentDraft, amountReceived: 2000, id: saved.id, updatedAt: saved.updatedAt }, token);
+    server.sheet('Payments').getRange(2, 1, 1, 8).setValues([server.sheet('Payments history').raw[1].slice(0, 8)]);
+    expect(server.post('load', {}, token).data.payments).toEqual([saved]);
   });
 });
 
