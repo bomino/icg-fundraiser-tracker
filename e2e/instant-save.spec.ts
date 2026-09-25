@@ -43,7 +43,7 @@ test('Sign out while a payment is still saving asks first, and Cancel lets the s
   await form.getByLabel('Phone number').fill('555-0110');
   await form.getByLabel('Amount received ($)').fill('17.35');
   await form.getByLabel('Payment method').selectOption('Cash');
-  await form.getByRole('button', { name: 'Save' }).click();
+  await form.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(form).toBeHidden();
 
   await page.getByRole('button', { name: 'Sign out' }).click();

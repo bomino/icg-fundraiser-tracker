@@ -74,7 +74,7 @@ describe('the client against the real Code.gs', () => {
 
   it('names the field a refused save failed on, so the form can show the message beside it', async () => {
     const { store } = await connect();
-    const refusedPledge = await store.savePledge({ ...pledgeDraft, name: `${WARNING_MARK} Aisha` }).catch((err: unknown) => err);
+    const refusedPledge = await store.savePledge({ ...pledgeDraft, name: `${WARNING_MARK} Aisha` }, { id: randomUUID() }).catch((err: unknown) => err);
     expect(refusedPledge).toBeInstanceOf(ApiError);
     expect(refusedPledge).toMatchObject({ code: 'BAD_REQUEST', field: 'name', message: `A name cannot start with ${WARNING_MARK}.` });
     await expect(store.setGoal(-1)).rejects.toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
@@ -108,14 +108,16 @@ describe('the client against the real Code.gs', () => {
 describe('a change whose first response Google lost after Code.gs ran', () => {
   it('adds a pledge and a payment once each', async () => {
     const { api, store, sent, loseNextResponse } = await connect();
+    const pledgeId = randomUUID();
+    const paymentId = randomUUID();
     loseNextResponse();
-    await store.savePledge(pledgeDraft);
+    await store.savePledge(pledgeDraft, { id: pledgeId });
     loseNextResponse();
-    await store.savePayment(paymentDraft);
+    await store.savePayment(paymentDraft, { id: paymentId });
     expect(sent).toEqual(['load', 'upsertPledge', 'upsertPledge', 'upsertPayment', 'upsertPayment']);
     const { pledges, payments } = await api.load();
-    expect(pledges).toEqual([{ ...pledgeDraft, id: expect.any(String), updatedAt: expect.any(String), updatedBy: OWNER }]);
-    expect(payments).toEqual([{ ...paymentDraft, id: expect.any(String), updatedAt: expect.any(String), updatedBy: OWNER }]);
+    expect(pledges).toEqual([{ ...pledgeDraft, id: pledgeId, updatedAt: expect.any(String), updatedBy: OWNER }]);
+    expect(payments).toEqual([{ ...paymentDraft, id: paymentId, updatedAt: expect.any(String), updatedBy: OWNER }]);
     expect(store.state()?.pledges).toEqual(pledges);
     expect(store.state()?.payments).toEqual(payments);
   });
