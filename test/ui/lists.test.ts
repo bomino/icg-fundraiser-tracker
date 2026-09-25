@@ -408,7 +408,7 @@ describe('payments view: money in the filtered rows', () => {
     expect(metaLines(view)).toEqual([]);
     type(dateInput(view, 'payments-date-from'), '2026-08-02');
     expect(view.querySelector('tr[data-id="n3"]')?.textContent).toContain('⚠ phone not in Pledges');
-    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash $150.30 · Card $50.00 · No method recorded $0.10']);
+    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash\u00A0$150.30 · Card\u00A0$50.00 · No method recorded\u00A0$0.10']);
     type(dateInput(view, 'payments-date-from'), '2030-01-01');
     expect(metaLines(view)).toEqual(['Showing 0 of 6 · $0.00 logged']);
   });
@@ -421,12 +421,19 @@ describe('payments view: money in the filtered rows', () => {
     expect(metaLines(view)).toEqual([]);
     vi.advanceTimersByTime(150);
     vi.useRealTimers();
-    expect(metaLines(view)).toEqual(['Showing 4 of 6 · $225.30 logged', 'Cash $150.30 · Check $75.00']);
+    expect(metaLines(view)).toEqual(['Showing 4 of 6 · $225.30 logged', 'Cash\u00A0$150.30 · Check\u00A0$75.00']);
   });
 
   it('adds up the rows a Data-health Show found', () => {
     const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, { label: 'Payments not matched to a pledge', ids: new Set(['n3']) }, () => undefined);
-    expect(metaLines(view)).toEqual(['Showing 1 of 6 · $150.00 logged', 'Cash $150.00']);
+    expect(metaLines(view)).toEqual(['Showing 1 of 6 · $150.00 logged', 'Cash\u00A0$150.00']);
+  });
+
+  it('keeps each method’s amount beside its name, so a phone never wraps the two onto different lines', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    type(dateInput(view, 'payments-date-from'), '2026-08-02');
+    expect(metaLines(view)[1]?.split(' · ')).toEqual(['Cash\u00A0$150.30', 'Card\u00A0$50.00', 'No method recorded\u00A0$0.10']);
   });
 
   it('sets both dates to today with Today, so tonight’s cash can be read straight off', () => {
@@ -442,7 +449,7 @@ describe('payments view: money in the filtered rows', () => {
     expect(dateInput(view, 'payments-date-to').value).toBe('2026-08-02');
     expect(ids(view)).toEqual(['n5', 'n4', 'n3', 'n2', 'n1']);
     expect(button('Clear dates').hidden).toBe(false);
-    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash $150.30 · Card $50.00 · No method recorded $0.10']);
+    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash\u00A0$150.30 · Card\u00A0$50.00 · No method recorded\u00A0$0.10']);
   });
 });
 

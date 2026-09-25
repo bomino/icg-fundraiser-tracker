@@ -31,11 +31,12 @@ const SORT_OPTIONS: readonly SortOption[] = [
 ];
 
 // Split by the Method column rather than trusting a search for "cash", which also matches notes. Only methods that
-// took money are listed, so "No method recorded" shows up exactly when a payment is missing one.
+// took money are listed, so "No method recorded" shows up exactly when a payment is missing one. A non-breaking space
+// ties each amount to its method: on a phone the line wraps, and an amount left alone at a line's start is misread.
 function methodsLine(rows: readonly DerivedPayment[], methods: readonly string[]): HTMLElement | null {
   const taken = computeMethods(rows, methods).filter((row) => row.cents !== 0);
   if (taken.length === 0) return null;
-  return h('p', { class: 'meta' }, taken.map((row) => `${row.label} ${formatCents(row.cents)}`).join(' · '));
+  return h('p', { class: 'meta' }, taken.map((row) => `${row.label}\u00A0${formatCents(row.cents)}`).join(' · '));
 }
 
 export function createPaymentsView(deps: ListViewDeps) {
