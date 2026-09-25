@@ -2,8 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 // Demo mode only exists in dev builds (see web/src/main.ts), so the suite drives Vite's own dev
 // server rather than a production `vite preview` build. Fixed, non-default port: never collide
-// with a developer's own `npm run dev` on 5173.
-const PORT = 5199;
+// with a developer's own `npm run dev` on 5173. E2E_PORT lets two checkouts run the suite at once.
+const PORT = Number(process.env.E2E_PORT ?? 5199);
 export const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
