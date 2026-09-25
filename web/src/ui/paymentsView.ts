@@ -6,7 +6,7 @@ import type { Payment } from '../types';
 import { methodBadge } from './badges';
 import { h } from './dom';
 import { filterChip, showingLine, type ListFilter } from './filter';
-import { openPaymentForm } from './paymentForm';
+import { openPaymentForm, type PaymentCarry } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
 import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type SortState } from './table';
@@ -40,14 +40,27 @@ export function createPaymentsView(deps: ListViewDeps) {
         dateTo = '';
       }
     }
-    const openEditor = (existing?: Payment) => {
+    const openEditor = (existing: Payment) => {
       openPaymentForm({
         existing,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onDelete: (current) => deps.store.deletePayment(current),
-        latest: () => deps.store.state()?.payments.find((p) => p.id === existing?.id),
+        latest: () => deps.store.state()?.payments.find((p) => p.id === existing.id),
+        reportError: deps.reportError,
+      });
+    };
+    const logPayment = (carried?: PaymentCarry) => {
+      // Read now, not at render: a run of "Save and add another" outlasts the render it began in, and
+      // the donor preview must find pledges that reached the store during the run.
+      const current = deps.store.state() ?? state;
+      openPaymentForm({
+        carried,
+        methods: current.settings.paymentMethods,
+        pledges: current.pledges,
+        onSave: (draft, row) => deps.store.savePayment(draft, row),
+        onAddAnother: logPayment,
         reportError: deps.reportError,
       });
     };
@@ -129,7 +142,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       redrawDateControls();
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Log a payment');
-    add.addEventListener('click', () => openEditor());
+    add.addEventListener('click', () => logPayment());
     drawTable();
     const totals = state.computed.totals;
     return h(

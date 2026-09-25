@@ -12,6 +12,9 @@ import { field } from './field';
 import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER, PAYMENT_HELP } from './help';
 
+/** What "Save and add another" keeps for the next new payment; every other box starts empty. */
+export type PaymentCarry = Pick<PaymentDraft, 'dateReceived' | 'method'>;
+
 export interface PaymentFormOptions {
   existing?: Payment;
   /** The id a new payment is created under. Left out, the form makes one; Reopen passes it back, so a retried Save names the same row. */
@@ -25,6 +28,14 @@ export interface PaymentFormOptions {
   onDelete?: (existing: Payment) => Promise<void>;
   /** The row being edited as the store has it now, so a reopened form starts from the current version. */
   latest?: () => Payment | undefined;
+  /**
+   * Where a new payment starts, kept from the one saved just before it by "Save and add another". Left
+   * out, the date is today and no method is picked: a remembered method that looked right but was wrong
+   * would hide the mistake, where a blank one shows under "No method recorded".
+   */
+  carried?: PaymentCarry;
+  /** Offers "Save and add another" on a new payment; opens the next payment's form with what this one keeps for it. */
+  onAddAnother?: (carried: PaymentCarry) => void;
   reportError(err: unknown, context?: string): void;
 }
 
@@ -35,9 +46,9 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   const resolveDonor = createDonorResolver(options.pledges);
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
-    dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : todayIso(), help: PAYMENT_HELP.dateReceived }),
+    dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : options.carried?.dateReceived ?? todayIso(), help: PAYMENT_HELP.dateReceived }),
     amountReceived: field({ name: 'amountReceived', label: 'Amount received ($)', inputmode: 'decimal', value: existing?.amountReceived?.toString() ?? '', help: PAYMENT_HELP.amountReceived, required: true }),
-    method: field({ name: 'method', label: 'Payment method', type: 'select', options: options.methods, value: existing?.method ?? '', help: PAYMENT_HELP.method }),
+    method: field({ name: 'method', label: 'Payment method', type: 'select', options: options.methods, value: existing?.method ?? options.carried?.method ?? '', help: PAYMENT_HELP.method }),
     notes: field({ name: 'notes', label: 'Notes', type: 'textarea', value: existing?.notes ?? '', help: PAYMENT_HELP.notes }),
   };
   const preview = h('p', { class: 'hint', role: 'status', 'data-role': 'donor-preview' });
@@ -59,6 +70,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   updatePreview();
 
   const onDelete = options.onDelete;
+  const onAddAnother = options.onAddAnother;
   const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, fields.dateReceived.wrapper, fields.amountReceived.wrapper, fields.method.wrapper, fields.notes.wrapper);
   runForm<PaymentDraft>({
     title: existing ? 'Edit payment' : 'Log a payment',
@@ -82,6 +94,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     describe: (draft) => (draft.phone ? `the payment from ${draft.phone}` : 'the payment'),
     onSave: (draft) => options.onSave(draft, existing ?? { id: newId }),
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
+    addAnother: onAddAnother && !existing ? (saved) => onAddAnother({ dateReceived: saved.dateReceived, method: saved.method }) : undefined,
     deleteMessage: 'Delete this payment? It will be removed from every total.',
     reportError: options.reportError,
     reopen: (again) => openPaymentForm({ ...options, newId, existing: existing && (options.latest?.() ?? existing) }, again),

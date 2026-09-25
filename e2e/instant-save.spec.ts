@@ -13,7 +13,7 @@ test('logging a payment closes the form at once, shows the row as Saving…, the
   await dialog.getByLabel('Phone number').fill('555-0110');
   await dialog.getByLabel('Amount received ($)').fill('17.35');
   await dialog.getByLabel('Payment method').selectOption('Cash');
-  await dialog.getByRole('button', { name: 'Save' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
 
   await expect(dialog).toBeHidden();
   const row = page.locator('tbody tr', { hasText: '$17.35' });

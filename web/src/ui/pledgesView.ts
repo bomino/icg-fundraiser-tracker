@@ -8,7 +8,7 @@ import { statusBadge } from './badges';
 import { h } from './dom';
 import { filterChip, showingLine, toggleChip, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
-import { openPledgeForm } from './pledgeForm';
+import { openPledgeForm, type PledgeCarry } from './pledgeForm';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
 import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type SortState } from './table';
 
@@ -61,15 +61,28 @@ export function createPledgesView(deps: ListViewDeps) {
         reportError: deps.reportError,
       });
     };
-    const openEditor = (existing?: Pledge, derived?: DerivedPledge) => {
+    const openEditor = (existing: Pledge, derived: DerivedPledge) => {
       openPledgeForm({
         existing,
         derived,
         pledges: state.pledges,
         onSave: (draft, row) => deps.store.savePledge(draft, row),
         onDelete: (current) => deps.store.deletePledge(current),
-        latest: () => deps.store.state()?.pledges.find((p) => p.id === existing?.id),
+        latest: () => deps.store.state()?.pledges.find((p) => p.id === existing.id),
         onLogPayment: openPaymentFor,
+        reportError: deps.reportError,
+      });
+    };
+    const addPledge = (carried?: PledgeCarry) => {
+      // Read now, not at render: a run of "Save and add another" outlasts the render it began in, and
+      // the duplicate-phone hint must see the pledges typed in earlier in the run.
+      const current = deps.store.state() ?? state;
+      openPledgeForm({
+        carried,
+        pledges: current.pledges,
+        onSave: (draft, row) => deps.store.savePledge(draft, row),
+        onLogPayment: openPaymentFor,
+        onAddAnother: addPledge,
         reportError: deps.reportError,
       });
     };
@@ -120,7 +133,7 @@ export function createPledgesView(deps: ListViewDeps) {
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add pledge');
-    add.addEventListener('click', () => openEditor());
+    add.addEventListener('click', () => addPledge());
     const chipRow = h(
       'div',
       { class: 'chip-row', role: 'group', 'aria-label': 'Filter by status' },

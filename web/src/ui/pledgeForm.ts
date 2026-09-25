@@ -12,6 +12,9 @@ import { field } from './field';
 import { runForm, type FormRestore, type FormSpec } from './form';
 import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
 
+/** What "Save and add another" keeps for the next new pledge; every other box starts empty. */
+export type PledgeCarry = Pick<PledgeDraft, 'datePledged'>;
+
 export interface PledgeFormOptions {
   existing?: Pledge;
   /** The engine's figures for `existing`, so the delete question can say how many payments, and how much money, stop counting. */
@@ -29,6 +32,10 @@ export interface PledgeFormOptions {
    * "Log a payment"; a new pledge offers "Save and log a payment", which calls this only after its save has started.
    */
   onLogPayment?: (phone: string) => void;
+  /** Where a new pledge starts, kept from the one saved just before it by "Save and add another". Left out, the date is today. */
+  carried?: PledgeCarry;
+  /** Offers "Save and add another" on a new pledge; opens the next pledge's form with what this one keeps for it. */
+  onAddAnother?: (carried: PledgeCarry) => void;
   reportError(err: unknown, context?: string): void;
 }
 
@@ -59,7 +66,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? '', help: PLEDGE_HELP.phone }),
     name: field({ name: 'name', label: 'Donor name', value: existing?.name ?? '', help: PLEDGE_HELP.name }),
-    datePledged: field({ name: 'datePledged', label: 'Date pledged', type: 'date', value: existing ? existing.datePledged : todayIso(), help: PLEDGE_HELP.datePledged }),
+    datePledged: field({ name: 'datePledged', label: 'Date pledged', type: 'date', value: existing ? existing.datePledged : options.carried?.datePledged ?? todayIso(), help: PLEDGE_HELP.datePledged }),
     amountPledged: field({ name: 'amountPledged', label: 'Amount pledged ($)', inputmode: 'decimal', value: existing?.amountPledged?.toString() ?? '', help: PLEDGE_HELP.amountPledged }),
     notes: field({ name: 'notes', label: 'Notes', type: 'textarea', value: existing?.notes ?? '', help: PLEDGE_HELP.notes }),
   };
@@ -99,6 +106,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   }
 
   const onDelete = options.onDelete;
+  const onAddAnother = options.onAddAnother;
   const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
   const dialog = runForm<PledgeDraft>({
     title: existing ? 'Edit pledge' : 'Add pledge',
@@ -123,6 +131,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     onSave: (draft) => options.onSave(draft, existing ?? { id: newId }),
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     secondary: paymentAction(),
+    addAnother: onAddAnother && !existing ? (saved) => onAddAnother({ datePledged: saved.datePledged }) : undefined,
     deleteMessage: existing ? deleteMessage(existing, options.pledges, options.derived) : '',
     reportError: options.reportError,
     reopen: (again) => openPledgeForm({ ...options, newId, existing: existing && (options.latest?.() ?? existing) }, again),

@@ -700,3 +700,132 @@ describe('instant save from the lists', () => {
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit payment');
   });
 });
+
+describe('Save and add another', () => {
+  const box = (name: string) => document.querySelector(`dialog[open] [name=${name}]`) as HTMLInputElement;
+  const fill = (values: Record<string, string>) => {
+    for (const [name, value] of Object.entries(values)) type(box(name), value);
+  };
+  const boxes = (...names: string[]) => Object.fromEntries(names.map((name) => [name, box(name).value]));
+  const press = (label: string) => (Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement).click();
+  const offered = () => Array.from(document.querySelectorAll('dialog[open] button')).some((b) => b.textContent === 'Save and add another');
+
+  it('saves a new pledge, then opens a fresh one under a new id that keeps only the date pledged', () => {
+    // #given
+    const savePledge = vi.fn<Store['savePledge']>(async () => undefined);
+    document.body.append(createPledgesView({ store: { ...store, savePledge } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    press('Add pledge');
+    fill({ phone: '555 777 0001', name: 'Zara', datePledged: '2026-09-18', amountPledged: '50', notes: 'Card 1' });
+    // #when
+    press('Save and add another');
+    // #then
+    expect(openModalTitles()).toEqual(['Add pledge']);
+    expect(boxes('phone', 'name', 'datePledged', 'amountPledged', 'notes')).toEqual({ phone: '', name: '', datePledged: '2026-09-18', amountPledged: '', notes: '' });
+    fill({ phone: '555 777 0002', name: 'Yusuf' });
+    press('Save');
+    const [first, second] = savePledge.mock.calls;
+    expect(first).toEqual([{ phone: '555 777 0001', name: 'Zara', datePledged: '2026-09-18', amountPledged: 50, notes: 'Card 1' }, { id: expect.any(String) }]);
+    expect(second).toEqual([{ phone: '555 777 0002', name: 'Yusuf', datePledged: '2026-09-18', amountPledged: null, notes: '' }, { id: expect.any(String) }]);
+    expect(second[1]).not.toEqual(first[1]);
+  });
+
+  it('logs a payment, then opens a fresh one under a new id that keeps only the date and the method', () => {
+    const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
+    document.body.append(createPaymentsView({ store: { ...store, savePayment } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    press('Log a payment');
+    fill({ phone: '555-010-0103', dateReceived: '2026-09-18', amountReceived: '20', method: 'Cash', notes: 'Envelope 4' });
+    press('Save and add another');
+    expect(openModalTitles()).toEqual(['Log a payment']);
+    expect(boxes('phone', 'dateReceived', 'amountReceived', 'method', 'notes')).toEqual({ phone: '', dateReceived: '2026-09-18', amountReceived: '', method: 'Cash', notes: '' });
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Type the phone number to find the donor.');
+    fill({ phone: '555-010-0101', amountReceived: '15' });
+    press('Save');
+    const [first, second] = savePayment.mock.calls;
+    expect(second).toEqual([{ phone: '555-010-0101', dateReceived: '2026-09-18', amountReceived: 15, method: 'Cash', notes: '' }, { id: expect.any(String) }]);
+    expect(second[1]).not.toEqual(first[1]);
+  });
+
+  it('warns in the next form about a phone number entered earlier in the same run', async () => {
+    // #given a real store, so the pledge just entered is in it the way it is in the app
+    const api = {
+      load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me@example.com' }),
+      savePledge: () => new Promise(() => undefined),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    document.body.append(createPledgesView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State, null, () => undefined));
+    press('Add pledge');
+    fill({ phone: '555 777 0001', name: 'Zara' });
+    press('Save and add another');
+    // #when the same card is typed in again
+    fill({ phone: '(555) 777-0001' });
+    // #then
+    const hint = document.querySelector('dialog[open] .hint-warning[role=status]') as HTMLElement;
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toContain('already on the pledge for Zara');
+  });
+
+  it('finds a donor in the next payment form whose pledge reached the store after the list was drawn', () => {
+    const arrived = pledge({ id: 'p7', phone: '555-010-0107', name: 'Late Arrival', amountPledged: 70 });
+    const liveState = { ...state, pledges: [...pledges, arrived] };
+    document.body.append(createPaymentsView({ store: { ...store, state: () => liveState } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    press('Log a payment');
+    fill({ phone: '555-010-0103', amountReceived: '20' });
+    press('Save and add another');
+    fill({ phone: '555-010-0107' });
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Late Arrival');
+  });
+
+  it('retries a failed pledge from earlier in the run under its own id, not the next one’s', async () => {
+    // #given a run whose first pledge fails to save and whose second one saves
+    const savePledge = vi.fn<Store['savePledge']>(async () => undefined);
+    savePledge.mockImplementationOnce(async () => { throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.'); });
+    document.body.append(createPledgesView({ store: { ...store, savePledge } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    press('Add pledge');
+    fill({ phone: '555 777 0001', name: 'Zara' });
+    press('Save and add another');
+    fill({ phone: '555 777 0002', name: 'Yusuf' });
+    press('Save');
+    // #when the first one is reopened from its error message and saved again
+    await vi.waitFor(() => expect(document.querySelector('.toast-error .toast-message')?.textContent).toBe("Couldn't save Zara. Could not reach the tracker. Check your connection and try again."));
+    press('Reopen');
+    expect(box('name').value).toBe('Zara');
+    press('Save');
+    // #then the retry names Zara's row, not Yusuf's
+    const [zara, yusuf, retry] = savePledge.mock.calls.map((call) => call[1]);
+    expect(retry).toEqual(zara);
+    expect(retry).not.toEqual(yusuf);
+  });
+
+  it('is not offered when editing a row, or when logging a payment for one donor', () => {
+    document.body.append(createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined));
+    (document.querySelector('tr[data-id="p3"] .row-open') as HTMLButtonElement).click();
+    expect(offered()).toBe(false);
+    press('Log a payment');
+    expect(openModalTitles()).toEqual(['Log a payment']);
+    expect(offered()).toBe(false);
+    pressFormCancel();
+    press('Add pledge');
+    expect(offered()).toBe(true);
+    fill({ phone: '555 777 0001' });
+    press('Save and log a payment');
+    expect(openModalTitles()).toEqual(['Log a payment']);
+    expect(offered()).toBe(false);
+    pressFormCancel();
+    document.body.replaceChildren(createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined));
+    (document.querySelector('tr[data-id="y1"] .row-open') as HTMLButtonElement).click();
+    expect(offered()).toBe(false);
+  });
+
+  it('keeps nothing for an ordinary Log a payment: it starts on today with no method picked', () => {
+    document.body.append(createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined));
+    press('Log a payment');
+    fill({ phone: '555-010-0103', dateReceived: '2026-09-18', amountReceived: '20', method: 'Cash' });
+    press('Save and add another');
+    // Nothing typed in the carried-over form yet, so Cancel closes it without asking.
+    pressFormCancel();
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    press('Log a payment');
+    expect(boxes('dateReceived', 'method')).toEqual({ dateReceived: TODAY_LOCAL(), method: '' });
+  });
+});
