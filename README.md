@@ -15,7 +15,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **Friday display**: a full-screen, name-free projector view of progress toward the goal that never interrupts an announcement with a sign-in prompt.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
 - **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
-- **Paging at scale**: lists start with the most recently added entry, so a just-saved row is always on screen; long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.
+- **Paging at scale**: lists start with the most recently added entry, so a row you have just added is at the top; long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.
 
 ```bash
 npm install

@@ -272,7 +272,7 @@ function theScreens(): Child[] {
       'Search and sort',
       bullets(
         ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too. Clear the box to see everything again.'],
-        ['Lists start with the most recently added entry, so what you just saved is at the top. Tap a column heading to sort by it. Tap it again to reverse the order, and a third time to go back to the most recently added first.'],
+        ['Lists start with the most recently added entry, so a pledge or payment you have just added is at the top. Tap a column heading to sort by it. Tap it again to reverse the order, and a third time to go back to the order the list started in.'],
         [
           'On Pledges, the ',
           b('Pending'),
