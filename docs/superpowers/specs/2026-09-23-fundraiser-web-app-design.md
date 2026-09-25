@@ -207,7 +207,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - **Add/edit dialog**
   - Entry fields only.
   - Payment method is a `<select>` from Settings.
-  - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed. For `⚠ phone not in Pledges` it also says how to record a donor who hasn't pledged: Cancel, then Pledges → Add pledge → Save and log a payment.
+  - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed. For `⚠ phone not in Pledges` on a new payment it also says how to record a donor who hasn't pledged: Cancel, then Pledges → Add pledge → Save and log a payment. An existing payment never says this, as that path would enter its money a second time; adding a plain pledge with that phone makes it count.
   - The Add pledge dialog has a **Save and log a payment** button, shown once a phone is typed. It saves the pledge as Save does, then opens the Payments dialog with that phone filled in, so a donor who pledges and pays at once is entered with the phone typed once. A Payments dialog opened with the phone filled in (from a pledge, the donor card or this button) starts with the cursor in the amount.
   - Help text under each field reuses the workbook's header tooltips.
   - Delete lives inside the edit dialog and asks for confirmation.

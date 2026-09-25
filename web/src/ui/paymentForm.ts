@@ -49,7 +49,8 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const warning = !blank && donor.startsWith(WARNING_MARK);
     preview.className = warning ? 'hint hint-warning' : 'hint';
     // A walk-in donor's number is right but has no pledge; the one-step path records both without typing it twice.
-    const walkIn = donor === WARN_NOT_IN_PLEDGES ? " If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment." : '';
+    // Never on an existing payment: that path would enter the same money a second time.
+    const walkIn = !existing && donor === WARN_NOT_IN_PLEDGES ? " If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment." : '';
     if (blank) preview.textContent = 'Type the phone number to find the donor.';
     else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.${walkIn}`;
     else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}`;

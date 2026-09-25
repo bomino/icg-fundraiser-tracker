@@ -342,6 +342,12 @@ describe('payment form', () => {
     expect(preview.textContent).toBe(`${WARN_NO_AMOUNT} — this payment will not be counted until that is fixed.`);
   });
 
+  it('gives an existing payment no advice to Save and log a payment, which would enter that money a second time', () => {
+    openPaymentForm({ existing: payments[0], methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
+    expect(preview.textContent).toBe(`${WARN_NOT_IN_PLEDGES} — this payment will not be counted until that is fixed.`);
+  });
+
   it('previews the donor while the phone is typed', () => {
     openPaymentForm({ methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
     const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
