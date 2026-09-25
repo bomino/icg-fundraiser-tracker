@@ -189,6 +189,21 @@ describe('createHelpView', () => {
     expect(flagged(dated.health)).toMatchObject({ predatesPledge: 1 });
   });
 
+  it('has an online gift logged at what the donor gave, so the website’s fee never becomes their balance', () => {
+    const topics = Array.from(createHelpView().querySelectorAll('.help-topic'));
+    const topicText = (title: string) => topics.find((topic) => topic.querySelector('h3')?.textContent === title)?.textContent;
+    expect(topicText('Log a payment')).toContain('type the amount the donor gave, as shown on their receipt');
+    expect(topicText('Handle a donor who paid more than they pledged')).toContain('for example, their employer matched the gift');
+    expect(topicText('Payment methods and the goal')).toContain('by the amount of its fees');
+
+    const donor = pledge({ phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 100, datePledged: '2026-08-01' });
+    const loggedAt = (amountReceived: number) =>
+      compute([donor], [payment({ phone: '555-010-0101', amountReceived, dateReceived: '2026-08-01', method: 'Online' })], SETTINGS, TODAY).pledges[0];
+    expect(loggedAt(96.8)).toMatchObject({ status: STATUS.partial, balanceCents: 320 });
+    expect(needsFollowUp(loggedAt(96.8), TODAY)).toBe(true);
+    expect(loggedAt(100)).toMatchObject({ status: STATUS.paid, balanceCents: 0 });
+  });
+
   it('describes the form fields with the same help the forms show', () => {
     const text = createHelpView().textContent ?? '';
     for (const help of [...Object.values(PLEDGE_HELP), ...Object.values(PAYMENT_HELP)]) expect(text).toContain(help);

@@ -349,6 +349,7 @@ function howTo(): Child[] {
         ['Notes', PAYMENT_HELP.notes],
       ),
       note('Log each installment as its own payment. Do not edit an old payment to add a new amount to it — the tracker adds up the installments for you.'),
+      note('For a gift made online, type the amount the donor gave, as shown on their receipt — not the smaller amount the giving website sends the masjid after taking its fee, or the donor will show as still owing the fee. You can put the website’s reference number in Notes.'),
       note(
         'You can also log a payment straight from a donor: open their card on ',
         b('Find donor'),
@@ -428,7 +429,7 @@ function howTo(): Child[] {
       p('Their status shows ', b(STATUS.overpaid), ' and their Balance Due is shown in brackets, for example ($50.00).'),
       steps(
         ['First check their payments for a typo, such as 500 typed instead of 50. Fix it if so.'],
-        ['If the donor really did give more, you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
+        ['If the donor really did give more (for example, their employer matched the gift), you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
       ),
       p('The extra money is shown under ', b('Overpaid / credit'), ' on the Summary. It never hides what other donors still owe.'),
       note('General donations is the exception: it always shows Overpaid, and its Amount pledged stays 0. See ', b('Record money with no phone number (collection box, walk-in)'), ' in How to….'),
@@ -627,6 +628,7 @@ function forTheOrganiser(): Child[] {
       'Payment methods and the goal',
       p('The ', b('Settings'), ' tab has one setting per row. ', b('paymentMethods'), ' is the list volunteers pick from, separated by commas — for example Cash,Bank Transfer,Card,Check,Online,Other. ', b('goal'), ' is the fundraiser target; volunteers can also change it with ', b('Edit goal'), ' on the Summary.'),
       p('Volunteers see changes to Settings after pressing Refresh. Payments that use a method you removed are grouped as “Other / unlisted” on the Summary, and must be given a listed method the next time someone edits them.'),
+      p('Volunteers log each online gift at the amount the donor gave, because logging what the giving website pays out would leave every online donor owing its fee. So the Online row under ', b('Collected by payment method'), ' on the Summary will be higher than what the website pays into the bank, by the amount of its fees.'),
     ),
     topic(
       'Keeping the sheet healthy',
