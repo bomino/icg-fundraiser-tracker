@@ -471,6 +471,13 @@ describe('pledge form', () => {
       expect(oldNumberHint().hidden).toBe(true);
     });
 
+    it('stays hidden for a pledge that had no phone, even beside payments that have none either', () => {
+      const noPhone = pledge({ id: 'p9', phone: '', name: 'No Phone Yet', amountPledged: 75 });
+      openPledgeForm({ pledges: [...pledges, noPhone], payments: [payment({ phone: '' })], existing: noPhone, onSave: vi.fn(), reportError: vi.fn() });
+      type(phoneBox(), '555-010-0110');
+      expect(oldNumberHint().hidden).toBe(true);
+    });
+
     it('warns for a pledge opened from Pledges, counting that list’s payments', () => {
       const paid = [...payments, payment({ phone: '555-010-0103', amountReceived: 50 })];
       const view = createPledgesView({ store, reportError: vi.fn() })({ ...state, payments: paid, computed: compute(pledges, paid, SETTINGS, TODAY) }, null, () => undefined);
@@ -688,6 +695,18 @@ describe('instant save from the lists', () => {
     expect(first[1]).toEqual({ id: expect.any(String) });
     expect(second[1]).toEqual(first[1]);
     expect(second[0]).toEqual(first[0]);
+  });
+
+  it('still warns about the payments on the old number when a failed phone change is reopened', async () => {
+    const savePledge = vi.fn<Store['savePledge']>(async () => { throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.'); });
+    const paid = [...payments, payment({ phone: '555-010-0103' })];
+    const view = createPledgesView({ store: { ...store, savePledge } as Store, reportError: vi.fn() })({ ...state, payments: paid, computed: compute(pledges, paid, SETTINGS, TODAY) }, null, () => undefined);
+    document.body.append(view);
+    (view.querySelector('tr[data-id="p3"]') as HTMLElement).click();
+    fillAndSave({ phone: '555-010-0110' });
+    await vi.waitFor(() => expect(button('Reopen')).toBeDefined());
+    button('Reopen').click();
+    expect(document.querySelector('dialog[open] [data-role=old-number-hint]')?.textContent).toMatch(/^1 payment was logged under the old number 555-010-0103\./);
   });
 
   it('retries a failed new payment from Payments under the same id', async () => {
