@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OFFLINE_WAIT_MS } from '../../web/src/api';
 import type { Auth } from '../../web/src/auth';
+import { todayIso } from '../../web/src/dates';
 import { FOLLOW_UP_AFTER_DAYS, HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute, needsFollowUp, type HealthCheck } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
 import { AUTO_REFRESH_AFTER_MS, mountApp, parseRoute } from '../../web/src/ui/app';
@@ -231,9 +232,14 @@ describe('createHelpView', () => {
     const howTo = Array.from(createHelpView().querySelectorAll('#help-how-to .help-topic')).find((topic) => topic.querySelector('h3')?.textContent === NO_PHONE_MONEY_TOPIC);
     for (const effect of [STATUS.overpaid, 'Overpaid / credit', HEALTH_LABELS.possibleDuplicatePayments, 'is already logged.', 'Unmatched payments stays at $0.00', 'Needs follow-up']) expect(howTo?.textContent).toContain(effect);
 
-    const general = pledge({ id: 'general', phone: GENERAL_DONATIONS.phone, name: GENERAL_DONATIONS.name, amountPledged: 0 });
+    // Saved today, as the How-to has it saved: a save is activity, so the empty pledge waits the full stretch.
+    const general = pledge({ id: 'general', phone: GENERAL_DONATIONS.phone, name: GENERAL_DONATIONS.name, amountPledged: 0, updatedAt: new Date(2026, 8, 23, 12).toISOString() });
     const aisha = pledge({ phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 1000, datePledged: '2026-09-01' });
-    expect(needsFollowUp(compute([general], [], SETTINGS, TODAY).pledges[0], TODAY)).toBe(true);
+    const daysAfterToday = (days: number) => todayIso(new Date(2026, 8, 23 + days));
+    const withNoGift = compute([general], [], SETTINGS, TODAY).pledges[0];
+    expect(howTo?.textContent).toContain(`${FOLLOW_UP_AFTER_DAYS} days after you save it, it shows under Needs follow-up`);
+    expect(needsFollowUp(withNoGift, daysAfterToday(FOLLOW_UP_AFTER_DAYS))).toBe(false);
+    expect(needsFollowUp(withNoGift, daysAfterToday(FOLLOW_UP_AFTER_DAYS + 1))).toBe(true);
     const payments = [
       payment({ phone: '555-010-0101', amountReceived: 500, dateReceived: '2026-09-05' }),
       payment({ phone: GENERAL_DONATIONS.phone, amountReceived: 1200, dateReceived: '2026-08-28' }),

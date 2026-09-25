@@ -537,7 +537,7 @@ function howTo(): Child[] {
       'Record money with no phone number (collection box, walk-in)',
       p('Some money has no donor to link it to: cash from the collection box, or a gift from someone who has not pledged and leaves no number. Log all of it under one shared pledge named General donations, so it still counts toward the goal.'),
       steps(
-        ['The first time only: on ', b('Pledges'), ', press ', b('Add pledge'), '. Type ', b('000-000-0000'), ' as the phone number and ', b('General donations'), ' as the donor name, enter ', b('0'), ' in Amount pledged, and clear the Date pledged box so it is empty. Save. Do this only when you have a gift to log, because until it has one it shows under ', b('Needs follow-up'), '.'],
+        ['The first time only: on ', b('Pledges'), ', press ', b('Add pledge'), '. Type ', b('000-000-0000'), ' as the phone number and ', b('General donations'), ' as the donor name, enter ', b('0'), ' in Amount pledged, and clear the Date pledged box so it is empty. Save. Do this only when you have a gift to log. Until it has one, it looks like a pledge nobody has paid, and 30 days after you save it, it shows under ', b('Needs follow-up'), '.'],
         ['Log the money as a payment with ', b('000-000-0000'), ' as the phone number. The line under it should show “Donor: General donations”. For the collection box, one payment for each count is enough; say where the money came from in Notes, for example “Collection box, Jumu’ah”.'],
         ['If you already logged such money under another number, open that payment and change its phone number to ', b('000-000-0000'), '.'],
       ),
