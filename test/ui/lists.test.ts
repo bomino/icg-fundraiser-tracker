@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ApiError, type Api } from '../../web/src/api';
-import { compute } from '../../web/src/engine';
+import { WARN_NOT_IN_PLEDGES, compute } from '../../web/src/engine';
 import { createStore, type State, type Store } from '../../web/src/store';
 import type { Payment, PaymentDraft } from '../../web/src/types';
 import type { ListFilter } from '../../web/src/ui/filter';
@@ -28,6 +28,10 @@ const type = (input: HTMLInputElement, value: string) => {
 };
 const openModalTitles = () => Array.from(document.querySelectorAll('dialog[open] .modal-title')).map((title) => title.textContent);
 const pressFormCancel = () => (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] .modal-actions button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
+const askToDelete = () => {
+  (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] .modal-actions button')).find((b) => b.textContent === 'Delete') as HTMLButtonElement).click();
+  return Array.from(document.querySelectorAll('dialog[open]')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm')?.querySelector('.body-md')?.textContent;
+};
 
 describe('pledges view', () => {
   it('marks duplicates red and filters by search without losing the box', () => {
@@ -442,6 +446,45 @@ describe('pledge form', () => {
   it('hides the Log a payment button when adding a new pledge', () => {
     openPledgeForm({ pledges, onSave: vi.fn(), onLogPayment: vi.fn(), reportError: vi.fn() });
     expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent === 'Log a payment')).toBe(false);
+  });
+
+  it('says a deleted duplicate pledge leaves its payments matched to the other pledge, naming that donor', () => {
+    openPledgeForm({ pledges, existing: pledges[1], onSave: vi.fn(), onDelete: vi.fn(async () => undefined), reportError: vi.fn() });
+    expect(askToDelete()).toBe('Delete this pledge? Their payments stay matched to the other pledge for Aisha Rahman.');
+    document.body.replaceChildren();
+    const nameless = pledge({ id: 'p9', phone: '(555) 010-0103', amountPledged: 20 });
+    openPledgeForm({ pledges: [...pledges, nameless], existing: pledges[2], onSave: vi.fn(), onDelete: vi.fn(async () => undefined), reportError: vi.fn() });
+    expect(askToDelete()).toBe('Delete this pledge? Their payments stay matched to the other pledge for a donor with no name.');
+  });
+
+  it('says a sole pledge’s payments stop counting, and how many and how much that is', () => {
+    const chenPaid = (...amounts: number[]) => compute(pledges, amounts.map((amountReceived) => payment({ phone: '555.010.0103', amountReceived })), SETTINGS, TODAY).pledges[2];
+    const stopsCounting = `Delete this pledge? Any payments from this phone number stay on the Payments tab but will show ${WARN_NOT_IN_PLEDGES} and stop counting toward Total received.`;
+    openPledgeForm({ pledges, existing: pledges[2], derived: chenPaid(100, 50.5), onSave: vi.fn(), onDelete: vi.fn(async () => undefined), reportError: vi.fn() });
+    expect(askToDelete()).toBe(`${stopsCounting} That is 2 payments adding up to $150.50.`);
+    document.body.replaceChildren();
+    openPledgeForm({ pledges, existing: pledges[2], derived: chenPaid(40), onSave: vi.fn(), onDelete: vi.fn(async () => undefined), reportError: vi.fn() });
+    expect(askToDelete()).toBe(`${stopsCounting} That is 1 payment of $40.00.`);
+  });
+
+  it('does not warn about payments a pledge has none of, or that were never counted', () => {
+    const noPhone = pledge({ id: 'p9', name: 'No Phone', amountPledged: 50 });
+    const noAmount = pledge({ id: 'p9', phone: '555-010-0199', name: 'No Amount' });
+    openPledgeForm({ pledges, existing: pledges[2], derived: compute(pledges, [], SETTINGS, TODAY).pledges[2], onSave: vi.fn(), onDelete: vi.fn(async () => undefined), reportError: vi.fn() });
+    expect(askToDelete()).toBe('Delete this pledge? It has no payments.');
+    document.body.replaceChildren();
+    openPledgeForm({ pledges: [...pledges, noPhone], existing: noPhone, onSave: vi.fn(), onDelete: vi.fn(async () => undefined), reportError: vi.fn() });
+    expect(askToDelete()).toBe('Delete this pledge? It has no payments.');
+    document.body.replaceChildren();
+    openPledgeForm({ pledges: [...pledges, noAmount], existing: noAmount, onSave: vi.fn(), onDelete: vi.fn(async () => undefined), reportError: vi.fn() });
+    expect(askToDelete()).toBe(`Delete this pledge? Any payments from this phone number stay on the Payments tab but will show ${WARN_NOT_IN_PLEDGES}.`);
+  });
+
+  it('asks about a pledge opened from Pledges with that row’s own payments', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    (view.querySelector('tr[data-id="p3"]') as HTMLElement).click();
+    expect(askToDelete()).toBe('Delete this pledge? It has no payments.');
   });
 });
 

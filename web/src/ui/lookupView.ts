@@ -85,6 +85,7 @@ export function createLookupView(deps: ListViewDeps) {
       chosenId = donor.pledge.id;
       openPledgeForm({
         existing: donor.pledge,
+        derived: donor,
         pledges: state.pledges,
         onSave: (draft, row) => deps.store.savePledge(draft, row),
         onDelete: (current) => deps.store.deletePledge(current),

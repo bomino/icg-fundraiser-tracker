@@ -128,6 +128,15 @@ describe('find donor', () => {
     expect(document.querySelector('.lookup-card dd')?.textContent).toBe('555-010-7777');
   });
 
+  it('says how much money deleting the pledge from the donor card stops counting', () => {
+    document.body.append(createLookupView({ store: { deletePledge: vi.fn() } as unknown as Store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 010 0101');
+    button('Edit pledge').click();
+    button('Delete').click();
+    const confirmModal = Array.from(document.querySelectorAll('dialog[open]')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm');
+    expect(confirmModal?.querySelector('.body-md')?.textContent).toMatch(/stop counting toward Total received\. That is 1 payment of \$40\.00\.$/);
+  });
+
   it('opens a payment from the donor card history to edit it', async () => {
     const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
     document.body.append(createLookupView({ store: { savePayment } as unknown as Store, reportError: vi.fn() })(state));

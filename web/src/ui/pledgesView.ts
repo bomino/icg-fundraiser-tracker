@@ -59,9 +59,10 @@ export function createPledgesView(deps: ListViewDeps) {
         reportError: deps.reportError,
       });
     };
-    const openEditor = (existing?: Pledge) => {
+    const openEditor = (existing?: Pledge, derived?: DerivedPledge) => {
       openPledgeForm({
         existing,
+        derived,
         pledges: state.pledges,
         onSave: (draft, row) => deps.store.savePledge(draft, row),
         onDelete: (current) => deps.store.deletePledge(current),
@@ -96,7 +97,7 @@ export function createPledgesView(deps: ListViewDeps) {
             sort = nextSort(sort, key);
             drawTable();
           },
-          onOpen: (d) => openEditor(d.pledge),
+          onOpen: (d) => openEditor(d.pledge, d),
           empty: filter || query || statusChip !== ALL_CHIP ? 'No pledges match.' : 'No pledges yet. Use “Add pledge” to record the first one.',
           visibleCount,
           onShowMore: () => {

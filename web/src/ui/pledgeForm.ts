@@ -1,7 +1,8 @@
 import type { NewRow } from '../api';
 import { todayIso } from '../dates';
+import { WARN_NOT_IN_PLEDGES, type DerivedPledge } from '../engine';
 import { matchKey } from '../matchKey';
-import { parseAmount } from '../format';
+import { formatCents, parseAmount } from '../format';
 import { newId as makeId } from '../id';
 import { isPending } from '../store';
 import type { Pledge, PledgeDraft } from '../types';
@@ -13,6 +14,8 @@ import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
 
 export interface PledgeFormOptions {
   existing?: Pledge;
+  /** The engine's figures for `existing`, so the delete question can say how many payments, and how much money, stop counting. */
+  derived?: DerivedPledge;
   /** The id a new pledge is created under. Left out, the form makes one; Reopen passes it back, so a retried Save names the same row. */
   newId?: string;
   pledges: readonly Pledge[];
@@ -30,6 +33,20 @@ function otherPledgeWithPhone(pledges: readonly Pledge[], phone: string, exceptI
   const key = matchKey(phone);
   if (key === '') return undefined;
   return pledges.find((p) => p.id !== exceptId && matchKey(p.phone) === key);
+}
+
+function deleteMessage(existing: Pledge, pledges: readonly Pledge[], derived: DerivedPledge | undefined): string {
+  const other = otherPledgeWithPhone(pledges, existing.phone, existing.id);
+  // "Matched", never "counted": if the kept pledge's amount is blank, the payments do not count there either.
+  if (other) return `Delete this pledge? Their payments stay matched to the other pledge for ${other.name || 'a donor with no name'}.`;
+  if (matchKey(existing.phone) === '' || derived?.paymentCount === 0) return 'Delete this pledge? It has no payments.';
+  const willShow = `Delete this pledge? Any payments from this phone number stay on the Payments tab but will show ${WARN_NOT_IN_PLEDGES}`;
+  // A blank amount already keeps its payments out of Total received, so deleting it changes no total.
+  if (existing.amountPledged === null) return `${willShow}.`;
+  const stopsCounting = `${willShow} and stop counting toward Total received.`;
+  if (!derived?.paymentCount) return stopsCounting;
+  const received = formatCents(derived.receivedCents);
+  return `${stopsCounting} That is ${derived.paymentCount === 1 ? `1 payment of ${received}` : `${derived.paymentCount} payments adding up to ${received}`}.`;
 }
 
 export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore): void {
@@ -89,7 +106,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     onSave: (draft) => options.onSave(draft, existing ?? { id: newId }),
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     secondary: canLogPayment ? { label: 'Log a payment', run: handleLogPayment, discardsTyping: true } : undefined,
-    deleteMessage: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
+    deleteMessage: existing ? deleteMessage(existing, options.pledges, options.derived) : '',
     reportError: options.reportError,
     reopen: (again) => openPledgeForm({ ...options, newId, existing: existing && (options.latest?.() ?? existing) }, again),
     restore,
