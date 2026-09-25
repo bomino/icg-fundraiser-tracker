@@ -83,15 +83,13 @@ describe('createErrorReporter', () => {
   });
 
   it('does not open over a form that replaces a closing one in the next task, as "Log a payment" does', async () => {
-    // #given a pledge dialog whose open attribute drops before its close event, which then opens the payment form
+    // #given a pledge dialog whose close event opens the payment form
     const pledgeDialog = openDialog('Edit pledge', h('form'), []);
-    const pending = createErrorReporter(vi.fn(async () => undefined))(new ApiError('NOT_FOUND', 'gone'), "Couldn't save Aisha");
-    pledgeDialog.element.removeAttribute('open');
     let paymentForm: ReturnType<typeof openDialog> | undefined;
-    setTimeout(() => {
-      pledgeDialog.element.remove();
-      paymentForm = openDialog('Log a payment', h('form'), []);
-    }, 0);
+    pledgeDialog.element.addEventListener('close', () => { paymentForm = openDialog('Log a payment', h('form'), []); });
+    const pending = createErrorReporter(vi.fn(async () => undefined))(new ApiError('NOT_FOUND', 'gone'), "Couldn't save Aisha");
+    // #when it closes: the open attribute drops at once, and the close event follows a task later
+    pledgeDialog.close();
     await nextTask();
     await nextTask();
     // #then the question waits behind the payment form

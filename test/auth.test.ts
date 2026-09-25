@@ -276,12 +276,6 @@ describe('createAuth', () => {
     document.body.append(host);
     const auth = createAuth('client-id', host);
     const dialog = signInDialog(host);
-    // Browsers queue the close event as a task; simulate that gap so a getToken landing inside it
-    // is exercised deterministically instead of racing the real (synchronous, in this jsdom) close.
-    const lateClose = vi.spyOn(dialog, 'close').mockImplementation(function (this: HTMLDialogElement) {
-      this.open = false;
-      setTimeout(() => this.dispatchEvent(new Event('close')), 0);
-    });
 
     const first = auth.getToken(false);
     await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
@@ -299,7 +293,6 @@ describe('createAuth', () => {
     expect(secondSettled).toBe(false);
     expect(dialog.open).toBe(true);
 
-    lateClose.mockRestore();
     host.remove();
   });
 
@@ -309,11 +302,6 @@ describe('createAuth', () => {
     document.body.append(host);
     const auth = createAuth('client-id', host);
     const dialog = signInDialog(host);
-    // Browsers queue the close event as a task; the jsdom shim fires it synchronously.
-    const lateClose = vi.spyOn(dialog, 'close').mockImplementation(function (this: HTMLDialogElement) {
-      this.open = false;
-      setTimeout(() => this.dispatchEvent(new Event('close')), 0);
-    });
 
     const first = auth.getToken(false);
     await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
@@ -328,7 +316,6 @@ describe('createAuth', () => {
     expect(settled).toBe(false);
     expect(dialog.open).toBe(true);
     expect(host.hidden).toBe(false);
-    lateClose.mockRestore();
     host.remove();
   });
 });
