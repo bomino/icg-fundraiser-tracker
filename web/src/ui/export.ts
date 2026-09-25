@@ -174,8 +174,9 @@ export async function buildSummarySheet(state: State, loadedAt: number | null): 
 export async function buildWorkbook(state: State, loadedAt: number | null): Promise<import('xlsx').WorkBook> {
   const XLSX = await import('xlsx');
   const book = XLSX.utils.book_new();
+  // The title says confidential because the file holds every donor's name, phone number and amounts.
   // No Author: who pressed Download says nothing about the figures, and Last changed by already names who saved each row.
-  book.Props = { Title: 'ICG Fundraiser Tracker', CreatedDate: new Date() };
+  book.Props = { Title: 'ICG Fundraiser (confidential)', CreatedDate: new Date() };
   // Summary first, so the file opens on the totals rather than on the raw list of donors.
   XLSX.utils.book_append_sheet(book, await buildSummarySheet(state, loadedAt), 'Summary');
   XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, pledgeSheetRows(state.computed)), 'Pledges');

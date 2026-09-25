@@ -268,7 +268,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 
 The Vite `base` is set to the repo name.
 
-**Privacy:** the repo, CI logs and the build contain no donor data. Fixtures use `555-01xx` numbers and made-up names. The Sheet stays private to the owner; only the Apps Script, running as the owner, touches it.
+**Privacy:** the repo, CI logs and the build contain no donor data. Fixtures use `555-01xx` numbers and made-up names. The Sheet stays private to the owner; only the Apps Script, running as the owner, touches it. The .xlsx export holds every donor's name, phone number and amounts, so it is titled "ICG Fundraiser (confidential)" and the docs say to keep it private: on the organiser's own computer or in a folder only they and the second editor can open, never a shared drive, email or group chat.
 
 ## 9. Out of scope
 

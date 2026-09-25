@@ -95,11 +95,11 @@ describe('the "Figures as of" stamp', () => {
     expect(workbookFileName(null, new Date(2026, 8, 24, 16, 30))).toBe('ICG-Fundraiser-2026-09-24-1630.xlsx');
   });
 
-  it('gives the file a title and creation time, but not the email of whoever downloaded it', async () => {
+  it('gives the file a title marking it confidential and a creation time, but not the email of whoever downloaded it', async () => {
     const XLSX = await import('xlsx');
     const written = XLSX.write(await buildWorkbook(stampState, LOADED_AT), { type: 'buffer', bookType: 'xlsx' });
     const { Props } = XLSX.read(written);
-    expect(Props?.Title).toBe('ICG Fundraiser Tracker');
+    expect(Props?.Title).toBe('ICG Fundraiser (confidential)');
     expect(Props?.CreatedDate).toBeInstanceOf(Date);
     expect(Props?.Author).toBeUndefined();
     expect(summarySheetRows(stampState, LOADED_AT).flat()).not.toContain('me@example.com');

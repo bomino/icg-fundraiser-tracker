@@ -441,6 +441,7 @@ function howTo(): Child[] {
       p('Downloading needs a connection. If the tracker cannot reach the shared sheet, it says ', said(SAID.couldNotDownload), ' and saves nothing, so you never get an out-of-date copy by mistake. Try again once you are back online.'),
       p('The Pledges and Payments sheets end with ', said(SAID.lastChangedBy), ' and ', said(SAID.lastChangedAt), ': the email of the volunteer who last saved each row, and when. That is whoever saved the row last, not always the person who took the money — fixing a typo in someone else’s payment puts your email there.'),
       p('On the Pledges and Payments sheets, the small arrow beside each heading lets you show only some rows, for example only Partial pledges or only Cash payments.'),
+      note('The file holds every donor’s name, phone number and amounts. Keep it to yourself: do not forward it or post it in a group chat, and delete old copies you no longer need.'),
     ),
     topic(
       'See only the problem rows',
@@ -593,7 +594,7 @@ function forTheOrganiser(): Child[] {
           b('Summary'),
           ', press ',
           b('Download .xlsx'),
-          ' once a month and again right after each event, and keep the file somewhere safe (a laptop, a shared drive) outside the Sheet itself.',
+          ' once a month and again right after each event, and keep the file outside the Sheet itself: on your own computer or in a private folder only you and the second editor can open — not a shared drive, email or group chat. It holds every donor’s name, phone number and amounts.',
         ],
         [
           b('Add a second editor'),
