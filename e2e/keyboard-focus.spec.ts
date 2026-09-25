@@ -26,3 +26,23 @@ test('a row opened from the keyboard gets focus back after Save, and keeps it on
   await expect(page.getByText('Saved.')).toBeVisible();
   await expect(row.getByRole('button', { name: 'Open 555 0103' })).toBeFocused();
 });
+
+test('a run of "Save and add another" typed from the keyboard ends with focus back on Add pledge', async ({ page }) => {
+  await openApp(page, 'pledges');
+  const add = page.getByRole('button', { name: 'Add pledge' });
+  await add.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Add pledge' });
+  for (const phone of ['555-9411', '555-9412']) {
+    await expect(dialog.getByLabel('Phone number')).toBeFocused();
+    await page.keyboard.type(phone);
+    await dialog.getByRole('button', { name: 'Save and add another' }).focus();
+    await page.keyboard.press('Enter');
+  }
+
+  await dialog.getByRole('button', { name: 'Cancel' }).focus();
+  await page.keyboard.press('Enter');
+
+  await expect(dialog).toBeHidden();
+  await expect(add).toBeFocused();
+});

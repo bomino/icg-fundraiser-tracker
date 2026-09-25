@@ -653,6 +653,60 @@ describe('mountApp', () => {
       expect(document.activeElement).toBe(mainButton('Add pledge'));
     });
 
+    describe('after a run of Save and add another', () => {
+      // The browser focuses a pressed button, and showModal focuses the next form's first box.
+      const pressInDialog = (label: string) => {
+        const button = topDialogButton(label);
+        button.focus();
+        button.click();
+      };
+      const startRun = async () => {
+        const store = await slowStore();
+        mountApp(root, { store, auth: fakeAuth() });
+        openWithKeyboard(mainButton('Add pledge'));
+        fill('phone', '555-010-0191');
+        pressInDialog('Save and add another');
+        focusIntoDialog();
+        fill('phone', '555-010-0192');
+        pressInDialog('Save and add another');
+        focusIntoDialog();
+      };
+
+      it('returns focus to Add pledge when the last form is cancelled', async () => {
+        await startRun();
+
+        pressInDialog('Cancel');
+
+        await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
+        expect(document.activeElement).toBe(mainButton('Add pledge'));
+      });
+
+      it('returns focus to Add pledge when the last form is saved', async () => {
+        await startRun();
+        fill('phone', '555-010-0193');
+
+        pressInDialog('Save');
+
+        await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
+        expect(document.activeElement).toBe(mainButton('Add pledge'));
+      });
+
+      it('returns focus to Add pledge once a payment logged from the last form is saved', async () => {
+        await startRun();
+        fill('phone', '555-010-0193');
+        pressInDialog('Save and log a payment');
+        await vi.waitFor(() => expect(document.querySelector('dialog[open] [name=amountReceived]')).not.toBeNull());
+        focusIntoDialog();
+        fill('amountReceived', '20');
+        fill('method', 'Cash');
+
+        pressInDialog('Save');
+
+        await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
+        expect(document.activeElement).toBe(mainButton('Add pledge'));
+      });
+    });
+
     it('moves focus to the table once a deleted row has gone, and leaves it in the form while the delete question is open', async () => {
       const store = await slowStore([...pledges, pledge({ id: 'p2', phone: '555-010-0102', name: 'Bilal Khan', amountPledged: 50 })]);
       mountApp(root, { store, auth: fakeAuth() });
