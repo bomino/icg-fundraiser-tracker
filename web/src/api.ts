@@ -23,6 +23,8 @@ export interface LoadResult {
   me: string;
   /** Absent from a Code.gs deployed before it counted them. */
   rowsWithoutId?: RowsWithoutId;
+  /** Code.gs's API_VERSION; absent from a Code.gs deployed before it had one. */
+  apiVersion?: number;
 }
 
 export interface Versioned {

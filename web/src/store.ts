@@ -9,6 +9,7 @@ export interface State {
   settings: Settings;
   me: string;
   rowsWithoutId?: RowsWithoutId;
+  apiVersion?: number;
   computed: Computed;
 }
 
@@ -50,7 +51,7 @@ interface Collection<T extends Row> {
   with(state: Base, rows: T[]): Base;
 }
 
-const base = (state: State): Base => ({ pledges: state.pledges, payments: state.payments, settings: state.settings, me: state.me, rowsWithoutId: state.rowsWithoutId });
+const base = (state: State): Base => ({ pledges: state.pledges, payments: state.payments, settings: state.settings, me: state.me, rowsWithoutId: state.rowsWithoutId, apiVersion: state.apiVersion });
 const pledgeRows: Collection<Pledge> = { get: (s) => s.pledges, with: (s, rows) => ({ ...s, pledges: rows }) };
 const paymentRows: Collection<Payment> = { get: (s) => s.payments, with: (s, rows) => ({ ...s, payments: rows }) };
 
@@ -215,7 +216,7 @@ export function createStore(api: Api, today: () => string): Store {
         if (order < newestPublishedLoad) return;
         newestPublishedLoad = order;
         loadedAt = Date.now();
-        const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me, rowsWithoutId: result.rowsWithoutId };
+        const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me, rowsWithoutId: result.rowsWithoutId, apiVersion: result.apiVersion };
         const replay = [...mutations].filter((m) => !m.committed || m.staleLoads.has(token));
         publish(replay.reduce((onto, m) => m.overlay(fresh, onto), fresh));
       } finally {

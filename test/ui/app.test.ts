@@ -5,14 +5,18 @@ import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
 import { renderMessageScreen } from '../../web/src/ui/screens';
+import { SITE_API_VERSION } from '../../web/src/version';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 const pledges = [pledge({ id: 'p1', phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 100 })];
 
-function fakeStore() {
-  let state: State = { pledges, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, [], SETTINGS, TODAY) };
+function fakeStore(fields: Partial<State> = {}) {
+  let state: State = { pledges, payments: [], settings: SETTINGS, me: 'me@example.com', apiVersion: SITE_API_VERSION, computed: compute(pledges, [], SETTINGS, TODAY), ...fields };
   const listeners = new Set<(state: State) => void>();
-  const publish = () => listeners.forEach((listener) => listener(state));
+  const publish = (changes: Partial<State> = {}) => {
+    state = { ...state, ...changes };
+    listeners.forEach((listener) => listener(state));
+  };
   const store = {
     state: () => state,
     subscribe: (listener: (state: State) => void) => {
@@ -178,6 +182,44 @@ describe('mountApp', () => {
     expect(document.querySelector('dialog[open]')).not.toBeNull();
     setVisibility('visible');
     expect(store.load).not.toHaveBeenCalled();
+  });
+
+  const versionBanner = () => root.querySelector('[data-role=version]') as HTMLElement;
+  const SERVER_BEHIND = "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).";
+  const SITE_BEHIND = 'The tracker was updated. Reload this page to get the latest version.';
+
+  it('shows no version banner while the server runs the version the site was built for', () => {
+    mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+    expect(versionBanner().hidden).toBe(true);
+  });
+
+  it.each([
+    ['sends no version', undefined],
+    ['is older', SITE_API_VERSION - 1],
+  ])('tells the organiser to redeploy Code.gs when the server %s', (_label, apiVersion) => {
+    mountApp(root, { store: fakeStore({ apiVersion }).store, auth: fakeAuth() });
+    expect({ hidden: versionBanner().hidden, text: versionBanner().textContent }).toEqual({ hidden: false, text: SERVER_BEHIND });
+  });
+
+  // A phone tab left open across a deploy keeps running the old code; only a reload of its data can notice.
+  it('asks for a page reload once a load finds the server newer, then clears when they match again', () => {
+    const { store, publish } = fakeStore();
+    mountApp(root, { store, auth: fakeAuth() });
+    publish({ apiVersion: SITE_API_VERSION + 1 });
+    expect({ hidden: versionBanner().hidden, text: versionBanner().textContent }).toEqual({ hidden: false, text: SITE_BEHIND });
+    // A save's publish leaves the text node alone, so a screen reader doesn't announce it again.
+    const announced = versionBanner().firstChild;
+    publish();
+    expect(versionBanner().firstChild).toBe(announced);
+    publish({ apiVersion: SITE_API_VERSION });
+    expect(versionBanner().hidden).toBe(true);
+  });
+
+  it('never blocks adding a row while the version banner shows', () => {
+    mountApp(root, { store: fakeStore({ apiVersion: undefined }).store, auth: fakeAuth() });
+    const add = root.querySelector('main .btn-primary') as HTMLButtonElement;
+    add.click();
+    expect({ disabled: add.disabled, open: document.querySelector('dialog[open]') !== null }).toEqual({ disabled: false, open: true });
   });
 
   it('shows the Friday display full screen, with no nav, tabs or offline banner', () => {

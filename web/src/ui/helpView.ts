@@ -1,4 +1,5 @@
 import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, type HealthId, type Status } from '../engine';
+import { SITE_API_VERSION, SITE_COMMIT } from '../version';
 import { h, type Child } from './dom';
 import { PAYMENT_HELP, PLEDGE_HELP } from './help';
 
@@ -7,6 +8,8 @@ type Inline = Child[];
 // Every string the guide quotes, verbatim, so a test can fail when the app's wording drifts from the guide's.
 const SAID = {
   offline: 'You are offline. Changes cannot be saved until the connection is back.',
+  serverBehind: "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).",
+  siteBehind: 'The tracker was updated. Reload this page to get the latest version.',
   network: 'Could not reach the tracker. Check your connection and try again.',
   httpError: 'The tracker answered with an error',
   busy: 'The tracker is busy. Try again in a moment.',
@@ -106,6 +109,16 @@ const PROBLEMS: readonly Problem[] = [
     message: [said(SAID.offline)],
     meaning: ['Your phone or computer has lost its internet connection. This shows as a strip under the top bar.'],
     action: ['Wait for the connection to come back. If a save failed meanwhile, press ', b('Reopen'), ' on its message and ', b('Save'), ' again. You can still read the screens.'],
+  },
+  {
+    message: [said(SAID.serverBehind)],
+    meaning: ['The app was updated, but the organiser has not yet updated the part of the tracker that runs on Google’s side (Code.gs) to match. This shows as a strip under the top bar. It is not something you caused.'],
+    action: ['Tell the organiser. You can keep working. If a save fails, press ', b('Reopen'), ' on its message and ', b('Save'), ' again once the organiser has fixed it.'],
+  },
+  {
+    message: [said(SAID.siteBehind)],
+    meaning: ['A newer version of the tracker came out while this page was open. This shows as a strip under the top bar.'],
+    action: ['Wait until no row shows ', said(SAID.saving), ', then reload the page with your browser’s reload button. If you opened the tracker from your home screen, close it completely and open it again.'],
   },
   {
     message: [said(SAID.network)],
@@ -658,7 +671,17 @@ function forTheOrganiser(): Child[] {
         [b('Never delete the Sheet or its Apps Script project'), ' — that is the tracker’s only database; deleting either takes every pledge and payment with it.'],
       ),
     ),
-    topic('Setup and troubleshooting', p('Setting the tracker up, and fixing setup problems, is covered in docs/SETUP.md in the project’s GitHub repository.')),
+    topic(
+      'Setup and troubleshooting',
+      p('Setting the tracker up, and fixing setup problems, is covered in docs/SETUP.md in the project’s GitHub repository.'),
+      p(
+        'This copy of the app ',
+        ...(SITE_COMMIT === '' ? ['is a local build'] : ['was built from commit ', b(SITE_COMMIT)]),
+        '. It works with the Code.gs that contains the line ',
+        b(`const API_VERSION = ${SITE_API_VERSION};`),
+        '. Mention both when you report a problem.',
+      ),
+    ),
   ];
 }
 

@@ -33,7 +33,9 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 2. Set **Execute as: Me** and **Who has access: Anyone**. "Anyone" only lets the request reach the script. The script itself rejects anyone who isn't signed in and on the Allowlist.
 3. Copy the **Web app URL**. It ends in `/exec`.
 
-When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL. Update `Code.gs` (as a new deployment version) and the website in the same sitting: if the two don't match, adding new pledges and payments breaks.
+When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL. Update `Code.gs` (as a new deployment version) and the website in the same sitting, `Code.gs` first: if the two don't match, adding new pledges and payments can fail with misleading messages.
+
+The app checks this for you. Each `Code.gs` has a line near the top like `const API_VERSION = 1;`, and the website is built for one number. After every load the app compares the two, and while they differ every volunteer sees a strip under the top bar (see [Troubleshooting](#troubleshooting)). It doesn't stop anyone saving. To see which `Code.gs` the website needs, open the app's **Help → For the organiser → Setup and troubleshooting**: it names the commit the site was built from and the `API_VERSION` line it expects. Take `Code.gs` from that same commit.
 
 ## 4. Publish the site
 
@@ -77,7 +79,8 @@ The Sheet is the only copy of the fundraiser's records — there is no separate 
 | *… is not on the volunteer list* | That Google account isn't on the **Allowlist** tab. Add the email exactly, one per row (step 1.6), or sign in with the listed account. |
 | *The 3rd column of the "Pledges" tab should be …* | A column was inserted, moved or deleted in that tab, or its header row was cleared (step 1.9). Undo it with **File → Version history**, or move a new column to the right of `updatedBy`. |
 | *The "Pledges" tab is missing* | The tab was renamed or deleted. Rename it back, or restore a deleted one with **File → Version history**. Don't run `setup()` again: it adds a new, empty tab and leaves the records in the renamed one. |
-| *Someone else deleted this row* when **adding** a pledge or payment, or *Missing or malformed row id* | The site and `Code.gs` are out of step: `Code.gs` was changed without deploying a **new version**, or the site wasn't rebuilt. Redeploy `Code.gs` (**Manage deployments → ✎ → New version**) and re-run the site's workflow. |
+| *The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).* | The website was updated, but the deployed `Code.gs` is older (or from before `Code.gs` had an `API_VERSION`). Paste in the `Code.gs` from the commit the site was built from (the app's **Help → For the organiser → Setup and troubleshooting** names it) and deploy it as a **new version** (**Manage deployments → ✎ → New version**). Until then, adding a pledge or payment may fail with *Someone else deleted this row* or *Missing or malformed row id*. |
+| *The tracker was updated. Reload this page to get the latest version.* | `Code.gs` is newer than the website this page is running: usually a page left open since before the site was updated. Reload the page; on a phone's home-screen app, close it fully and open it again. If a freshly opened page still says it, the site wasn't rebuilt: re-run **Actions → Test and deploy → Run workflow** (step 4.5). |
 
 ### Reading the server's log
 

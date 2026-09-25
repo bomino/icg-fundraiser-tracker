@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OWNER, createServer } from '../support/appsScript';
 import { METHODS, VALIDATION_CASES } from '../support/validationCases';
@@ -32,6 +33,21 @@ describe('setup', () => {
     expect(server.sheet('Allowlist').getDataRange().getValues()).toHaveLength(2);
     expect(server.sheet('Settings').getDataRange().getValues()).toHaveLength(3);
     expect(server.sheet('Pledges history').getDataRange().getValues()).toHaveLength(1);
+  });
+});
+
+// One entry per API_VERSION, oldest first: the SHA-256 of Code.gs, with LF line endings and its
+// API_VERSION line blanked. Every edit to Code.gs must be redeployed by hand, and only a raised
+// API_VERSION makes the site's banner tell the organiser that it hasn't been.
+const CODE_GS_HASHES: readonly string[] = ['1c6e1dfdb6cddfe037685187ab10f2c79672ba514f4795ef48180765ed8a5a6e'];
+
+describe('API_VERSION', () => {
+  it('is raised whenever Code.gs changes', () => {
+    const source = readFileSync(new URL('../../apps-script/Code.gs', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+    const sha256 = createHash('sha256').update(source.replace(/^const API_VERSION = \d+;$/m, 'const API_VERSION = ?;')).digest('hex');
+    const next = CODE_GS_HASHES.length + 1;
+    expect(sha256, `Code.gs changed: set API_VERSION to ${next}, add '${sha256}' to the end of CODE_GS_HASHES in test/server/code.test.ts, then redeploy Code.gs as a new version.`).toBe(CODE_GS_HASHES.at(-1));
+    expect(server.evaluate('API_VERSION'), 'API_VERSION must equal the number of CODE_GS_HASHES entries.').toBe(CODE_GS_HASHES.length);
   });
 });
 
@@ -140,11 +156,12 @@ describe('non-UTC spreadsheet time zones', () => {
 });
 
 describe('load', () => {
-  it('returns rows, settings and the caller', () => {
+  it('returns rows, settings, the caller and the API version', () => {
     expect(server.post('load', {}, token)).toEqual({
       ok: true,
-      data: { pledges: [], payments: [], settings: { goal: 10000, paymentMethods: METHODS }, me: OWNER, rowsWithoutId: { pledges: 0, payments: 0 } },
+      data: { pledges: [], payments: [], settings: { goal: 10000, paymentMethods: METHODS }, me: OWNER, rowsWithoutId: { pledges: 0, payments: 0 }, apiVersion: server.evaluate('API_VERSION') },
     });
+    expect(Number.isInteger(server.evaluate('API_VERSION'))).toBe(true);
   });
   // Such rows are never loaded, so this count is the app's only sign that pasted entries lack an id.
   it('counts rows with no id that look like entries, leaving out totals and notes rows', () => {

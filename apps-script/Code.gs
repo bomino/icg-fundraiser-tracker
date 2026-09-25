@@ -2,6 +2,12 @@
 // the owner, so only this script ever touches the Sheet. Every request must carry a Google ID
 // token for an allowlisted, verified email.
 
+// The site is built against this number (vite.config.ts reads this exact line) and compares it with
+// the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
+// when this script and the site are deployed out of step. Raise it on every edit to this file;
+// test/server/code.test.ts fails until you do.
+const API_VERSION = 1;
+
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
   Payments: ['id', 'phone', 'dateReceived', 'amountReceived', 'method', 'notes', 'updatedAt', 'updatedBy'],
@@ -186,6 +192,7 @@ function load_(email) {
     settings: readSettings_(),
     me: email,
     rowsWithoutId: { pledges: pledges.withoutId, payments: payments.withoutId },
+    apiVersion: API_VERSION,
   };
 }
 

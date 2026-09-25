@@ -77,7 +77,7 @@ Every request looks like `{idToken, op, payload}`. Every response is `{ok: true,
 
 | op | payload | behaviour |
 |---|---|---|
-| `load` | — | `{pledges[], payments[], settings, me: email, rowsWithoutId: {pledges, payments}}`. Rows with a blank `id` are skipped; `rowsWithoutId` counts the skipped rows that look like entries (a non-blank phone, plus an amount on Payments), so a totals or notes row isn't counted. Ids are never filled in automatically. |
+| `load` | — | `{pledges[], payments[], settings, me: email, rowsWithoutId: {pledges, payments}, apiVersion}`. Rows with a blank `id` are skipped; `rowsWithoutId` counts the skipped rows that look like entries (a non-blank phone, plus an amount on Payments), so a totals or notes row isn't counted. Ids are never filled in automatically. `apiVersion` is the script's `API_VERSION` (§7, Errors and state). |
 | `upsertPledge` / `upsertPayment` | row (without `id` for an insert; with `id` and `updatedAt` for an update) | Validates (§7). For an update, if the stored `updatedAt` ≠ the sent `updatedAt`, returns `CONFLICT` with the current row. Otherwise appends the stored row to the history tab (§3), then stamps and writes the row and returns it. |
 | `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then appends the row to the history tab (§3) and deletes it from the sheet. `NOT_FOUND` if the row is gone. A history write that fails fails the edit or delete. |
 | `setSetting` | `{key: "goal", value}` | Goal must be a number ≥ 0. `paymentMethods` can't be changed from the app; edit it in the Sheet. |
@@ -230,6 +230,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.
 - `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser."
 - A network failure or `navigator.onLine === false` shows a banner. The app makes no attempt to work offline.
+- A site and `Code.gs` deployed out of step show a banner after any load. The site is built for the `API_VERSION` in its own copy of `Code.gs` and compares it with `load`'s `apiVersion`. A missing or lower server version reads "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).", a higher one "The tracker was updated. Reload this page to get the latest version." Neither blocks saving, and the server never rejects a request over its version. Added 2026-09-25.
 
 **Wording** follows the workbook's column names and the guide's plain language.
 
@@ -270,7 +271,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 6. Deploy as a web app: execute as me, access "Anyone".
 7. Set the `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID` repo variables and enable Pages from Actions.
 
-The Vite `base` is set to the repo name.
+The Vite `base` is set to the repo name. Vite also reads `API_VERSION` from `apps-script/Code.gs`, so every change to `Code.gs` raises it (a test enforces this) and is deployed before the site (§7, Errors and state).
 
 **Privacy:** the repo, CI logs and the build contain no donor data. Fixtures use `555-01xx` numbers and made-up names. The Sheet stays private to the owner; only the Apps Script, running as the owner, touches it.
 

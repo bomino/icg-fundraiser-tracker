@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { ApiError, createApi } from '../web/src/api';
+import { SITE_API_VERSION, behindHalf } from '../web/src/version';
 import { WARNING_MARK } from '../web/src/engine/constants';
 import { IGNORED_CHARACTERS } from '../web/src/matchKey';
 import { createStore } from '../web/src/store';
@@ -64,6 +65,7 @@ describe('the client against the real Code.gs', () => {
       settings: { goal: 25000, paymentMethods: METHODS },
       me: OWNER,
       rowsWithoutId: { pledges: 0, payments: 0 },
+      apiVersion: SITE_API_VERSION,
     });
     await api.deletePayment(editedPayment);
     await api.deletePledge(edited);
@@ -86,6 +88,12 @@ describe('the client against the real Code.gs', () => {
     // A RegExp from the script's own realm, so it is compared by its parts rather than as an object.
     const phoneIgnored = server.evaluate<RegExp>('PHONE_IGNORED');
     expect({ source: phoneIgnored.source, flags: phoneIgnored.flags }).toEqual({ source: IGNORED_CHARACTERS.source, flags: IGNORED_CHARACTERS.flags });
+  });
+
+  it('finds neither half out of date when both come from the same commit', async () => {
+    const { server, store } = await connect();
+    expect(server.evaluate('API_VERSION')).toBe(SITE_API_VERSION);
+    expect(behindHalf(store.state()?.apiVersion)).toBeNull();
   });
 });
 
