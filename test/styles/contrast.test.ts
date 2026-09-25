@@ -104,6 +104,10 @@ describe('high-contrast themes', () => {
       'fills the pressed status chip rather than outlining it, so its focus ring still shows',
       /\.chip-toggle\[aria-pressed='true'\] \{ forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; \}/,
     ],
+    [
+      "rings the focused pressed chip in the theme's own colour, not the brand gold its opt-out would keep",
+      /\.chip-toggle\[aria-pressed='true'\]:focus-visible \{ outline-color: Highlight; \}/,
+    ],
     ['underlines only the current tab', /\.tab \{ border-bottom-color: Canvas; \}\s*\.tab\[aria-current='page'\] \{ border-bottom-color: Highlight; \}/],
     ['keeps the chart key in the colours of its slices', /\.swatch \{ forced-color-adjust: none; \}/],
   ])('%s', (_what, rule) => {

@@ -297,10 +297,12 @@ textarea.input { resize: vertical; }
 body[data-display] .toasts { display: none; }
 
 /* Windows high-contrast themes replace every background with the page colour, so what shows only as a fill takes a system colour instead.
-   The pressed chip is filled, not outlined, so its focus ring still shows. Every tab's transparent border would turn visible, leaving the current one told apart by colour alone. */
+   The pressed chip is filled, not outlined, so its focus ring still shows; opting it out would keep that ring brand gold, which a custom theme's page colour can hide.
+   Every tab's transparent border would turn visible, leaving the current one told apart by colour alone. */
 @media (forced-colors: active) {
   .progress-fill { forced-color-adjust: none; background: Highlight; }
   .chip-toggle[aria-pressed='true'] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+  .chip-toggle[aria-pressed='true']:focus-visible { outline-color: Highlight; }
   .tab { border-bottom-color: Canvas; }
   .tab[aria-current='page'] { border-bottom-color: Highlight; }
   .swatch { forced-color-adjust: none; }
