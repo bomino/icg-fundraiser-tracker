@@ -113,7 +113,7 @@ const PROBLEMS: readonly Problem[] = [
   {
     message: [said(SAID.serverBehind)],
     meaning: ['The app was updated, but the organiser has not yet updated the part of the tracker that runs on Google’s side (Code.gs) to match. This shows as a strip under the top bar. It is not something you caused.'],
-    action: ['Tell the organiser. You can keep working. If a save fails, press ', b('Reopen'), ' on its message and ', b('Save'), ' again once the organiser has fixed it.'],
+    action: ['Tell the organiser. You can keep working, but until it is fixed a save may fail, sometimes with a message that does not fit, such as ', said(SAID.deleted), ' when you add a new pledge or payment. Keep a note of what you add, and enter again anything that did not save once the organiser has fixed it.'],
   },
   {
     message: [said(SAID.siteBehind)],
@@ -172,8 +172,8 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.deleted)],
-    meaning: ['Another volunteer deleted the row you were editing.'],
-    action: ['Press ', b('Reload'), '. If the row should still exist, do not add it again: ask the organiser to bring it back, then make your change.'],
+    meaning: ['Another volunteer deleted the row you were editing. If you were adding a new pledge or payment instead, the tracker’s server is out of date (a strip under the top bar says so) and your entry was not saved.'],
+    action: ['Press ', b('Reload'), '. If the row should still exist, do not add it again: ask the organiser to bring it back, then make your change. If you were adding a new one, tell the organiser, and add it again once they have fixed the server.'],
   },
   {
     message: [b(SAID.notSetUp), ', ', said(`${SAID.notConfigured}…`), ', ', said(SAID.unexpectedPage), ' or ', said(`The "…" ${SAID.tabMissing} …`)],

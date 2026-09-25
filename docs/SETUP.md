@@ -33,7 +33,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 2. Set **Execute as: Me** and **Who has access: Anyone**. "Anyone" only lets the request reach the script. The script itself rejects anyone who isn't signed in and on the Allowlist.
 3. Copy the **Web app URL**. It ends in `/exec`.
 
-When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL. Update `Code.gs` (as a new deployment version) and the website in the same sitting, `Code.gs` first: if the two don't match, adding new pledges and payments can fail with misleading messages.
+When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL. Update `Code.gs` (as a new deployment version) and the website in the same sitting, `Code.gs` first (before you push the change to `main`, which rebuilds the website): if the two don't match, adding new pledges and payments can fail with misleading messages.
 
 The app checks this for you. Each `Code.gs` has a line near the top like `const API_VERSION = 1;`, and the website is built for one number. After every load the app compares the two, and while they differ every volunteer sees a strip under the top bar (see [Troubleshooting](#troubleshooting)). It doesn't stop anyone saving. To see which `Code.gs` the website needs, open the app's **Help → For the organiser → Setup and troubleshooting**: it names the commit the site was built from and the `API_VERSION` line it expects. Take `Code.gs` from that same commit.
 
