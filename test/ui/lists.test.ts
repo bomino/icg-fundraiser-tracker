@@ -99,7 +99,7 @@ describe('pledges view', () => {
     type(document.querySelector('dialog[open] [name=amountPledged]') as HTMLInputElement, '50');
     (Array.from(document.querySelectorAll('dialog[open] button')).find((b) => b.textContent === 'Save and log a payment') as HTMLButtonElement).click();
     // #then only the payment form is open, already matched to the new donor, ready for the amount
-    expect(openModalTitles()).toEqual(['Log a payment']);
+    await vi.waitFor(() => expect(openModalTitles()).toEqual(['Log a payment']));
     expect((document.querySelector('dialog[open] [name=phone]') as HTMLInputElement).value).toBe('555 777 0001');
     expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Zara · owes $50.00 of $50.00');
     expect(document.activeElement).toBe(document.querySelector('dialog[open] [name=amountReceived]'));
@@ -495,7 +495,7 @@ describe('payment form', () => {
     pressFormCancel();
     expect(document.querySelector('dialog[open]')).toBeNull();
     openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
-    type(document.querySelector('input[name=amountReceived]') as HTMLInputElement, '750');
+    type(document.querySelector('dialog[open] input[name=amountReceived]') as HTMLInputElement, '750');
     pressFormCancel();
     expect(openModalTitles()).toEqual(['Log a payment', 'Please confirm']);
     expect(document.body.textContent).toContain('Discard what you typed?');
@@ -723,7 +723,7 @@ describe('pledge form', () => {
     pressFormCancel();
     expect(document.querySelector('dialog[open]')).toBeNull();
     openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
-    type(document.querySelector('input[name=amountPledged]') as HTMLInputElement, '350');
+    type(document.querySelector('dialog[open] input[name=amountPledged]') as HTMLInputElement, '350');
     pressFormCancel();
     expect(openModalTitles()).toEqual(['Edit pledge', 'Please confirm']);
     expect(document.body.textContent).toContain('Discard what you typed?');
@@ -762,7 +762,7 @@ describe('pledge form', () => {
       expect(saveAndLog()).toBeUndefined();
     });
 
-    it('saves the pledge through Save, then hands over the typed phone once the dialog has closed', () => {
+    it('saves the pledge through Save, then hands over the typed phone once the dialog has closed', async () => {
       const onSave = vi.fn(async () => undefined);
       const onLogPayment = vi.fn();
       openPledgeForm({ newId: 'chosen-id', pledges, onSave, onLogPayment, reportError: vi.fn() });
@@ -771,7 +771,7 @@ describe('pledge form', () => {
       saveAndLog()?.click();
       expect(document.querySelector('dialog[open]')).toBeNull();
       expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ phone: '555 777 0001', name: 'Zara' }), { id: 'chosen-id' });
-      expect(onLogPayment).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(onLogPayment).toHaveBeenCalledTimes(1));
       expect(onLogPayment).toHaveBeenCalledWith('555 777 0001');
       expect(onSave.mock.invocationCallOrder[0]).toBeLessThan(onLogPayment.mock.invocationCallOrder[0]);
     });
@@ -905,6 +905,7 @@ describe('instant save from the lists', () => {
     document.body.append(createPledgesView({ store: { ...store, savePayment } as Store, reportError: vi.fn() })(state, null, () => undefined));
     (document.querySelector('tr[data-id="p3"] .row-open') as HTMLButtonElement).click();
     button('Log a payment').click();
+    await vi.waitFor(() => expect(openModalTitles()).toEqual(['Log a payment']));
     const [first, second] = await saveThenRetryFromToast(savePayment, { amountReceived: '20' });
     expect(first).toEqual({ id: expect.any(String) });
     expect(second).toEqual(first);
@@ -964,7 +965,8 @@ describe('Save and add another', () => {
     for (const [name, value] of Object.entries(values)) type(box(name), value);
   };
   const boxes = (...names: string[]) => Object.fromEntries(names.map((name) => [name, box(name).value]));
-  const press = (label: string) => (Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement).click();
+  // A closed form stays in the page until its close event, a task later, but nobody can press its buttons.
+  const press = (label: string) => (Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label && !b.closest('dialog:not([open])')) as HTMLButtonElement).click();
   const offered = () => Array.from(document.querySelectorAll('dialog[open] button')).some((b) => b.textContent === 'Save and add another');
   const pressInOpenForm = (label: string) => (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] .modal-actions button')).find((b) => b.textContent === label) as HTMLButtonElement).click();
 
@@ -1075,19 +1077,19 @@ describe('Save and add another', () => {
     expect(retry).not.toEqual(yusuf);
   });
 
-  it('is not offered when editing a row, or when logging a payment for one donor', () => {
+  it('is not offered when editing a row, or when logging a payment for one donor', async () => {
     document.body.append(createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined));
     (document.querySelector('tr[data-id="p3"] .row-open') as HTMLButtonElement).click();
     expect(offered()).toBe(false);
     press('Log a payment');
-    expect(openModalTitles()).toEqual(['Log a payment']);
+    await vi.waitFor(() => expect(openModalTitles()).toEqual(['Log a payment']));
     expect(offered()).toBe(false);
     pressFormCancel();
     press('Add pledge');
     expect(offered()).toBe(true);
     fill({ phone: '555 777 0001' });
     press('Save and log a payment');
-    expect(openModalTitles()).toEqual(['Log a payment']);
+    await vi.waitFor(() => expect(openModalTitles()).toEqual(['Log a payment']));
     expect(offered()).toBe(false);
     pressFormCancel();
     document.body.replaceChildren(createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined));

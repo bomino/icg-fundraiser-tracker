@@ -34,7 +34,7 @@ test('Log a payment on an edited pledge asks to discard the edit, then opens onl
 
   await pledge.getByRole('button', { name: 'Log a payment' }).click();
   const confirm = page.getByRole('dialog', { name: 'Please confirm' });
-  await expect(confirm).toContainText('Discard your changes to this pledge?');
+  await expect(confirm).toContainText('Discard what you typed?');
   await confirm.getByRole('button', { name: 'Discard' }).click();
 
   await expectOnlyThePaymentForm(page);

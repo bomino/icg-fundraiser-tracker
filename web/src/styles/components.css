@@ -203,8 +203,8 @@ textarea.input { resize: vertical; }
 .health-list li.is-flagged { background: none; box-shadow: inset 3px 0 0 var(--color-warning); }
 .health-count { display: flex; align-items: center; gap: var(--space-sm); }
 /* The hole is masked out rather than painted in the card colour, so it stays see-through in every theme.
-   A mask reads only opacity, so currentColor stands in for any solid colour. Browsers leave backgrounds off paper unless told. */
-.method-ring { width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; border-radius: var(--radius-full); mask: radial-gradient(closest-side, transparent 61.5%, currentColor 62%); print-color-adjust: exact; }
+   A mask reads only opacity, so currentColor stands in for any solid colour. */
+.method-ring { width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; border-radius: var(--radius-full); mask: radial-gradient(closest-side, transparent 61.5%, currentColor 62%); }
 .method-grid { display: grid; gap: var(--space-lg); grid-template-columns: minmax(180px, 240px) 1fr; align-items: center; }
 @media (max-width: 720px) {
   .method-grid { grid-template-columns: 1fr; }
@@ -216,7 +216,7 @@ textarea.input { resize: vertical; }
   .method-grid .data-table td:first-child { text-align: left; }
   .method-grid .data-table td::before { content: none; }
 }
-.swatch { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); margin-right: var(--space-sm); background: var(--color-rule-strong); print-color-adjust: exact; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); margin-right: var(--space-sm); background: var(--color-rule-strong); }
 .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-xl); }
 @media (max-width: 720px) { .stat-row { gap: var(--space-md) var(--space-lg); } }
 

@@ -583,7 +583,7 @@ describe('mountApp', () => {
 
       submitDialog();
 
-      expect(document.querySelector('dialog')).toBeNull();
+      await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
       expect(rowButton('p1')?.getAttribute('aria-label')).toBe('555-010-0101 — Saving…');
       expect(document.activeElement).toBe(rowButton('p1'));
       answerAll();
@@ -601,7 +601,7 @@ describe('mountApp', () => {
       submitDialog();
 
       expect(root.querySelector('.row-pending')).not.toBeNull();
-      expect(document.activeElement).toBe(mainButton('Add pledge'));
+      await vi.waitFor(() => expect(document.activeElement).toBe(mainButton('Add pledge')));
       answerAll();
       await vi.waitFor(() => expect(root.querySelector('.row-pending')).toBeNull());
       expect(document.activeElement).toBe(mainButton('Add pledge'));
@@ -615,7 +615,8 @@ describe('mountApp', () => {
 
       topDialogButton('Delete').click();
       topDialogButton('Cancel').click();
-      await vi.waitFor(() => expect(document.querySelectorAll('dialog[open]')).toHaveLength(1));
+      // The form takes a Delete again only once the question's close event, a task later, has answered it.
+      await vi.waitFor(() => expect(document.querySelectorAll('dialog')).toHaveLength(1));
       expect(document.activeElement).toBe(inForm);
       topDialogButton('Delete').click();
       topDialogButton('Delete').click();
@@ -651,13 +652,14 @@ describe('mountApp', () => {
       row.focus();
       row.click();
       topDialogButton('Log a payment').click();
+      await vi.waitFor(() => expect(document.querySelector('dialog[open] [name=amountReceived]')).not.toBeNull());
       focusIntoDialog();
       fill('amountReceived', '20');
       fill('method', 'Cash');
 
       submitDialog();
 
-      expect(document.querySelector('dialog')).toBeNull();
+      await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
       expect(document.activeElement).toBe(rowButton('p1'));
     });
 
@@ -671,7 +673,7 @@ describe('mountApp', () => {
       submitDialog();
 
       expect(root.textContent).toContain('received of $20,000.00');
-      expect(document.activeElement).toBe(mainButton('Edit goal'));
+      await vi.waitFor(() => expect(document.activeElement).toBe(mainButton('Edit goal')));
     });
 
     it('returns focus to the donor card’s Log a payment once the payment is saved', async () => {
@@ -687,7 +689,7 @@ describe('mountApp', () => {
 
       submitDialog();
 
-      expect(document.activeElement).toBe(mainButton('Log a payment'));
+      await vi.waitFor(() => expect(document.activeElement).toBe(mainButton('Log a payment')));
     });
 
     it('returns focus to the donor card’s Edit pledge once the pledge is saved, and keeps it there when the save settles', async () => {
@@ -707,7 +709,7 @@ describe('mountApp', () => {
 
       // #then focus stays on the button while it reads "Saving…", and after the save settles
       expect(editPledge()?.textContent).toBe('Saving…');
-      expect(document.activeElement).toBe(editPledge());
+      await vi.waitFor(() => expect(document.activeElement).toBe(editPledge()));
       answerAll();
       await vi.waitFor(() => expect(editPledge()?.textContent).toBe('Edit pledge'));
       expect(document.activeElement).toBe(editPledge());

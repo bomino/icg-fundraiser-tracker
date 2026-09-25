@@ -148,11 +148,11 @@ describe('summary', () => {
     expect(view.querySelector('[data-health=duplicates] .numeric-lg')?.textContent).toBe('0');
   });
 
-  it('prints the goal bar, the method colours and a check’s flag even with background graphics off', () => {
+  it('prints the goal bar, the method ring and its key, and a check’s flag even with background graphics off', () => {
     const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'base.css'), 'utf8');
     const print = /@media print \{([^]*?)\n\}/.exec(css)?.[1] ?? '';
     const selectors = /([^{}/]+)\{ -webkit-print-color-adjust: exact; print-color-adjust: exact; \}/.exec(print)?.[1] ?? '';
-    expect(selectors.split(',').map((selector) => selector.trim())).toEqual(['.progress-track', '.progress-fill', '.swatch', '.health-list li.is-flagged']);
+    expect(selectors.split(',').map((selector) => selector.trim())).toEqual(['.progress-track', '.progress-fill', '.method-ring', '.swatch', '.health-list li.is-flagged']);
   });
 
   it('draws the method ring from each method’s share, in the colours of the key beside it', () => {

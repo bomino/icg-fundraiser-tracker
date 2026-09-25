@@ -96,11 +96,6 @@ describe('component colours', () => {
     expect(componentsCss).toMatch(/\.friday-stale \{[^}]*border: 1px solid var\(--color-warning\);[^}]*color: var\(--color-ink\);/);
   });
 
-  it('prints the payment-method ring and its key, which are drawn only as backgrounds', () => {
-    expect(componentsCss).toMatch(/\.method-ring \{[^}]*print-color-adjust: exact;/);
-    expect(componentsCss).toMatch(/\.swatch \{[^}]*print-color-adjust: exact;/);
-  });
-
   it('rings both progress bars inside their own edge, since neither track stands out from what is behind it', () => {
     expect(componentsCss).toMatch(/\.progress-track \{[^}]*outline: 1px solid var\(--color-ink-muted\); outline-offset: -1px;/);
     expect(componentsCss).toMatch(/\.friday \.friday-track \{[^}]*outline: 2px solid var\(--color-ink-soft\); outline-offset: -2px;/);

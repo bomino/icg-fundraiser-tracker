@@ -164,14 +164,15 @@ describe('showToast', () => {
   });
 
   it('waits out a form that replaces a closing one in the next task, as "Log a payment" does', async () => {
-    // #given a pledge form whose open attribute drops before its close event, which then opens the payment form
+    // #given a pledge form whose close event opens the payment form
     const pledgeForm = document.createElement('dialog');
     const paymentForm = document.createElement('dialog');
     document.body.append(pledgeForm, paymentForm);
+    pledgeForm.addEventListener('close', () => paymentForm.showModal());
     pledgeForm.showModal();
     showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
-    pledgeForm.removeAttribute('open');
-    setTimeout(() => paymentForm.showModal(), 0);
+    // #when it closes: the open attribute drops at once, and the close event follows a task later
+    pledgeForm.close();
     await new Promise((resolve) => setTimeout(resolve, 20));
     // #then the failure waits behind the payment form rather than landing in a page about to go inert
     expect(toasts()).toHaveLength(0);

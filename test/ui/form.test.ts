@@ -304,7 +304,8 @@ describe('runForm', () => {
     expect(dialog.element.open).toBe(true);
     const [question] = discardQuestions();
     buttonIn(question, 'Keep editing').click();
-    await vi.waitFor(() => expect(discardQuestions()).toHaveLength(0));
+    // The answer arrives with the question's close event, a task later; until then Cancel is still waiting on it.
+    await vi.waitFor(() => expect(question.isConnected).toBe(false));
     expect(dialog.element.open).toBe(true);
     expect(name.input.value).toBe('Aisha');
     buttonIn(dialog.element, 'Cancel').click();
@@ -352,8 +353,9 @@ describe('runForm', () => {
     expect(run).toHaveBeenCalledTimes(1);
     name.input.value = 'Aisha';
     buttonIn(dialog.element, 'Log a payment').click();
-    buttonIn(discardQuestions()[0], 'Keep editing').click();
-    await vi.waitFor(() => expect(discardQuestions()).toHaveLength(0));
+    const [question] = discardQuestions();
+    buttonIn(question, 'Keep editing').click();
+    await vi.waitFor(() => expect(question.isConnected).toBe(false));
     expect(run).toHaveBeenCalledTimes(1);
     buttonIn(dialog.element, 'Log a payment').click();
     buttonIn(discardQuestions()[0], 'Discard').click();
