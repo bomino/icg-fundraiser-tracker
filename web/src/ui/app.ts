@@ -131,7 +131,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     if (exporting) return;
     exporting = true;
     try {
+      const pressed = document.activeElement;
       await load();
+      // The refresh redrew the Summary, button included, which would drop a keyboard volunteer back to
+      // the top of the page; one who has moved on meanwhile keeps their new focus.
+      if (pressed instanceof HTMLElement && !pressed.isConnected && document.activeElement === document.body) {
+        main.querySelector<HTMLElement>('[data-focus-key="download"]')?.focus();
+      }
       const state = deps.store.state();
       if (state) await downloadWorkbook(state, deps.store.lastLoadedAt());
     } finally {

@@ -114,6 +114,32 @@ it('starts one refresh and makes one file when Download is pressed twice', async
   expect(downloadWorkbook).toHaveBeenCalledTimes(1);
 });
 
+it('keeps keyboard focus on Download after the refresh redraws the Summary', async () => {
+  const { button, land } = mount();
+
+  const pressed = button('Download .xlsx');
+  pressed.focus();
+  pressed.click();
+  await land(current, REFRESHED_AT);
+
+  const redrawn = button('Download .xlsx');
+  expect(redrawn).not.toBe(pressed);
+  expect(document.activeElement).toBe(redrawn);
+});
+
+it('leaves focus alone when the volunteer has moved on during the refresh', async () => {
+  const { root, button, land } = mount();
+
+  const pressed = button('Download .xlsx');
+  pressed.focus();
+  pressed.click();
+  const tab = root.querySelector<HTMLAnchorElement>('a[href="#pledges"]') as HTMLAnchorElement;
+  tab.focus();
+  await land(current, REFRESHED_AT);
+
+  expect(document.activeElement).toBe(tab);
+});
+
 it('waits for a Refresh already under way instead of starting a second load', async () => {
   const { button, refresh, load, land } = mount();
 

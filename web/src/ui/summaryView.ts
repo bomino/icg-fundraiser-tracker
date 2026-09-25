@@ -65,7 +65,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
 
   const editGoal = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Edit goal');
   editGoal.addEventListener('click', () => openGoalForm(state.settings.goal, (goal) => deps.store.setGoal(goal), deps.reportError));
-  const download = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Download .xlsx');
+  const download = h('button', { type: 'button', class: 'btn btn-secondary', 'data-focus-key': 'download' }, 'Download .xlsx');
   download.addEventListener('click', () => {
     deps.exportWorkbook().catch((err: unknown) => deps.reportError(err, "Couldn't download the file"));
   });
