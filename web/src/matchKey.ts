@@ -25,3 +25,11 @@ export function matchKey(phone: string): string {
   if (stripped === '') return '';
   return `#${stripped.replace(US_COUNTRY_CODE, '')}`.toLowerCase();
 }
+
+/**
+ * A whole US number's key with its country code put back. The key drops it, so a search typed from the
+ * front of the number with its 1 ('1 336 555') needs this form to find a match.
+ */
+export function keyWithUsCountryCode(key: string): string {
+  return /^#[2-9]\d{9}$/.test(key) ? `#1${key.slice(1)}` : key;
+}

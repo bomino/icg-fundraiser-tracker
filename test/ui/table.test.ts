@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nextSort, renderTable, sortRows, sortSelect, tablePageSize, type Column, type SortOption } from '../../web/src/ui/table';
+import { matchKey } from '../../web/src/matchKey';
 import { matchesQuery } from '../../web/src/ui/search';
 
 afterEach(() => document.body.replaceChildren());
@@ -295,5 +296,14 @@ describe('matchesQuery', () => {
     expect(matchesQuery('(555) 010', ['x'], '#5550100101')).toBe(true);
     expect(matchesQuery('999', ['x'], '#5550100101')).toBe(false);
     expect(matchesQuery('   ', ['x'], '')).toBe(true);
+  });
+
+  it('finds a US number from the first digits typed with its country code, though the key leaves the 1 out', () => {
+    const stored = '+1 (336) 555-0123';
+    const key = matchKey(stored);
+    for (const typed of ['1 336 555', '+1 336 555 01', '1-336', '13365550123']) expect(matchesQuery(typed, [stored], key), typed).toBe(true);
+    expect(matchesQuery('1 337', [stored], key)).toBe(false);
+    // Only a whole US number gains the 1: a leading 1 on anything else is part of the number.
+    expect(matchesQuery('10', ['x'], matchKey('0551234'))).toBe(false);
   });
 });

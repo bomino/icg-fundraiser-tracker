@@ -117,6 +117,13 @@ describe('find donor', () => {
     }
   });
 
+  it('lists a donor saved with +1 while the first digits are typed with the 1', () => {
+    const us = [pledge({ id: 'u1', phone: '+1 (336) 555-0123', name: 'Yusuf Ali', amountPledged: 100 })];
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })({ ...state, pledges: us, computed: compute(us, [], SETTINGS, TODAY) });
+    search(view, '1 336 555');
+    expect(Array.from(view.querySelectorAll('.match')).map((match) => match.textContent)).toEqual([expect.stringContaining('Yusuf Ali')]);
+  });
+
   it('keeps each match phone left-to-right, so it reads in order after an Arabic-script name, and lets the search box follow what is typed', () => {
     const arabic = [pledge({ id: 'a1', phone: '555-010-0101', name: 'محمد', amountPledged: 100 }), pledge({ id: 'a2', phone: '555-010-0102', name: 'محمود', amountPledged: 100 })];
     const arabicState: State = { pledges: arabic, payments: [], settings: SETTINGS, me: 'me', computed: compute(arabic, [], SETTINGS, TODAY) };
