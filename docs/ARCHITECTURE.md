@@ -383,7 +383,7 @@ An action toast never expires: it stays until **Reopen** or **Dismiss** is press
 
 A confirmation is neither delayed nor held, since it would be stale by then. While a dialog is open it is also added, as a line of its own, to that dialog's visually hidden `role=status` region, which `openDialog` builds empty with every dialog, because the inert toast region would not announce it. Without that, a screen-reader volunteer in a Save and add another run heard "Saved." only for the last entry.
 
-The stack is the first child of `<body>` (`position: fixed`, so only the DOM order changes), so a keyboard reaches Reopen before the page's up to 100 row buttons. Dismissing returns focus to `#main` via a temporary `tabindex` removed on blur; `#main:focus` draws no outline. The 500 ms readiness poll runs only for actions with a `ready` check.
+The stack is the first child of `<body>` (`position: fixed`, so only the DOM order changes), so a keyboard reaches Reopen before the page's up to 100 row buttons. Dismissing returns focus to `#main` via a temporary `tabindex` removed on blur, or at once if `#main` does not take the focus, since no blur would follow; `#main:focus` draws no outline. The 500 ms readiness poll runs only for actions with a `ready` check.
 
 ## Lists, sorting, paging, filters, downloads
 

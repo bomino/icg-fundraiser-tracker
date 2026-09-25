@@ -111,6 +111,24 @@ describe('showToast', () => {
     expect(main.hasAttribute('tabindex')).toBe(false);
   });
 
+  // With no blur to come, the tabindex taken for that one focus would otherwise stay on the page area.
+  it('takes its focus stop straight back off the page area when the page area does not take focus', () => {
+    const main = document.createElement('main');
+    main.id = 'main';
+    document.body.append(main);
+    vi.spyOn(main, 'focus').mockImplementation(() => undefined);
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    button('Dismiss').focus();
+    button('Dismiss').click();
+    expect(main.hasAttribute('tabindex')).toBe(false);
+
+    main.setAttribute('tabindex', '0');
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    button('Dismiss').focus();
+    button('Dismiss').click();
+    expect(main.getAttribute('tabindex')).toBe('0');
+  });
+
   it('draws no focus outline around the page area it moves focus to', () => {
     const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'components.css'), 'utf8');
     expect(css).toMatch(/#main:focus \{ outline: none; \}/);
