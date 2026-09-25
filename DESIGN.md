@@ -13,10 +13,11 @@ colors:
   # --- Ink (text) ---
   ink: "#1a2e1f"              # Primary text + headings — deep forest, almost black
   ink-soft: "#5a6b5f"         # Body copy, secondary labels
-  ink-muted: "#8a9690"        # Metadata, captions, disabled
+  ink-muted: "#65716a"        # Metadata, captions, field hints — 4.5:1 on bg, surface and surface-soft
 
   # --- Rules and dividers ---
   rule: "#e8e0cc"             # Hairline borders, table dividers — soft sand
+  field-border: "#948a6e"     # Input borders only — a field's only visible edge, 3:1 on surface
   rule-strong: "#d4c79e"      # Emphasized borders, focused inputs
 
   # --- Brand accents ---
@@ -47,6 +48,7 @@ colors:
   chart-4: "#8b2e2e"          # claret
   chart-5: "#6b4d8c"          # aubergine
   chart-6: "#a8651f"          # burnt orange
+  chart-7: "#8a9690"          # neutral grey — "No method recorded"; its own value, not ink-muted
 
 # Dark-mode token overrides. Same semantic names; different values.
 # Each entry below is the dark-mode value of the matching token in `colors`
@@ -62,10 +64,11 @@ colors-dark:
   # --- Ink (text) ---
   ink: "#f1ebd8"              # Warm off-white. Never pure white.
   ink-soft: "#c5bda3"          # Body, secondary labels
-  ink-muted: "#8a8270"         # Metadata, captions, disabled
+  ink-muted: "#958c79"         # Metadata, captions, field hints
 
   # --- Rules and dividers ---
   rule: "#3a3320"             # Warm dim brown-gold, low contrast
+  field-border: "#7a6d4b"      # Input borders only, 3:1 on surface
   rule-strong: "#5a4f30"       # Emphasized borders, focused state outlines
 
   # --- Brand accents (lifted slightly for dark backgrounds) ---
@@ -80,7 +83,7 @@ colors-dark:
   # --- Functional ---
   warning: "#d4a04a"
   warning-tint: "#3d2e12"
-  danger: "#c65656"
+  danger: "#d67070"            # Lifted so errors and the Delete label reach 4.5:1
   danger-tint: "#3a1818"
 
   # --- Payment method palette (lifted versions) ---
@@ -96,6 +99,7 @@ colors-dark:
   chart-4: "#c65656"
   chart-5: "#9b7ec4"
   chart-6: "#d4914a"
+  chart-7: "#8a8270"
 
 typography:
   display-xl:
@@ -359,15 +363,16 @@ The palette is rooted in three pillars: **ivory** (the institutional surface), *
 - **`surface` (#ffffff) — clean white.** Cards and modals. Lifts content off the ivory background through brightness, not heavy shadows.
 - **`surface-soft` (#f5f1e8) and `surface-sunken` (#efe9d9) — recessed creams.** Inputs and recessed wells (toolbars, table-row hovers). Always darker than the page, never lighter.
 - **`ink` (#1a2e1f) — deep forest.** Primary text and headings. *Not pure black* — black on warm ivory is harsh. Forest pairs with the ICG dome and softens the contrast to something paper-like.
-- **`ink-soft` (#5a6b5f) and `ink-muted` (#8a9690) — body and metadata.** A two-step text hierarchy below ink. All three pass WCAG AA on the ivory background.
+- **`ink-soft` (#5a6b5f) and `ink-muted` (#65716a) — body and metadata.** A two-step text hierarchy below ink. All three reach WCAG AA (4.5:1) on `bg`, `surface` and `surface-soft` in both themes; `test/styles/contrast.test.ts` checks the lightest of them, `ink-muted`, on each. `ink-muted` carries text volunteers need — field hints, the only column labels on phones, "Showing N of M" — so it is the lightest shade of its grey-green that still reaches 4.5:1 on `surface-soft` (the hover and focus fill behind a phone number in Find donor's matches). That keeps it a half-step lighter than `ink-soft` rather than merged into it, but the two are close: size (12px metadata against 15px body) now carries most of the hierarchy. The earlier `#8a9690` measured only 2.9:1.
 - **`rule` (#e8e0cc) — soft sand.** Hairline dividers. The single most-used non-ink color in the system. Replaces the dark theme's rgba-white borders entirely.
+- **`field-border` (#948a6e) — input edges.** A field's white fill matches the card or dialog it sits on, so its border is the only thing that shows where to type. `rule` there measured 1.3:1; this reaches the 3:1 WCAG asks of a control's edge. Used only by inputs; `rule` stays for hairlines.
 - **`gold` (#a87c0a) — antique gold.** *Used sparingly.* Section underlines, KPI numbers, the brand wordmark gradient, focus rings. Never a button background. Antique (not bright) so it reads "civic emblem," not "Web3 token."
 - **`emerald` (#2d5e3e) — forest green.** Primary CTA color, success states, progress fills. Echoes the ICG logo's dome. Calm and assertive.
 - **`warning` (#9c6b1f) and `danger` (#8b2e2e) — burnt amber and subdued claret.** Functional colors held back from saturation so they don't dominate. A delete button should look serious, not panicked.
 
 The **payment method palette** replaces the previous neon set with institutional muted tones: emerald, indigo, aubergine, burnt orange. They harmonize with each other and with the brand greens/golds, so the donut chart in the report doesn't look like a clown.
 
-The **chart palette** is reusable across visualizations. Drawn from the same six muted hues; no two adjacent slices clash.
+The **chart palette** is reusable across visualizations. Drawn from the same six muted hues; no two adjacent slices clash. A seventh, neutral grey (`chart-7`) marks payments with no method recorded. It keeps its own value rather than borrowing `ink-muted`, which is now dark enough for text and would sit too close to the emerald Cash slice.
 
 ### Dark mode — the same logic, recalibrated
 
@@ -378,7 +383,9 @@ Dark mode isn't a 1:1 inversion. Every token was chosen for its specific semanti
 - **`ink` (#f1ebd8) — warm off-white.** *Never pure white.* Pure white on dark is harsh, overconfident, and reads "Twitter at 3am." A warm cream pairs with the `bg` and feels like ink on a dark page.
 - **`gold` (#d4af37) — brighter antique gold.** The light-mode `#a87c0a` would read as a dim brown on dark. Lifted to retain readability while still antique-not-neon.
 - **`emerald` (#5a9b6f) — lifted forest green.** A deep #2d5e3e on a dark surface reads as a hole. The dark-mode emerald is more saturated and lighter so it still says "go button" without screaming.
-- **`rule` (#3a3320) — dim warm brown-gold.** Hairlines on dark are a balance: too bright reads "wireframe," too dim disappears. This walks that line.
+- **`rule` (#3a3320) — dim warm brown-gold.** Hairlines on dark are a balance: too bright reads "wireframe," too dim disappears. This walks that line. Inputs use `field-border` (#7a6d4b) instead, for the same 3:1 edge as in light.
+- **`ink-muted` (#958c79) — metadata.** Lifted from the first dark value (#8a8270), which fell to 4.1:1 on `surface-soft`.
+- **`danger` (#d67070) — lifted claret.** Field errors, error toasts, the Delete button's label and a not-counted donor's name all need 4.5:1 against the dark surface or the danger tint. The first dark claret (#c65656) reached only 4.0:1 and 3.7:1.
 
 The brand wordmark gradient (`gold → emerald`) uses the dark-mode token values, so it stays readable on the dark background.
 
@@ -443,7 +450,7 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 
 **Danger button** (`button-danger`): claret background, white text. Used for irreversible actions. Confirms via the themed `ICGUtil.confirmDialog` modal before firing — for the most destructive actions (project delete) the dialog requires the operator to type the project's ID before the Delete button is enabled. Native browser `confirm()` is never used; it renders as a full-screen prompt on mobile.
 
-**Inputs** (`input`): white surface, `1px solid rule` border, focused state replaces border with `1px solid emerald` and adds a 3px `emerald-tint` outline ring. No fake "filled" backgrounds — inputs read as paper fields.
+**Inputs** (`input`): white surface, `1px solid field-border` border, focused state replaces border with `1px solid emerald` and adds a 3px `emerald-tint` outline ring. No fake "filled" backgrounds — inputs read as paper fields.
 
 **Cards** (`card`): white surface, `1px solid rule` border, two-tier resting shadow, `md` radius, 24px padding. The fundamental container.
 
@@ -457,7 +464,7 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 
 **Project cards** (homepage grid): `surface`, `md` radius, hairline `rule` border, hovers lift to second-tier shadow + a `1px solid rule-strong` border. Project color is shown as a 4px tall bar across the top (not a dot anywhere on the card) — this is a major visual signature for the redesign.
 
-**Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing.
+**Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing. A row tinted `danger-tint` (a duplicate pledge, a payment that isn't counted) switches its `ink-soft` and `ink-muted` text to `ink`, because in the light theme neither reaches 4.5:1 on the tint.
 
 **Charts** (Chart.js): grid lines drop to `rule` color at 50% opacity; tick labels use `ink-muted`; bars/lines use the `chart-1`..`chart-6` palette. The dark-theme cyan bars are gone.
 
