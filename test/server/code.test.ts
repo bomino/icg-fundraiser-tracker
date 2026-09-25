@@ -573,8 +573,17 @@ describe('server validation matches the client', () => {
   for (const testCase of VALIDATION_CASES) {
     it(`${testCase.tab}: ${testCase.name}`, () => {
       const response = server.post(testCase.tab === 'Pledges' ? 'upsertPledge' : 'upsertPayment', newRow(testCase.draft), token);
-      if (testCase.invalidField === null) expect(response.ok).toBe(true);
-      else expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: testCase.invalidField });
+      if (testCase.invalidField !== null) {
+        expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: testCase.invalidField });
+        return;
+      }
+      expect(response.ok).toBe(true);
+      // The drafts are typed, so a field added to PledgeDraft or PaymentDraft reaches this check,
+      // which fails if Code.gs's ENTRY_FIELDS (the saved row) or HEADERS (the row read back) lacks it.
+      const draftFields = Object.keys(testCase.draft);
+      expect(Object.keys(response.data)).toEqual(expect.arrayContaining(draftFields));
+      const loaded = server.post('load', {}, token).data;
+      expect(Object.keys((testCase.tab === 'Pledges' ? loaded.pledges : loaded.payments)[0])).toEqual(expect.arrayContaining(draftFields));
     });
   }
 });
