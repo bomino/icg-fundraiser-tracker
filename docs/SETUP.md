@@ -84,13 +84,14 @@ The tracker runs one drive at a time. When a drive is over, do these as the orga
 
 ### Starting the next drive
 
-Keep the same Sheet and deployment, so the site and its address carry on working. Do this when no one is using the tracker, since a save made halfway through can be lost:
+Keep the same Sheet and deployment, so the site and its address carry on working. Do this when no one is using the tracker:
 
-1. For each of the **Pledges**, **Payments**, **Pledges history** and **Payments history** tabs, right-click the tab's name, choose **Duplicate**, and rename the copy (**Copy of Pledges**) with the drive's year, such as `Pledges 2026`. The app reads only the tabs named exactly `Pledges` and `Payments`, and keeps history only in `Pledges history` and `Payments history`, so it ignores the copies.
-2. In each of those four original tabs, click the **2** at the left of row 2, hold **Shift** and click the number of the last row, then press **Delete** on the keyboard. That empties the rows. Never clear or delete row 1: the app reads the column names there, and stops loading and saving without them.
-3. Set the new goal: **Edit goal** on the Summary, or the `goal` row on the **Settings** tab. Put the new drive's name in the `campaignName` row, which the Friday display shows as its title (blank shows `Fundraiser`). A Sheet set up before that setting existed has no such row: add `campaignName` in column A and the name in column B.
-4. Put the new drive's volunteers back on the **Allowlist**.
-5. Ask every volunteer to press **Refresh**, or reload the page, before adding anything. A page left open still shows the old drive until it reloads.
+1. In the Sheet, choose **Fundraiser tracker → Start a new drive…** from the menu bar, type a name for the finished drive, such as `2026`, and press **OK**. It copies the **Pledges**, **Payments**, **Pledges history** and **Payments history** tabs into new tabs named like `Pledges 2026`, then empties the four originals from row 2 down, keeping row 1. The app reads only the tabs named exactly `Pledges` and `Payments`, and keeps history only in `Pledges history` and `Payments history`, so it ignores the copies. A save made meanwhile waits for it to finish. The menu appears a few seconds after the Sheet opens, once `Code.gs` is updated; if Google asks for permission to run it, allow it, since it's the tracker's own script.
+
+   To do it by hand instead, do this for each of those four tabs: right-click the tab's name, choose **Duplicate**, and rename the copy (**Copy of Pledges**) with the drive's name, such as `Pledges 2026`. Then, in the original tab, click the **2** at the left of row 2, hold **Shift** and click the number of the last row, and press **Delete** on the keyboard, which empties the rows. Make sure no one is using the tracker, since a save made halfway through can be lost. Never clear or delete row 1: the app reads the column names there, and stops loading and saving without them.
+2. Set the new goal: **Edit goal** on the Summary, or the `goal` row on the **Settings** tab. Put the new drive's name in the `campaignName` row, which the Friday display shows as its title (blank shows `Fundraiser`). A Sheet set up before that setting existed has no such row: add `campaignName` in column A and the name in column B.
+3. Put the new drive's volunteers back on the **Allowlist**.
+4. Ask every volunteer to press **Refresh**, or reload the page, before adding anything. A page left open still shows the old drive until it reloads.
 
 ## Troubleshooting
 

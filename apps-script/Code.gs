@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 3;
+const API_VERSION = 4;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -421,7 +421,11 @@ function appendHistory_(tab, record, email, action) {
 
 // Also created on first use, so a Sheet set up before history was kept needs no setup() re-run.
 function historySheet_(tab) {
-  return ensureTab_(SpreadsheetApp.getActiveSpreadsheet(), tab + ' history', HEADERS[tab].concat(HISTORY_HEADERS), () => {});
+  return ensureTab_(SpreadsheetApp.getActiveSpreadsheet(), historyTabName_(tab), HEADERS[tab].concat(HISTORY_HEADERS), () => {});
+}
+
+function historyTabName_(tab) {
+  return tab + ' history';
 }
 
 // A simple trigger: Sheets runs it for edits typed or pasted into the Sheet, never for this
@@ -487,6 +491,55 @@ function setup() {
     if (owner) sheet.appendRow([owner]);
   });
   Object.keys(HEADERS).forEach((tab) => historySheet_(tab));
+}
+
+// A simple trigger. The organiser's tasks sit in the Sheet's own menu because they ask before
+// changing anything, and the Apps Script editor can't show a dialog (getUi() throws there), so
+// they can't be started from its Run button by mistake either.
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Fundraiser tracker').addItem('Start a new drive…', 'startNewDrive').addToUi();
+}
+
+// Keeps the finished drive in tabs named for it, which the app never reads, then empties the live
+// tabs from row 2 down, all under the lock so that no save lands between the copy and the clear.
+// It clears the rows rather than deleting them: Sheets refuses to delete every row below a frozen
+// header, which deleting rows 2 to the last becomes once appendRow has grown a tab past 1,000 rows.
+function startNewDrive() {
+  const ui = SpreadsheetApp.getUi();
+  const answer = ui.prompt(
+    'Start a new drive',
+    'This copies the Pledges and Payments tabs and their two history tabs into new tabs named with what you type, then empties the four originals from row 2 down, ready for the next drive. Ask volunteers to stop using the tracker first. Type a name for the finished drive, such as 2026:',
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (answer.getSelectedButton() !== ui.Button.OK) return;
+  const label = answer.getResponseText().trim();
+  if (label === '') {
+    ui.alert('Start a new drive', 'Nothing was changed. Type a name for the finished drive, such as 2026.', ui.ButtonSet.OK);
+    return;
+  }
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const tabs = Object.keys(HEADERS);
+  const names = tabs.concat(tabs.map((tab) => historyTabName_(tab)));
+  const taken = names.map((name) => name + ' ' + label).filter((name) => spreadsheet.getSheetByName(name));
+  if (taken.length > 0) {
+    ui.alert('Start a new drive', 'Nothing was changed: there is already a tab named "' + taken[0] + '". Start again and type another name.', ui.ButtonSet.OK);
+    return;
+  }
+  withLock_(() => {
+    tabs.forEach((tab) => assertHeaders_(tab, sheet_(tab).getRange(1, 1, 1, HEADERS[tab].length).getValues()[0]));
+    const sheets = tabs.map((tab) => sheet_(tab)).concat(tabs.map((tab) => historySheet_(tab)));
+    // Every copy is made before anything is cleared, so a copy that fails costs no rows.
+    sheets.forEach((sheet) => sheet.copyTo(spreadsheet).setName(sheet.getName() + ' ' + label));
+    sheets.forEach((sheet) => {
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+    });
+  });
+  ui.alert(
+    'Start a new drive',
+    'Done. The finished drive is in the tabs ending "' + label + '". Next, set the new goal and campaignName on the Settings tab, put the new volunteers on the Allowlist, and ask every volunteer to press Refresh before adding anything.',
+    ui.ButtonSet.OK,
+  );
 }
 
 function ensureTab_(spreadsheet, name, headers, initialise) {

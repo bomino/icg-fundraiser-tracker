@@ -45,6 +45,8 @@ const SAID = {
   saved: 'Saved.',
   couldNotSave: "Couldn't save",
   couldNotDelete: "Couldn't delete",
+  trackerMenu: 'Fundraiser tracker',
+  newDriveMenu: 'Start a new drive…',
 } as const;
 
 export const QUOTED_MESSAGES: readonly string[] = Object.values(SAID);
@@ -705,10 +707,12 @@ function forTheOrganiser(): Child[] {
     ),
     topic(
       'Starting the next drive',
-      p('Keep the same sheet, so the tracker’s web address carries on working. Do this when no one is using the tracker, since a save made halfway through can be lost.'),
+      p('Keep the same sheet, so the tracker’s web address carries on working. Do this when no one is using the tracker.'),
       steps(
         [
-          'For each of the ',
+          'In the sheet, choose ',
+          b(`${SAID.trackerMenu} → ${SAID.newDriveMenu}`),
+          ' from the menu bar, type a name for the finished drive, such as 2026, and press OK. It copies the ',
           b('Pledges'),
           ', ',
           b('Payments'),
@@ -716,14 +720,16 @@ function forTheOrganiser(): Child[] {
           b('Pledges history'),
           ' and ',
           b('Payments history'),
-          ' tabs, right-click the tab’s name, choose ',
-          b('Duplicate'),
-          ', and rename the copy with the drive’s year, such as Pledges 2026. The tracker only uses the tabs with exactly those four names, so it ignores the copies.',
+          ' tabs into new tabs named like Pledges 2026, then empties the four originals, keeping row 1. The tracker only uses the tabs with exactly those four names, so it ignores the copies.',
         ],
-        ['In each of the four original tabs, click the 2 at the left of row 2, hold Shift and click the number of the last row, then press Delete on the keyboard. That empties the rows.'],
         ['Set the new goal with ', b('Edit goal'), ' on the Summary, and the new drive’s name in the ', b('campaignName'), ' row of the Settings tab.'],
         ['Put the new drive’s volunteers back on the Allowlist.'],
         ['Ask every volunteer to press ', b('Refresh'), ' before adding anything. A page left open still shows the old drive until it reloads.'],
+      ),
+      p(
+        'To do the first step by hand instead, do this for each of the four tabs: right-click the tab’s name, choose ',
+        b('Duplicate'),
+        ', and rename the copy with the drive’s name, such as Pledges 2026. Then, in the original tab, click the 2 at the left of row 2, hold Shift and click the number of the last row, and press Delete on the keyboard, which empties the rows. Make sure no one is using the tracker, since a save made halfway through can be lost.',
       ),
       note('Never clear or delete row 1, the row of column names. Without it, the tracker stops loading and saving.'),
     ),

@@ -43,6 +43,7 @@ const CODE_GS_HASHES: readonly string[] = [
   '1c6e1dfdb6cddfe037685187ab10f2c79672ba514f4795ef48180765ed8a5a6e',
   'b434fcfe2d5ad025ed10258a6a5fdaad9edab441d52f2c1c8296e371f84f6404',
   'a31b0be676c13b86d466f74db90359ea434f86ddd3bf9a68ded9ca3acb90803c',
+  '6929403b81533bd144d9b870737ad418bd2a6175ab52443bb1103c1f5f4a2285',
 ];
 
 describe('API_VERSION', () => {
@@ -596,6 +597,105 @@ describe('sheet layout', () => {
       code: 'INTERNAL',
       message: 'The "Pledges" tab is missing. If it was renamed, rename it back to "Pledges". Run setup() only when setting up a new Sheet.',
     });
+  });
+});
+
+// The organiser's reset between drives. Clearing the live tabs by hand risks row 1, and every
+// load reads only the tabs named exactly Pledges and Payments.
+describe('starting a new drive', () => {
+  const DRIVE_TABS = ['Pledges', 'Payments', 'Pledges history', 'Payments history'];
+  const values = (tab: string) => server.sheet(tab).getDataRange().getValues();
+  const snapshot = () => new Map([...server.sheets].map(([name, sheet]) => [name, sheet.getDataRange().getValues()]));
+  const startNewDrive = (button: 'OK' | 'CANCEL', text: string) => {
+    server.ui.answer = { button, text };
+    server.call('startNewDrive');
+  };
+  const fillDrive = () => {
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
+    server.post('upsertPledge', { ...pledgeDraft, notes: 'Pays monthly', id: saved.id, updatedAt: saved.updatedAt }, token);
+    const paid = server.post('upsertPayment', newRow(paymentDraft), token).data;
+    server.post('deletePayment', { id: paid.id, updatedAt: paid.updatedAt }, token);
+    server.post('upsertPayment', newRow(paymentDraft), token);
+  };
+
+  it('is offered in a menu the Sheet shows when it opens', () => {
+    server.call('onOpen');
+    expect(server.ui.menus).toEqual([{ name: 'Fundraiser tracker', items: [['Start a new drive…', 'startNewDrive']] }]);
+  });
+
+  it('keeps the finished drive in tabs named for it, then empties the live tabs below row 1', () => {
+    fillDrive();
+    const before = snapshot();
+    startNewDrive('OK', ' 2026 ');
+    for (const tab of DRIVE_TABS) {
+      expect(values(`${tab} 2026`)).toEqual(before.get(tab));
+      expect(values(tab)).toEqual([before.get(tab)?.[0]]);
+    }
+    expect(server.post('load', {}, token).data).toMatchObject({ pledges: [], payments: [], settings: { goal: 10000 } });
+    expect(values('Allowlist')).toEqual(before.get('Allowlist'));
+    expect(values('Settings')).toEqual(before.get('Settings'));
+    expect(server.ui.alerts).toEqual([expect.stringContaining('The finished drive is in the tabs ending "2026".')]);
+  });
+
+  it('puts the next drive’s first entry straight under row 1', () => {
+    fillDrive();
+    startNewDrive('OK', '2026');
+    const added = server.post('upsertPledge', newRow({ ...pledgeDraft, name: 'Bilal Chowdhury' }), token).data;
+    expect(values('Pledges')[1][0]).toBe(added.id);
+    expect(server.post('load', {}, token).data.pledges).toEqual([added]);
+  });
+
+  it('empties the organiser’s own columns too, keeping their headings', () => {
+    server.post('upsertPledge', newRow(pledgeDraft), token);
+    const pledges = server.sheet('Pledges');
+    pledges.raw[0][8] = 'Receipt sent?';
+    pledges.raw[1][8] = 'yes';
+    startNewDrive('OK', '2026');
+    expect(values('Pledges')).toEqual([[...PLEDGE_COLUMNS, 'Receipt sent?']]);
+    expect(values('Pledges 2026')[1][8]).toBe('yes');
+  });
+
+  it('keeps the history of a Sheet set up before history was kept', () => {
+    server.post('upsertPledge', newRow(pledgeDraft), token);
+    server.sheets.delete('Pledges history');
+    startNewDrive('OK', '2026');
+    expect(values('Pledges history 2026')).toEqual([[...PLEDGE_COLUMNS, ...HISTORY_COLUMNS]]);
+    expect(values('Pledges history')).toEqual([[...PLEDGE_COLUMNS, ...HISTORY_COLUMNS]]);
+  });
+
+  it('changes nothing when cancelled or given no name', () => {
+    fillDrive();
+    const before = snapshot();
+    startNewDrive('CANCEL', '2026');
+    startNewDrive('OK', '   ');
+    expect(snapshot()).toEqual(before);
+    expect(server.ui.alerts).toEqual(['Nothing was changed. Type a name for the finished drive, such as 2026.']);
+  });
+
+  it('changes nothing when a tab already has one of the new names, and says which', () => {
+    fillDrive();
+    server.evaluate("SpreadsheetApp.getActiveSpreadsheet().insertSheet('Payments history 2026')");
+    const before = snapshot();
+    startNewDrive('OK', '2026');
+    expect(snapshot()).toEqual(before);
+    expect(server.ui.alerts).toEqual(['Nothing was changed: there is already a tab named "Payments history 2026". Start again and type another name.']);
+  });
+
+  it('changes nothing while a save holds the lock', () => {
+    fillDrive();
+    const before = snapshot();
+    server.state.lockAvailable = false;
+    expect(() => startNewDrive('OK', '2026')).toThrow('The tracker is busy. Try again in a moment.');
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('changes nothing in a Sheet whose columns have moved', () => {
+    fillDrive();
+    const header = server.sheet('Payments').raw[0];
+    [header[2], header[3]] = [header[3], header[2]];
+    const before = snapshot();
+    expect(() => startNewDrive('OK', '2026')).toThrow('The 3rd column of the "Payments" tab should be "dateReceived"');
+    expect(snapshot()).toEqual(before);
   });
 });
 
