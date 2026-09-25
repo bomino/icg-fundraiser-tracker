@@ -93,11 +93,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
       return tab;
     }),
   );
-  const themeButton = h('button', { type: 'button', class: 'btn btn-ghost', 'aria-pressed': String(currentTheme() === 'dark') }, currentTheme() === 'dark' ? 'Light mode' : 'Dark mode');
+  // Named for the mode it switches to, so it carries no aria-pressed: in dark mode that would
+  // announce "Light mode, pressed", reporting the opposite of the truth.
+  const themeButton = h('button', { type: 'button', class: 'btn btn-ghost' }, currentTheme() === 'dark' ? 'Light mode' : 'Dark mode');
   themeButton.addEventListener('click', () => {
-    const theme = toggleTheme();
-    themeButton.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
-    themeButton.setAttribute('aria-pressed', String(theme === 'dark'));
+    themeButton.textContent = toggleTheme() === 'dark' ? 'Light mode' : 'Dark mode';
   });
   const main = h('main', { class: 'container', id: 'main' });
   const refresh = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Refresh');

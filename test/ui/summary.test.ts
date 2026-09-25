@@ -112,6 +112,12 @@ describe('summary', () => {
     expect(show.getAttribute('aria-label')).toBe('Show 1: Payments not matched to a pledge');
   });
 
+  it('gives the Goal card a heading, so heading navigation reaches the headline figure', () => {
+    const { view } = render();
+    const heading = view.querySelector('[role=progressbar]')?.closest('.card')?.querySelector('h2');
+    expect({ text: heading?.textContent, eyebrow: heading?.classList.contains('eyebrow') }).toEqual({ text: 'Goal', eyebrow: true });
+  });
+
   it('prints a flagged check’s count, which print would hide if it lived inside the Show button', () => {
     const { view } = render();
     const flagged = view.querySelector('[data-health=notMatched]') as HTMLElement;

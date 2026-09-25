@@ -98,7 +98,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
     h(
       'section',
       { class: 'card' },
-      h('div', { class: 'view-header' }, h('p', { class: 'eyebrow' }, 'Goal'), editGoal),
+      h('div', { class: 'view-header' }, h('h2', { class: 'eyebrow' }, 'Goal'), editGoal),
       h('p', {}, h('span', { class: 'numeric-xl gold' }, formatCents(totals.receivedCents)), h('span', { class: 'ink-soft' }, ` received of ${formatCents(totals.goalCents ?? 0)}`)),
       h('div', { class: 'progress-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': announcedPercent, 'aria-label': 'Progress toward goal' }, h('div', { class: 'progress-fill', style: `width: ${progress * 100}%` })),
       h('p', { class: 'meta' }, `${formatFlooredPercent(totals.receivedCents, totals.goalCents ?? 0)} of goal received`),

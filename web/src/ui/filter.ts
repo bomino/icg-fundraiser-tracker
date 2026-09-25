@@ -6,7 +6,8 @@ export interface ListFilter {
 }
 
 export function filterChip(filter: ListFilter, onClear: () => void): HTMLElement {
-  const chip = h('button', { type: 'button', class: 'chip', 'aria-label': `Clear filter: ${filter.label}` }, `Showing: ${filter.label} ×`);
+  // Starts with the visible words, so a voice-control user who says "click Showing" reaches it.
+  const chip = h('button', { type: 'button', class: 'chip', 'aria-label': `Showing: ${filter.label}, clear filter` }, `Showing: ${filter.label} ×`);
   chip.addEventListener('click', onClear);
   return chip;
 }
