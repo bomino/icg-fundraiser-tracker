@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compute } from '../../web/src/engine';
 import type { Api } from '../../web/src/api';
@@ -242,6 +244,14 @@ describe('find donor', () => {
 
     (Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Print') as HTMLButtonElement).click();
     expect(print).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the statement-only parts off the screen and the volunteer-only parts off paper, in Find donor alone', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'base.css'), 'utf8');
+    expect(css).toMatch(/@media print \{[^@]*\.lookup-view \.print-hidden \{ display: none !important; \}/);
+    expect(css).toMatch(/@media not print \{[^@]*\.lookup-view \.print-only \{ display: none; \}/);
+    expect(css).not.toMatch(/(^|[{},])\s*\.print-(hidden|only)\b/m);
+    expect(createLookupView({ store: {} as Store, reportError: vi.fn() })(state).classList).toContain('lookup-view');
   });
 
   it('shows an overpaid donor’s balance as a Credit, not an amount in brackets', () => {
