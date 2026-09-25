@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/icons/icg-monogram.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <!-- theme-color can't reference a CSS variable; keep these two in sync with tokens.css's --color-bg by hand (manifest.webmanifest's background_color/theme_color are the other copy - see CLAUDE.md). -->
+    <!-- theme-color can't reference a CSS variable; keep these two in sync with tokens.css's --color-bg by hand (theme.ts's THEME_COLOR and manifest.webmanifest's background_color/theme_color are the other copies - see CLAUDE.md). The script below reads its colours from these metas, so it holds no copy of its own. -->
     <meta name="theme-color" content="#fbf9f3" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#15110a" media="(prefers-color-scheme: dark)" />
     <title>ICG Fundraiser Tracker</title>
@@ -15,7 +15,14 @@
       (function () {
         var theme = null;
         try { theme = localStorage.getItem('icg-theme'); } catch (e) { theme = null; }
-        if (theme !== 'light' && theme !== 'dark') {
+        if (theme === 'light' || theme === 'dark') {
+          // A theme chosen in the app outranks the device's setting, which the metas' media queries follow: both
+          // metas take the chosen theme's colour, or the browser bar would stay on the device's under this page.
+          var chosen = document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: ' + theme + ')"]');
+          var colour = chosen && chosen.getAttribute('content');
+          var metas = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; colour && i < metas.length; i++) metas[i].setAttribute('content', colour);
+        } else {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         document.documentElement.dataset.theme = theme;

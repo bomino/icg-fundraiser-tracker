@@ -499,8 +499,12 @@ While the display is showing, toasts are hidden, and CONFLICT questions wait (`w
 
 Styling comes only from `web/src/styles/tokens.css` (from `DESIGN.md`). No other file contains colour literals, with two unavoidable exceptions:
 
-- `web/index.html`'s two `theme-color` metas and `web/public/manifest.webmanifest`'s `background_color`/`theme_color` cannot reference CSS variables, so they hold copies of `--color-bg` (light `#fbf9f3`, dark `#15110a`). Change the metas and manifest together with `--color-bg`.
+- `web/index.html`'s two `theme-color` metas, `THEME_COLOR` in `web/src/theme.ts` and `web/public/manifest.webmanifest`'s `background_color`/`theme_color` cannot reference CSS variables, so they hold copies of `--color-bg` (light `#fbf9f3`, dark `#15110a`). Change the metas, `THEME_COLOR` and the manifest together with `--color-bg`; `test/theme.test.ts` fails when the metas or `THEME_COLOR` drift from the token, but nothing checks the manifest.
 - The icon artwork (`web/public/icons/icg-monogram.svg`, the favicon, and `icg-monogram-maskable.svg`) hard-codes `--color-bg` `#fbf9f3`, `--color-ink` `#1a2e1f` and the original gold `#a87c0a`, which now survives in `tokens.css` only as `--chart-2` (`--color-gold` was darkened to `#926c09` for text contrast). If you change the icon colours, re-rasterise the PNGs beside the SVGs (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `apple-touch-icon-180.png`). The repo has no script that does this.
+
+The browser bar follows the app's theme, not only the device's. Each `theme-color` meta carries a `prefers-color-scheme` media query, which alone would leave the Android Chrome address bar, or an installed app's title bar, on the device's setting above a page in the other theme. So a chosen theme gives both metas its colour: `index.html`'s boot script does it for a choice saved on an earlier visit, reading the colour from the matching meta so it keeps no copy of its own, and `toggleTheme` does it from `THEME_COLOR` for a choice made now. With no choice saved, the metas are left alone and their media queries follow the device, as the page does.
+
+The manifest stays light only: there is no widely supported way for `background_color`/`theme_color` to vary by colour scheme. So an installed app's splash screen is cream for a dark-mode volunteer; once the page loads, its metas decide the title bar.
 
 ### Forced colours and the method ring
 
