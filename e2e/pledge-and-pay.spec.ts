@@ -19,7 +19,7 @@ test('"Save and log a payment" saves a new pledge and opens its payment form, re
   await expect(paymentDialog).toBeVisible();
   await expect(pledgeDialog).toBeHidden();
   await expect(paymentDialog.getByLabel('Phone number')).toHaveValue('555-9301');
-  await expect(paymentDialog.locator('[data-role=donor-preview]')).toHaveText('Donor: Pledge And Pay Donor');
+  await expect(paymentDialog.locator('[data-role=donor-preview]')).toHaveText('Donor: Pledge And Pay Donor · owes $500.00 of $500.00');
   await expect(paymentDialog.getByLabel('Amount received ($)')).toBeFocused();
 
   await page.keyboard.type('200');

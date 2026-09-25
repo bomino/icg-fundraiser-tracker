@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { compute, findByName, findByPhone, paymentsForKey } from '../../web/src/engine';
+import { compute, duplicatePaymentKey, findByName, findByPhone, paymentsForKey } from '../../web/src/engine';
+import { matchKey } from '../../web/src/matchKey';
 import type { Payment } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
@@ -140,6 +141,12 @@ describe('possible duplicate payments health check', () => {
       payment({ id: 'formatted', phone: '(555) 0101', amountReceived: 20, dateReceived: '2026-01-05' }),
     ]);
     expect(result?.ids).toEqual(['plain', 'formatted']);
+  });
+
+  it('shares its grouping key with the payment form, which gets none while the phone, amount or date is blank', () => {
+    expect(duplicatePaymentKey(matchKey('(555) 0101'), 0.1 + 0.2, '2026-01-05')).toBe(duplicatePaymentKey(matchKey('555-0101'), 0.3, '2026-01-05'));
+    expect(duplicatePaymentKey(matchKey('555-0101'), 20, '2026-01-05')).not.toBe(duplicatePaymentKey(matchKey('555-0101'), 20.01, '2026-01-05'));
+    expect([duplicatePaymentKey('', 20, '2026-01-05'), duplicatePaymentKey(matchKey('555-0101'), null, '2026-01-05'), duplicatePaymentKey(matchKey('555-0101'), 20, '')]).toEqual([null, null, null]);
   });
 });
 

@@ -80,6 +80,7 @@ describe('find donor', () => {
     const logPayment = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
     logPayment.click();
     expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('555-010-0101');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: <b>Aisha</b> · owes $60.00 of $100.00');
     // The phone belongs to this one donor, so there is no "next" payment to carry it into.
     expect(Array.from(document.querySelectorAll('dialog[open] button')).some((b) => b.textContent === 'Save and add another')).toBe(false);
     const amount = document.querySelector('input[name=amountReceived]') as HTMLInputElement;

@@ -57,6 +57,7 @@ export function createPledgesView(deps: ListViewDeps) {
         phone,
         methods: current.settings.paymentMethods,
         pledges: current.pledges,
+        computed: current.computed,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });

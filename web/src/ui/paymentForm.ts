@@ -1,9 +1,10 @@
 import type { NewRow } from '../api';
 import { todayIso } from '../dates';
-import { WARNING_MARK, WARN_NOT_IN_PLEDGES, createDonorResolver } from '../engine';
-import { parseAmount } from '../format';
+import { WARNING_MARK, WARN_NOT_IN_PLEDGES, createDonorResolver, duplicatePaymentKey, findByPhone, paymentsForKey, type Computed, type DerivedPayment, type DerivedPledge } from '../engine';
+import { formatCents, formatDate, parseAmount } from '../format';
 import { newId as makeId } from '../id';
 import { matchKey } from '../matchKey';
+import { toCents } from '../money';
 import { isPending } from '../store';
 import type { Payment, PaymentDraft, Pledge } from '../types';
 import { validatePayment, type FieldErrors } from '../validate';
@@ -23,6 +24,8 @@ export interface PaymentFormOptions {
   phone?: string;
   methods: readonly string[];
   pledges: readonly Pledge[];
+  /** The engine's figures as the form opened, for the donor's balance and for a payment that is already logged. */
+  computed: Computed;
   /** Saves against `existing` as this form holds it (a reopened form may hold a newer version than the first one did), or `{ id }` naming a new payment. */
   onSave(draft: PaymentDraft, row: Payment | NewRow): Promise<void>;
   onDelete?: (existing: Payment) => Promise<void>;
@@ -37,6 +40,25 @@ export interface PaymentFormOptions {
   /** Offers "Save and add another" on a new payment; opens the next payment's form with what this one keeps for it. */
   onAddAnother?: (carried: PaymentCarry) => void;
   reportError(err: unknown, context?: string): void;
+}
+
+// What the volunteer is asked at the table. Only on a new payment: an edited one is already inside the balance.
+// A donor listed twice has every payment counted twice, so their balance is wrong; a pledge of 0 means the
+// amount is not known yet, so nothing can be owed or over.
+function standing(donor: DerivedPledge | null, isNew: boolean): string {
+  if (!donor) return '';
+  if (donor.duplicate) return ' · listed more than once';
+  const pledgedCents = toCents(donor.pledge.amountPledged);
+  if (!isNew || pledgedCents === null || pledgedCents <= 0 || donor.balanceCents === null) return '';
+  if (donor.balanceCents > 0) return ` · owes ${formatCents(donor.balanceCents)} of ${formatCents(pledgedCents)}`;
+  if (donor.balanceCents === 0) return ' · has paid in full';
+  return ` · has paid ${formatCents(-donor.balanceCents)} more than pledged`;
+}
+
+function alreadyLoggedMessage(logged: DerivedPayment, editing: boolean): string {
+  const found = `A ${formatCents(toCents(logged.payment.amountReceived))} payment from this number dated ${formatDate(logged.payment.dateReceived)} is already logged.`;
+  // Cancel on an edit would keep both copies; deleting this one leaves the other.
+  return editing ? `${found} If this is the same payment, press Delete.` : `${found} If this is the same payment, press Cancel.`;
 }
 
 export function openPaymentForm(options: PaymentFormOptions, restore?: FormRestore): void {
@@ -64,14 +86,33 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const walkIn = !existing && donor === WARN_NOT_IN_PLEDGES ? " If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment." : '';
     if (blank) preview.textContent = 'Type the phone number to find the donor.';
     else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.${walkIn}`;
-    else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}`;
+    else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}${standing(findByPhone(options.computed, phone), !existing)}`;
   };
   fields.phone.input.addEventListener('input', updatePreview);
   updatePreview();
 
+  // Catches the same payment typed in twice while the donor is still at the table, not only later on Summary. It sees
+  // only what this device has loaded: another volunteer's entry, or a failed save that did reach the sheet, needs a reload.
+  const alreadyLogged = h('p', { class: 'hint hint-warning', role: 'status', 'data-role': 'already-logged', hidden: true });
+  const updateAlreadyLogged = () => {
+    const key = matchKey(fields.phone.input.value);
+    const amount = parseAmount(fields.amountReceived.input.value);
+    const typed = duplicatePaymentKey(key, amount === 'invalid' ? null : amount, fields.dateReceived.input.value);
+    const logged =
+      typed === null
+        ? undefined
+        : paymentsForKey(options.computed, key).find((d) => d.payment.id !== existing?.id && duplicatePaymentKey(d.key, d.payment.amountReceived, d.payment.dateReceived) === typed);
+    const message = logged ? alreadyLoggedMessage(logged, existing !== undefined) : '';
+    alreadyLogged.hidden = message === '';
+    // Rechecked on every keystroke in three boxes, and a status region may read out every rewrite of its text.
+    if (alreadyLogged.textContent !== message) alreadyLogged.textContent = message;
+  };
+  for (const { input } of [fields.phone, fields.dateReceived, fields.amountReceived]) input.addEventListener('input', updateAlreadyLogged);
+  updateAlreadyLogged();
+
   const onDelete = options.onDelete;
   const onAddAnother = options.onAddAnother;
-  const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, fields.dateReceived.wrapper, fields.amountReceived.wrapper, fields.method.wrapper, fields.notes.wrapper);
+  const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, fields.dateReceived.wrapper, fields.amountReceived.wrapper, alreadyLogged, fields.method.wrapper, fields.notes.wrapper);
   runForm<PaymentDraft>({
     title: existing ? 'Edit payment' : 'Log a payment',
     form,

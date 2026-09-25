@@ -9,7 +9,7 @@ export const PLEDGE_HELP = {
 export const PAYMENT_HELP = {
   phone: "Use the same number as on the donor's pledge — dashes, spaces, brackets, dots and plus signs don't matter.",
   dateReceived: 'The date this payment came in. Record each installment separately.',
-  amountReceived: 'The amount of this single payment, e.g. 200.',
+  amountReceived: 'The amount of this single payment, e.g. 200. If the same amount from this number on this date is already logged, a note below says so.',
   method: 'How the money was paid.',
   notes: 'e.g. "First installment".',
 } as const;

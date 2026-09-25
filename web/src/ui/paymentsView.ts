@@ -45,6 +45,7 @@ export function createPaymentsView(deps: ListViewDeps) {
         existing,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
+        computed: state.computed,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onDelete: (current) => deps.store.deletePayment(current),
         latest: () => deps.store.state()?.payments.find((p) => p.id === existing.id),
@@ -52,13 +53,15 @@ export function createPaymentsView(deps: ListViewDeps) {
       });
     };
     const logPayment = (carried?: PaymentCarry) => {
-      // Read now, not at render: a run of "Save and add another" outlasts the render it began in, and
-      // the donor preview must find pledges that reached the store during the run.
+      // Read now, not at render: a run of "Save and add another" outlasts the render it began in, the donor
+      // preview must find pledges that reached the store during the run, and the already-logged note must see
+      // the payments saved earlier in it.
       const current = deps.store.state() ?? state;
       openPaymentForm({
         carried,
         methods: current.settings.paymentMethods,
         pledges: current.pledges,
+        computed: current.computed,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onAddAnother: logPayment,
         reportError: deps.reportError,

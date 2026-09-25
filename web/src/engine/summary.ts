@@ -77,15 +77,23 @@ export function computeTotals(pledges: readonly DerivedPledge[], payments: reado
   };
 }
 
-// Groups payments by (match key, amount in cents, date received). A group of more than one
-// payment is a possible duplicate entry - but two real installments of the same amount on the
-// same day happen too, so this is a prompt to check, not a certainty like the other checks.
+/**
+ * A payment's (match key, amount in cents, date received), or null while any of them is blank. Payments
+ * sharing one are a possible duplicate entry - but two real installments of the same amount on the same
+ * day happen too, so this is a prompt to check, not a certainty like the other checks. The payment form
+ * checks what is being typed with it, so the form and the health check can never disagree.
+ */
+export function duplicatePaymentKey(key: string, amountReceived: number | null, dateReceived: string): string | null {
+  const cents = toCents(amountReceived);
+  if (key === '' || dateReceived === '' || cents === null) return null;
+  return `${key}|${cents}|${dateReceived}`;
+}
+
 function findPossibleDuplicatePaymentIds(payments: readonly DerivedPayment[]): Set<string> {
   const groups = new Map<string, string[]>();
   for (const derived of payments) {
-    const cents = toCents(derived.payment.amountReceived);
-    if (derived.key === '' || derived.payment.dateReceived === '' || cents === null) continue;
-    const groupKey = `${derived.key}|${cents}|${derived.payment.dateReceived}`;
+    const groupKey = duplicatePaymentKey(derived.key, derived.payment.amountReceived, derived.payment.dateReceived);
+    if (groupKey === null) continue;
     const ids = groups.get(groupKey);
     if (ids) ids.push(derived.payment.id);
     else groups.set(groupKey, [derived.payment.id]);

@@ -66,6 +66,7 @@ describe('pledges view', () => {
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Log a payment');
     expect((document.querySelector('input[name=phone]') as HTMLInputElement).value).toBe('555-010-0103');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Chen Wei · owes $300.00 of $300.00');
   });
 
   it('saves a new pledge and opens its payment form at once, with the donor found and the cursor in Amount received', async () => {
@@ -86,7 +87,7 @@ describe('pledges view', () => {
     // #then only the payment form is open, already matched to the new donor, ready for the amount
     expect(openModalTitles()).toEqual(['Log a payment']);
     expect((document.querySelector('dialog[open] [name=phone]') as HTMLInputElement).value).toBe('555 777 0001');
-    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Zara');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Zara · owes $50.00 of $50.00');
     expect(document.activeElement).toBe(document.querySelector('dialog[open] [name=amountReceived]'));
   });
 });
@@ -311,7 +312,7 @@ describe('pledges view: paging at event scale', () => {
 
 describe('payment form', () => {
   it('pre-fills the phone from options and shows the donor preview immediately', () => {
-    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
     const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
     expect(phone.value).toBe('555-010-0103');
@@ -319,19 +320,19 @@ describe('payment form', () => {
   });
 
   it('puts the cursor in Amount received when the phone is filled in for the donor', () => {
-    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     expect(document.activeElement).toBe(document.querySelector('dialog[open] [name=amountReceived]'));
   });
 
   it('leaves a reopened payment’s cursor where the fix is needed, not in Amount received', () => {
     const restore = { values: { phone: '555-010-0103', amountReceived: '20' }, error: new ApiError('BAD_REQUEST', "Enter the donor's phone number.", 'phone') };
-    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() }, restore);
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() }, restore);
     expect(document.activeElement).toBe(document.querySelector('dialog[open] [name=phone]'));
   });
 
   it('tells the volunteer how to record a donor who has not pledged, only when the phone is not in Pledges', () => {
     const noAmount = pledge({ id: 'p9', phone: '555-010-0199', name: 'No Amount' });
-    openPaymentForm({ methods: METHODS, pledges: [...pledges, noAmount], onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ methods: METHODS, pledges: [...pledges, noAmount], computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
     const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
     type(phone, '123');
@@ -343,13 +344,13 @@ describe('payment form', () => {
   });
 
   it('gives an existing payment no advice to Save and log a payment, which would enter that money a second time', () => {
-    openPaymentForm({ existing: payments[0], methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ existing: payments[0], methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
     expect(preview.textContent).toBe(`${WARN_NOT_IN_PLEDGES} — this payment will not be counted until that is fixed.`);
   });
 
   it('previews the donor while the phone is typed', () => {
-    openPaymentForm({ methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
     const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
     type(phone, '(555) 010-0103');
@@ -360,7 +361,7 @@ describe('payment form', () => {
   });
 
   it('asks for the phone number while the phone holds only punctuation', () => {
-    openPaymentForm({ methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     type(document.querySelector('input[name=phone]') as HTMLInputElement, '(--)');
     const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
     expect({ text: preview.textContent, className: preview.className }).toEqual({ text: 'Type the phone number to find the donor.', className: 'hint' });
@@ -369,7 +370,7 @@ describe('payment form', () => {
   it('turns typed text into a draft', async () => {
     // Typed so `.mock.calls[0][0]` below is not indexed into an inferred empty tuple.
     const onSave = vi.fn(async (_draft: PaymentDraft) => undefined);
-    openPaymentForm({ methods: METHODS, pledges, onSave, reportError: vi.fn() });
+    openPaymentForm({ methods: METHODS, pledges, computed: state.computed, onSave, reportError: vi.fn() });
     type(document.querySelector('input[name=phone]') as HTMLInputElement, '555-010-0103');
     type(document.querySelector('input[name=amountReceived]') as HTMLInputElement, '$1,200');
     (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
@@ -379,7 +380,7 @@ describe('payment form', () => {
 
   it('marks the amount as required and will not save a payment without one', () => {
     const onSave = vi.fn(async () => undefined);
-    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave, reportError: vi.fn() });
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave, reportError: vi.fn() });
     const amount = document.querySelector('input[name=amountReceived]') as HTMLInputElement;
     expect(amount.getAttribute('aria-required')).toBe('true');
     (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
@@ -390,7 +391,7 @@ describe('payment form', () => {
 
   it('saves a new payment under the id it was opened with', async () => {
     const onSave = vi.fn<PaymentFormOptions['onSave']>(async () => undefined);
-    openPaymentForm({ newId: 'chosen-id', phone: '555-010-0103', methods: METHODS, pledges, onSave, reportError: vi.fn() });
+    openPaymentForm({ newId: 'chosen-id', phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave, reportError: vi.fn() });
     type(document.querySelector('input[name=amountReceived]') as HTMLInputElement, '20');
     (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
     await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
@@ -398,10 +399,10 @@ describe('payment form', () => {
   });
 
   it('closes on Cancel at once while only the filled-in phone is there, and asks once an amount is typed', () => {
-    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     pressFormCancel();
     expect(document.querySelector('dialog[open]')).toBeNull();
-    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     type(document.querySelector('input[name=amountReceived]') as HTMLInputElement, '750');
     pressFormCancel();
     expect(openModalTitles()).toEqual(['Log a payment', 'Please confirm']);
@@ -410,9 +411,95 @@ describe('payment form', () => {
 
   it('closes an edited payment opened and left alone at once on Cancel', () => {
     const saved = payment({ id: 'y9', phone: '555-010-0103', dateReceived: '2026-09-01', amountReceived: 40, method: 'Card', notes: 'Envelope' });
-    openPaymentForm({ existing: saved, methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    openPaymentForm({ existing: saved, methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     pressFormCancel();
     expect(document.querySelector('dialog[open]')).toBeNull();
+  });
+});
+
+describe('payment form: a payment already logged, and what the donor owes', () => {
+  const donors = [
+    pledge({ id: 'd1', phone: '555-300-0001', name: 'Owes Some', amountPledged: 500 }),
+    pledge({ id: 'd2', phone: '555-300-0002', name: 'Paid Up', amountPledged: 200 }),
+    pledge({ id: 'd3', phone: '555-300-0003', name: 'Paid Extra', amountPledged: 100 }),
+    pledge({ id: 'd4', phone: '555-300-0004', name: 'Amount Not Known', amountPledged: 0 }),
+    pledge({ id: 'd5', phone: '555-300-0005', name: 'Entered Twice', amountPledged: 100 }),
+    pledge({ id: 'd6', phone: '5553000005', name: 'Entered Twice again', amountPledged: 100 }),
+  ];
+  const logged = [
+    payment({ id: 'm1', phone: '555-300-0001', amountReceived: 100, dateReceived: '2026-09-24' }),
+    payment({ id: 'm2', phone: '555-300-0002', amountReceived: 200, dateReceived: '2026-09-01' }),
+    payment({ id: 'm3', phone: '555-300-0003', amountReceived: 150, dateReceived: '2026-09-01' }),
+    payment({ id: 'm4', phone: '555-300-0004', amountReceived: 50, dateReceived: '2026-09-01' }),
+  ];
+  const open = (options: Partial<PaymentFormOptions> = {}) =>
+    openPaymentForm({ methods: METHODS, pledges: donors, computed: compute(donors, logged, SETTINGS, TODAY), onSave: vi.fn(), reportError: vi.fn(), ...options });
+  const box = (name: string) => document.querySelector(`dialog[open] [name=${name}]`) as HTMLInputElement;
+  const fill = (values: Record<string, string>) => {
+    for (const [name, value] of Object.entries(values)) type(box(name), value);
+  };
+  const preview = () => document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent;
+  const alreadyLogged = () => {
+    const hint = document.querySelector('dialog[open] [data-role=already-logged]') as HTMLElement;
+    return hint.hidden ? null : { text: hint.textContent, className: hint.className, role: hint.getAttribute('role') };
+  };
+  const SAME_AS_M1 = 'A $100.00 payment from this number dated Sep 24, 2026 is already logged. If this is the same payment, press Cancel.';
+
+  it('says a payment with the same phone number, amount and date is already logged, rechecking as each of them is typed', () => {
+    open();
+    fill({ phone: '(555) 300-0001', dateReceived: '2026-09-24', amountReceived: '100.00' });
+    expect(alreadyLogged()).toEqual({ text: SAME_AS_M1, className: 'hint hint-warning', role: 'status' });
+    fill({ amountReceived: '100.01' });
+    expect(alreadyLogged()).toBeNull();
+    fill({ amountReceived: '$100' });
+    expect(alreadyLogged()?.text).toBe(SAME_AS_M1);
+    fill({ dateReceived: '2026-09-25' });
+    expect(alreadyLogged()).toBeNull();
+    fill({ dateReceived: '2026-09-24' });
+    expect(alreadyLogged()?.text).toBe(SAME_AS_M1);
+    fill({ phone: '555-300-0002' });
+    expect(alreadyLogged()).toBeNull();
+  });
+
+  it('still saves a payment it warns about, because two real installments can match', async () => {
+    const onSave = vi.fn<PaymentFormOptions['onSave']>(async () => undefined);
+    open({ phone: '555-300-0001', onSave });
+    fill({ dateReceived: '2026-09-24', amountReceived: '100' });
+    expect(alreadyLogged()?.text).toBe(SAME_AS_M1);
+    (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
+  });
+
+  it('never matches an edited payment against itself, but says Delete when an edit makes it match another', () => {
+    open({ existing: logged[0] });
+    expect(alreadyLogged()).toBeNull();
+    document.body.replaceChildren();
+    open({ existing: logged[1] });
+    fill({ phone: '555-300-0001', dateReceived: '2026-09-24', amountReceived: '100' });
+    expect(alreadyLogged()?.text).toBe('A $100.00 payment from this number dated Sep 24, 2026 is already logged. If this is the same payment, press Delete.');
+  });
+
+  it('shows, on a new payment, what the donor still owes, or that they have paid in full or over', () => {
+    open();
+    fill({ phone: '555-300-0001' });
+    expect(preview()).toBe('Donor: Owes Some · owes $400.00 of $500.00');
+    fill({ phone: '555-300-0002' });
+    expect(preview()).toBe('Donor: Paid Up · has paid in full');
+    fill({ phone: '555-300-0003' });
+    expect(preview()).toBe('Donor: Paid Extra · has paid $50.00 more than pledged');
+  });
+
+  it('shows no balance on an edit, whose payment the balance already counts, or on a pledge of 0, whose amount is not known yet', () => {
+    open({ existing: logged[0] });
+    expect(preview()).toBe('Donor: Owes Some');
+    document.body.replaceChildren();
+    open({ phone: '555-300-0004' });
+    expect(preview()).toBe('Donor: Amount Not Known');
+  });
+
+  it('says a donor is listed more than once instead of showing a balance their doubled payments make wrong', () => {
+    open({ phone: '555-300-0005' });
+    expect(preview()).toBe('Donor: Entered Twice · listed more than once');
   });
 });
 
@@ -843,13 +930,33 @@ describe('Save and add another', () => {
 
   it('finds a donor in the next payment form whose pledge reached the store after the list was drawn', () => {
     const arrived = pledge({ id: 'p7', phone: '555-010-0107', name: 'Late Arrival', amountPledged: 70 });
-    const liveState = { ...state, pledges: [...pledges, arrived] };
+    const liveState = { ...state, pledges: [...pledges, arrived], computed: compute([...pledges, arrived], payments, SETTINGS, TODAY) };
     document.body.append(createPaymentsView({ store: { ...store, state: () => liveState } as Store, reportError: vi.fn() })(state, null, () => undefined));
     press('Log a payment');
     fill({ phone: '555-010-0103', amountReceived: '20' });
     press('Save and add another');
     fill({ phone: '555-010-0107' });
-    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Late Arrival');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Late Arrival · owes $70.00 of $70.00');
+  });
+
+  it('says in the next payment form of a run that the payment just saved is already logged, while its save is still going', async () => {
+    // #given a real store whose saves never answer, so the first payment is still saving when the next form opens
+    const api = {
+      load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me@example.com' }),
+      savePayment: () => new Promise(() => undefined),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    document.body.append(createPaymentsView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State, null, () => undefined));
+    press('Log a payment');
+    fill({ phone: '555-010-0103', dateReceived: '2026-09-18', amountReceived: '20' });
+    press('Save and add another');
+    // #when the same envelope is typed in again
+    fill({ phone: '5550100103', amountReceived: '20.00' });
+    // #then
+    const hint = document.querySelector('dialog[open] [data-role=already-logged]') as HTMLElement;
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toBe('A $20.00 payment from this number dated Sep 18, 2026 is already logged. If this is the same payment, press Cancel.');
   });
 
   it('retries a failed pledge from earlier in the run under its own id, not the next one’s', async () => {

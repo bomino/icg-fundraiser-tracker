@@ -76,6 +76,7 @@ export function createLookupView(deps: ListViewDeps) {
         phone: donor.pledge.phone,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
+        computed: state.computed,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });
@@ -100,6 +101,7 @@ export function createLookupView(deps: ListViewDeps) {
         existing: payment,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
+        computed: state.computed,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onDelete: (current) => deps.store.deletePayment(current),
         latest: () => deps.store.state()?.payments.find((p) => p.id === payment.id),
