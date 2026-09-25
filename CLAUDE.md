@@ -117,7 +117,7 @@ Four literal values, set only when Amount Pledged is filled in (blank has no sta
 - **Newest first lives in the two views**, not the shared `sortRows`; the engine's first-row join is untouched. (details: docs/ARCHITECTURE.md → Order: newest first)
 - **Never hide the column headings without the phone Sort by list**, and keep `PHONE_WIDTH_QUERY` equal to the stacked-card breakpoint in `components.css`. (details: docs/ARCHITECTURE.md → Sorting; Paging)
 - **Download this list saves exactly the rows `drawTable` drew**; never filter a second time. (details: docs/ARCHITECTURE.md → Download this list)
-- **Export:** keep `($)` on every money label; find Summary rows by label, never cell address; Download .xlsx refreshes first and builds from `store.state()`; upgrade SheetJS CE by editing its CDN URL in `package.json`, never `npm install xlsx`. (details: docs/ARCHITECTURE.md → The .xlsx export; Download .xlsx refreshes first; Timestamps and confidentiality)
+- **Export:** keep `($)` on every money label; find Summary rows by label, never cell address; Download .xlsx refreshes first and builds from `store.state()`; SheetJS CE installs from the committed `vendor/xlsx-<version>.tgz`, so upgrade it by downloading SheetJS's new tarball from cdn.sheetjs.com into `vendor/`, checking it and running `npm install file:vendor/xlsx-<new>.tgz`, never `npm install xlsx`. (details: docs/ARCHITECTURE.md → The .xlsx export; SheetJS CE, vendored; Download .xlsx refreshes first; Timestamps and confidentiality)
 - **Status regions:** never put a button inside a `role=status` region, and rewrite status text only when it changes. `.visually-hidden` is the one screen-reader-only class. (details: docs/ARCHITECTURE.md → Screen-reader announcements)
 
 ### Styling, install and tests
@@ -151,7 +151,7 @@ No new field is planned (the design spec fixes the schema), but a Pledges or Pay
 
 ## Version control
 
-`.gitignore` blanket-ignores `*.xlsx`, `*.docx` and Office lock files (`~$*`), so an app export or a stray copy of the spreadsheet this project's rules were originally modelled on can never be committed by accident.
+`.gitignore` blanket-ignores `*.xlsx`, `*.docx` and Office lock files (`~$*`), so an app export or a stray copy of the spreadsheet this project's rules were originally modelled on can never be committed by accident. Never ignore `vendor/*.tgz`: it is SheetJS CE's install source, and a clone without it can't run `npm ci`.
 
 ## Conventions
 
