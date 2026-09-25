@@ -26,7 +26,7 @@ describe('demo api', () => {
   });
 
   it('seeds donors who need a follow-up, in both seeds', async () => {
-    // e2e/needs-follow-up.spec.ts asserts on a non-empty list, on whatever day the suite runs.
+    // So the chip has rows to show in demo mode on whatever day it's opened; e2e/needs-follow-up.spec.ts pins its own day.
     for (const big of [false, true]) {
       const data = await createDemoApi(0, { big }).load();
       const computed = compute(data.pledges, data.payments, data.settings, todayIso());

@@ -28,6 +28,11 @@ describe('derivePledges', () => {
     expect(d).toMatchObject({ balanceCents: -5000, status: 'Overpaid' });
   });
 
+  it('reads Overpaid once a zero pledge receives money, with all of it as credit', () => {
+    const [d] = derivePledges([pledge({ phone: '1', amountPledged: 0 })], [payment({ phone: '1', amountReceived: 25 })]);
+    expect(d).toMatchObject({ receivedCents: 2500, balanceCents: -2500, status: 'Overpaid' });
+  });
+
   it('is Partial when some money has come in', () => {
     const [d] = derivePledges([pledge({ phone: '1', amountPledged: 100 })], [payment({ phone: '1', amountReceived: 40 })]);
     expect(d).toMatchObject({ balanceCents: 6000, status: 'Partial' });

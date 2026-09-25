@@ -58,7 +58,7 @@ npm run test:e2e
 
 `test:e2e` starts its own Vite dev server on a fixed port (5199), builds the production bundle into a temp folder and serves it with `vite preview` on 5299, and tears both down afterwards, so it's safe to run alongside `npm run dev` on 5173 and never touches your own `dist/`. Set `E2E_PORT` to move both ports (the preview always uses the port 100 above it). On failure, run `npx playwright show-report` to open the report and each failed test's trace. A trace won't open from `index.html` opened directly as a file. In CI, each failing test is retried once (a pass on retry shows as flaky), and a failed `e2e` job uploads the report as a `playwright-report` artifact on the run's summary page, kept for 7 days. Download and unzip it, then run `npx playwright show-report <unzipped folder>`.
 
-`npm run perf` (`e2e/perf-probe.ts`) is a separate script that neither `test:e2e` nor CI runs. It starts its own dev server on port 5301 and prints render timings at event scale (demo mode's `?demo&big` seed, 1,500 pledges), with and without CPU throttling, on a wide screen and on a phone. It needs `npx playwright install chromium` and has no pass/fail check.
+`npm run perf` (`e2e/perf-probe.ts`) is a separate script that neither `test:e2e` nor CI runs. It starts its own dev server on port 5301 and prints timings at event scale, compute at 1,500 pledges / 3,000 payments, first page rendered (demo mode's `?demo&big` seed, plus `&instant` so no figure includes the demo's simulated 300 ms server delay), with and without CPU throttling, on a wide screen and on a phone. Each browser loads the page once, untimed, before anything is timed. It needs `npx playwright install chromium` and has no pass/fail check.
 
 ## Previewing a production build
 

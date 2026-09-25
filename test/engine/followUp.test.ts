@@ -69,6 +69,14 @@ describe('needsFollowUp', () => {
     expect(needsFollowUp(d, TODAY)).toBe(false);
   });
 
+  it('counts Feb 29 when the 30 days span a leap day', () => {
+    // 2028 is a leap year, so 2028-01-31 is exactly 30 days before 2028-03-01 and 2028-01-30 is 31.
+    const exactly30 = derive({ phone: '1', amountPledged: 100, datePledged: '2028-01-31' });
+    const days31 = derive({ phone: '1', amountPledged: 100, datePledged: '2028-01-30' });
+    expect(needsFollowUp(exactly30, '2028-03-01')).toBe(false);
+    expect(needsFollowUp(days31, '2028-03-01')).toBe(true);
+  });
+
   it('is true at 31 days before today', () => {
     const d = derive({ phone: '1', amountPledged: 100, datePledged: '2026-08-24' });
     expect(needsFollowUp(d, TODAY)).toBe(true);

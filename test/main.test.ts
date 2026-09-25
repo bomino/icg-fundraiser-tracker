@@ -76,4 +76,27 @@ describe('opening the tracker', () => {
     button('Try again')?.click();
     expect(location.reload).toHaveBeenCalledTimes(1);
   });
+
+  describe('in demo mode', () => {
+    afterEach(() => {
+      vi.doUnmock('../web/src/demo');
+      history.replaceState(null, '', '/');
+    });
+
+    // npm run perf opens `?demo&big&instant`, so its timings are the app's own work, not the wait
+    // the demo otherwise adds to every call to feel like the real server.
+    it('answers with no simulated delay when the address has `instant`', async () => {
+      history.replaceState(null, '', '/?demo&instant#summary');
+      vi.doMock(import('../web/src/demo'), async (importOriginal) => {
+        const demo = await importOriginal();
+        return { ...demo, createDemoApi: vi.fn(demo.createDemoApi) };
+      });
+
+      await openTracker();
+
+      await vi.waitFor(() => expect(document.querySelector('nav.tabs')).not.toBeNull());
+      const { createDemoApi } = await import('../web/src/demo');
+      expect(vi.mocked(createDemoApi).mock.calls).toEqual([[0, { big: false }]]);
+    });
+  });
 });
