@@ -267,6 +267,13 @@ function theScreens(): Child[] {
       'Find donor',
       p('Type a donor’s full phone number, in any format, or part of their name. A phone number takes you straight to the donor; a name shows a list to choose from.'),
       p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made.'),
+      p(
+        'From the card, press ',
+        b('Log a payment'),
+        ' to record money from them, press ',
+        b('Edit pledge'),
+        ' to correct their pledge, or tap one of their payments to correct or delete it. The card stays on that donor even if you change the phone number you searched for.',
+      ),
     ),
     topic(
       'Search and sort',

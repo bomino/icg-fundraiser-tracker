@@ -29,6 +29,7 @@ const type = (name: string, value: string) => {
 };
 const submit = () => (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
 const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+const dialogTitle = () => document.querySelector('dialog[open] .modal-title')?.textContent;
 
 describe('find donor', () => {
   it('finds by phone in any format and shows payment history as text', () => {
@@ -105,6 +106,55 @@ describe('find donor', () => {
     const [first, second] = savePayment.mock.calls.map((call) => call[1]);
     expect(first).toEqual({ id: expect.any(String) });
     expect(second).toEqual(first);
+  });
+
+  it('edits the pledge from the donor card, and keeps showing that donor after its phone changes', async () => {
+    // #given the card found by phone, and the pledge's phone edited from it
+    const savePledge = vi.fn<Store['savePledge']>(async () => undefined);
+    const render = createLookupView({ store: { savePledge } as unknown as Store, reportError: vi.fn() });
+    document.body.append(render(state));
+    search(document.body, '(555) 010 0101');
+    button('Edit pledge').click();
+    expect(dialogTitle()).toBe('Edit pledge');
+    type('phone', '555-010-7777');
+    submit();
+    await vi.waitFor(() => expect(savePledge).toHaveBeenCalled());
+    expect(savePledge.mock.calls[0][1]).toBe(pledges[0]);
+    // #when the change lands and the view redraws, though the typed search no longer matches
+    const moved = [{ ...pledges[0], phone: '555-010-7777' }, ...pledges.slice(1)];
+    document.body.replaceChildren(render({ ...state, pledges: moved, computed: compute(moved, payments, SETTINGS, TODAY) }));
+    // #then the card still shows that donor, not "Not found"
+    expect(document.querySelector('.lookup-card h2')?.textContent).toBe('<b>Aisha</b>');
+    expect(document.querySelector('.lookup-card dd')?.textContent).toBe('555-010-7777');
+  });
+
+  it('opens a payment from the donor card history to edit it', async () => {
+    const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
+    document.body.append(createLookupView({ store: { savePayment } as unknown as Store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 010 0101');
+    (document.querySelector('.lookup-card tbody tr .row-open') as HTMLButtonElement).click();
+    expect(dialogTitle()).toBe('Edit payment');
+    type('amountReceived', '45');
+    submit();
+    await vi.waitFor(() => expect(savePayment).toHaveBeenCalled());
+    expect(savePayment.mock.calls[0]).toEqual([expect.objectContaining({ amountReceived: 45 }), payments[0]]);
+  });
+
+  it('holds Edit pledge back while that pledge is still saving', async () => {
+    // #given a live store whose edit of the donor's pledge has not answered yet
+    const api = {
+      load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me' }),
+      savePledge: () => new Promise(() => undefined),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    void liveStore.savePledge({ phone: '2', name: 'Aisha K.', datePledged: '', amountPledged: 50, notes: '' }, pledges[1]);
+    // #when the card is shown
+    const view = createLookupView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State);
+    search(view, '2');
+    // #then its edit button says why it cannot be used yet, since an edit opened now would start from a version about to be replaced
+    const edit = view.querySelector('.lookup-card button') as HTMLButtonElement;
+    expect({ text: edit.textContent, disabled: edit.disabled }).toEqual({ text: 'Saving…', disabled: true });
   });
 
   it('labels a payment that is still saving in the donor card history', async () => {

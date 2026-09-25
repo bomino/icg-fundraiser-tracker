@@ -2,9 +2,11 @@ import { findByName, findByPhone, paymentsForKey, type DerivedPayment, type Deri
 import { formatCents, formatDate } from '../format';
 import { toCents } from '../money';
 import { isPending, type State } from '../store';
+import type { Payment } from '../types';
 import { methodBadge, statusBadge } from './badges';
 import { h } from './dom';
 import { openPaymentForm } from './paymentForm';
+import { openPledgeForm } from './pledgeForm';
 import type { ListViewDeps } from './pledgesView';
 import { renderTable, type Column } from './table';
 
@@ -15,7 +17,13 @@ const HISTORY: Column<DerivedPayment>[] = [
   { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },
 ];
 
-function donorCard(donor: DerivedPledge, payments: DerivedPayment[], onLogPayment: () => void): HTMLElement {
+interface CardActions {
+  editPledge(): void;
+  logPayment(): void;
+  openPayment(payment: Payment): void;
+}
+
+function donorCard(donor: DerivedPledge, payments: DerivedPayment[], actions: CardActions): HTMLElement {
   const rows: Array<[string, Node | string]> = [
     ['Phone', donor.pledge.phone],
     ['Date pledged', formatDate(donor.pledge.datePledged)],
@@ -27,20 +35,33 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], onLogPaymen
     ['Status', statusBadge(donor.status)],
     ['Notes', donor.pledge.notes],
   ];
+  // Held back like a saving row on Pledges: an edit opened now would start from a version about to be replaced.
+  const saving = isPending(donor.pledge);
+  const editPledge = h('button', { type: 'button', class: 'btn btn-secondary', disabled: saving }, saving ? 'Saving…' : 'Edit pledge');
+  editPledge.addEventListener('click', actions.editPledge);
   // Same rule as the pledge dialog: no phone means there is nowhere for the payment to match to.
   let logPayment: HTMLButtonElement | null = null;
   if (donor.key !== '') {
     logPayment = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Log a payment');
-    logPayment.addEventListener('click', onLogPayment);
+    logPayment.addEventListener('click', actions.logPayment);
   }
   return h(
     'article',
     { class: 'card lookup-card' },
-    h('div', { class: 'view-header' }, h('h2', { class: 'display-md' }, donor.pledge.name || '(no name)'), logPayment),
+    h('div', { class: 'view-header' }, h('h2', { class: 'display-md' }, donor.pledge.name || '(no name)'), h('div', { class: 'toolbar' }, editPledge, logPayment)),
     donor.duplicate ? h('p', { class: 'hint hint-warning' }, 'This phone number is on more than one pledge, so its payments are counted twice. Remove the extra pledge.') : null,
     h('dl', {}, ...rows.flatMap(([label, value]) => [h('dt', {}, label), h('dd', {}, value)])),
     h('h3', { class: 'heading-md' }, 'Payments'),
-    renderTable({ columns: HISTORY, rows: payments, sort: null, rowId: (d) => d.payment.id, pending: (d) => isPending(d.payment), onSort: () => undefined, empty: 'No payments recorded for this donor.' }),
+    renderTable({
+      columns: HISTORY,
+      rows: payments,
+      sort: null,
+      rowId: (d) => d.payment.id,
+      pending: (d) => isPending(d.payment),
+      onSort: () => undefined,
+      onOpen: (d) => actions.openPayment(d.payment),
+      empty: 'No payments recorded for this donor.',
+    }),
   );
 }
 
@@ -59,6 +80,30 @@ export function createLookupView(deps: ListViewDeps) {
         reportError: deps.reportError,
       });
     };
+    const editPledge = (donor: DerivedPledge) => {
+      // Pins the card to this pledge: after an edit to the phone the volunteer searched by, the search alone would say "Not found".
+      chosenId = donor.pledge.id;
+      openPledgeForm({
+        existing: donor.pledge,
+        pledges: state.pledges,
+        onSave: (draft, row) => deps.store.savePledge(draft, row),
+        onDelete: (current) => deps.store.deletePledge(current),
+        latest: () => deps.store.state()?.pledges.find((p) => p.id === donor.pledge.id),
+        onLogPayment: () => openPaymentFor(donor),
+        reportError: deps.reportError,
+      });
+    };
+    const editPayment = (payment: Payment) => {
+      openPaymentForm({
+        existing: payment,
+        methods: state.settings.paymentMethods,
+        pledges: state.pledges,
+        onSave: (draft, row) => deps.store.savePayment(draft, row),
+        onDelete: (current) => deps.store.deletePayment(current),
+        latest: () => deps.store.state()?.payments.find((p) => p.id === payment.id),
+        reportError: deps.reportError,
+      });
+    };
     const draw = () => {
       const computed = state.computed;
       const text = query.trim();
@@ -69,7 +114,13 @@ export function createLookupView(deps: ListViewDeps) {
       const chosen = chosenId ? (computed.pledges.find((d) => d.pledge.id === chosenId) ?? null) : null;
       const donor = chosen ?? (/\d/.test(text) ? findByPhone(computed, text) : null);
       if (donor) {
-        results.replaceChildren(donorCard(donor, paymentsForKey(computed, donor.key), () => openPaymentFor(donor)));
+        results.replaceChildren(
+          donorCard(donor, paymentsForKey(computed, donor.key), {
+            editPledge: () => editPledge(donor),
+            logPayment: () => openPaymentFor(donor),
+            openPayment: editPayment,
+          }),
+        );
         return;
       }
       const matches = findByName(computed, text);

@@ -166,6 +166,7 @@ Each non-zero item links to the Pledges or Payments view, filtered to the rows t
 ### 5.7 Donor lookup (B41–B50)
 - The input is normalized with `matchKey`, and the result is the **first** Pledges row with that key. That row's fields are shown (name, date pledged, amount, last payment date, received, balance, # payments, status, notes), or "Not found".
 - Beyond the workbook: the lookup also accepts a name search (case-insensitive substring), which lists the candidate rows, and it shows the matched donor's payment history.
+- The donor card is also a place to fix mistakes: **Edit pledge** and each payment row open the same edit forms as Pledges and Payments, and **Log a payment** opens a new payment with the donor's phone filled in. Once the pledge editor is opened from the card, the card stays on that pledge rather than on the search text, so changing the phone that was searched for does not turn it into "Not found".
 
 ## 6. Testing
 
