@@ -96,6 +96,19 @@ describe('find donor', () => {
     expect(view.textContent).toContain('Aisha Khan');
   });
 
+  it('moves focus from a chosen match to the donor card it opens, since the match itself is gone', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    document.body.append(view);
+    search(view, 'aisha');
+    const match = view.querySelectorAll<HTMLButtonElement>('.match')[1];
+    match.focus();
+
+    match.click();
+
+    expect(document.activeElement).toBe(view.querySelector('.lookup-card h2'));
+    expect(document.activeElement?.textContent).toBe('Aisha Khan');
+  });
+
   it('lists donors whose number contains the typed digits when no number matches in full', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     for (const partial of ['0101', '555-010']) {

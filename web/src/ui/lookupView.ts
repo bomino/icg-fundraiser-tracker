@@ -69,7 +69,7 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], actions: Ca
     'article',
     { class: 'card lookup-card' },
     h('p', { class: 'eyebrow print-only' }, `Islamic Center of Greensboro — pledge statement, printed ${formatDate(todayIso())}`),
-    h('div', { class: 'view-header' }, h('h2', { class: 'display-md' }, donor.pledge.name || '(no name)'), h('div', { class: 'toolbar' }, print, editPledge, logPayment)),
+    h('div', { class: 'view-header' }, h('h2', { class: 'display-md', tabindex: -1, 'data-focus-key': 'lookup-donor' }, donor.pledge.name || '(no name)'), h('div', { class: 'toolbar' }, print, editPledge, logPayment)),
     donor.duplicate ? h('p', { class: 'hint hint-warning print-hidden' }, 'This phone number is on more than one pledge, so its payments are counted twice. Remove the extra pledge.') : null,
     h('dl', {}, ...rows.flatMap(([label, value, printClass]) => [h('dt', { class: printClass }, label), h('dd', { class: printClass }, value)])),
     h('h3', { class: 'heading-md' }, 'Payments'),
@@ -201,6 +201,9 @@ export function createLookupView(deps: ListViewDeps) {
             button.addEventListener('click', () => {
               chosenId = d.pledge.id;
               draw();
+              // The card replaces the list, pressed match included; its heading names the donor to a screen reader,
+              // and the card's Print, Edit pledge and Log a payment are the next tab stops from there.
+              results.querySelector<HTMLElement>('.lookup-card h2')?.focus();
             });
             return h('li', {}, button);
           }),
