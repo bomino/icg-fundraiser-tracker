@@ -130,6 +130,14 @@ describe('find donor', () => {
     expect(document.querySelector('.lookup-card dd')?.textContent).toBe('555-010-7777');
   });
 
+  it('warns when a phone change from the donor card would leave that donor’s payments behind', () => {
+    document.body.append(createLookupView({ store: {} as Store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 010 0101');
+    button('Edit pledge').click();
+    type('phone', '555-010-7777');
+    expect(document.querySelector('dialog[open] [data-role=old-number-hint]')?.textContent).toMatch(/^1 payment was logged under the old number 555-010-0101\./);
+  });
+
   it('says how much money deleting the pledge from the donor card stops counting', () => {
     document.body.append(createLookupView({ store: { deletePledge: vi.fn() } as unknown as Store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');

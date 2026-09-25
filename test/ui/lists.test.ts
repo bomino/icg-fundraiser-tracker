@@ -425,6 +425,62 @@ describe('pledge form', () => {
     expect(hint.textContent).toContain('Aisha Rahman');
   });
 
+  describe('changing the phone of a pledge with payments', () => {
+    const oldNumberHint = () => document.querySelector('dialog[open] [data-role=old-number-hint]') as HTMLElement;
+    const phoneBox = () => document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement;
+    const chenPayments = [payment({ phone: '5550100103' }), payment({ phone: '(555) 010-0103' }), payment({ phone: '555.010.0103' }), ...payments];
+
+    it('says how many payments stay under the old number, and what to do about them', () => {
+      openPledgeForm({ pledges, payments: chenPayments, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+      expect(oldNumberHint().hidden).toBe(true);
+      type(phoneBox(), '555-010-0110');
+      expect(oldNumberHint().hidden).toBe(false);
+      expect(oldNumberHint().getAttribute('role')).toBe('status');
+      expect(oldNumberHint().textContent).toBe(
+        '3 payments were logged under the old number 555-010-0103. They will stop counting for this donor. After saving, go to Payments, search the old number, and change each one to the new number.',
+      );
+    });
+
+    it('speaks of a single payment as one', () => {
+      openPledgeForm({ pledges, payments: [payment({ phone: '5550100103' })], existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+      type(phoneBox(), '555-010-0110');
+      expect(oldNumberHint().textContent).toBe(
+        '1 payment was logged under the old number 555-010-0103. It will stop counting for this donor. After saving, go to Payments, search the old number, and change it to the new number.',
+      );
+    });
+
+    it('stays hidden while the phone is the same number, however it is written', () => {
+      openPledgeForm({ pledges, payments: chenPayments, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+      type(phoneBox(), '(555) 010 0103');
+      expect(oldNumberHint().hidden).toBe(true);
+      type(phoneBox(), '555-010-0110');
+      type(phoneBox(), '555 010 0103');
+      expect(oldNumberHint().hidden).toBe(true);
+      expect(oldNumberHint().textContent).toBe('');
+    });
+
+    it('stays hidden when another pledge keeps the old number, so the payments stay matched to it', () => {
+      openPledgeForm({ pledges, payments: [payment({ phone: '555-010-0101' })], existing: pledges[1], onSave: vi.fn(), reportError: vi.fn() });
+      type(phoneBox(), '555-010-0110');
+      expect(oldNumberHint().hidden).toBe(true);
+    });
+
+    it('stays hidden when no payment was logged under the old number', () => {
+      openPledgeForm({ pledges, payments, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+      type(phoneBox(), '555-010-0110');
+      expect(oldNumberHint().hidden).toBe(true);
+    });
+
+    it('warns for a pledge opened from Pledges, counting that list’s payments', () => {
+      const paid = [...payments, payment({ phone: '555-010-0103', amountReceived: 50 })];
+      const view = createPledgesView({ store, reportError: vi.fn() })({ ...state, payments: paid, computed: compute(pledges, paid, SETTINGS, TODAY) }, null, () => undefined);
+      document.body.append(view);
+      (view.querySelector('tr[data-id="p3"]') as HTMLElement).click();
+      type(phoneBox(), '555-010-0110');
+      expect(oldNumberHint().textContent).toMatch(/^1 payment was logged under the old number 555-010-0103\./);
+    });
+  });
+
   it('rejects an amount that is not a number', () => {
     const onSave = vi.fn();
     openPledgeForm({ pledges, onSave, reportError: vi.fn() });

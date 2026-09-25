@@ -87,6 +87,7 @@ export function createLookupView(deps: ListViewDeps) {
         existing: donor.pledge,
         derived: donor,
         pledges: state.pledges,
+        payments: state.payments,
         onSave: (draft, row) => deps.store.savePledge(draft, row),
         onDelete: (current) => deps.store.deletePledge(current),
         latest: () => deps.store.state()?.pledges.find((p) => p.id === donor.pledge.id),

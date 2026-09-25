@@ -5,7 +5,7 @@ import { matchKey } from '../matchKey';
 import { formatCents, parseAmount } from '../format';
 import { newId as makeId } from '../id';
 import { isPending } from '../store';
-import type { Pledge, PledgeDraft } from '../types';
+import type { Payment, Pledge, PledgeDraft } from '../types';
 import { validatePledge, type FieldErrors } from '../validate';
 import { h } from './dom';
 import { field } from './field';
@@ -22,6 +22,8 @@ export interface PledgeFormOptions {
   /** The id a new pledge is created under. Left out, the form makes one; Reopen passes it back, so a retried Save names the same row. */
   newId?: string;
   pledges: readonly Pledge[];
+  /** Every payment as the form opened, so an edit that changes the phone can say how many payments the old number leaves behind. */
+  payments?: readonly Payment[];
   /** Saves against `existing` as this form holds it (a reopened form may hold a newer version than the first one did), or `{ id }` naming a new pledge. */
   onSave(draft: PledgeDraft, row: Pledge | NewRow): Promise<void>;
   onDelete?: (existing: Pledge) => Promise<void>;
@@ -43,6 +45,20 @@ function otherPledgeWithPhone(pledges: readonly Pledge[], phone: string, exceptI
   const key = matchKey(phone);
   if (key === '') return undefined;
   return pledges.find((p) => p.id !== exceptId && matchKey(p.phone) === key);
+}
+
+function paymentsOnOldNumber(existing: Pledge, pledges: readonly Pledge[], payments: readonly Payment[]): number {
+  const oldKey = matchKey(existing.phone);
+  // While another pledge keeps the old number, its payments stay matched there, so a new number leaves none behind.
+  if (oldKey === '' || otherPledgeWithPhone(pledges, existing.phone, existing.id)) return 0;
+  return payments.filter((p) => matchKey(p.phone) === oldKey).length;
+}
+
+function oldNumberMessage(count: number, oldPhone: string): string {
+  if (count === 1) {
+    return `1 payment was logged under the old number ${oldPhone}. It will stop counting for this donor. After saving, go to Payments, search the old number, and change it to the new number.`;
+  }
+  return `${count} payments were logged under the old number ${oldPhone}. They will stop counting for this donor. After saving, go to Payments, search the old number, and change each one to the new number.`;
 }
 
 function deleteMessage(existing: Pledge, pledges: readonly Pledge[], derived: DerivedPledge | undefined): string {
@@ -81,6 +97,18 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   fields.phone.input.addEventListener('input', updateHint);
   updateHint();
 
+  const oldPhone = existing?.phone ?? '';
+  const leftBehind = existing ? paymentsOnOldNumber(existing, options.pledges, options.payments ?? []) : 0;
+  const oldNumberHint = h('p', { class: 'hint hint-warning', role: 'status', 'data-role': 'old-number-hint', hidden: true });
+  const updateOldNumberHint = () => {
+    const message = leftBehind > 0 && matchKey(fields.phone.input.value) !== matchKey(oldPhone) ? oldNumberMessage(leftBehind, oldPhone) : '';
+    oldNumberHint.hidden = message === '';
+    // The note stays up while the whole new number is typed, and a status region may read out every rewrite of its text.
+    if (oldNumberHint.textContent !== message) oldNumberHint.textContent = message;
+  };
+  fields.phone.input.addEventListener('input', updateOldNumberHint);
+  updateOldNumberHint();
+
   const onLogPayment = options.onLogPayment;
   // Never stack form dialogs: both actions close the pledge dialog first, then its close event opens the payment form.
   let paymentPhone: string | null = null;
@@ -107,7 +135,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
 
   const onDelete = options.onDelete;
   const onAddAnother = options.onAddAnother;
-  const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
+  const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, oldNumberHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
   const dialog = runForm<PledgeDraft>({
     title: existing ? 'Edit pledge' : 'Add pledge',
     form,

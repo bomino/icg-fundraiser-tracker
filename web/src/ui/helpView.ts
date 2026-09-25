@@ -31,6 +31,8 @@ const SAID = {
   noAmount: 'Enter the amount received.',
   pickMethod: 'Pick a method from the list.',
   duplicateHint: 'This phone number is already on the pledge for',
+  oldNumber: 'payments were logged under the old number',
+  oldNumberNext: 'They will stop counting for this donor. After saving, go to Payments, search the old number, and change each one to the new number.',
   notPledgedYet: "If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment.",
   discardTyping: 'Discard what you typed?',
   keepEditing: 'Keep editing',
@@ -448,6 +450,17 @@ function howTo(): Child[] {
         b('Someone pledges and pays at once'),
         ' records both together.',
       ),
+    ),
+    topic(
+      'Correct a donor’s phone number',
+      p('Payments find their donor by phone number. When you change the number on a pledge, payments logged under the old number keep it, so they stop counting for this donor until you change them too.'),
+      steps(
+        ['On ', b('Pledges'), ', tap the donor’s row, or press ', b('Edit pledge'), ' on their card in ', b('Find donor'), '.'],
+        ['Type the new phone number. If payments were logged under the old one, an amber note under the box says how many, for example ', said(`3 ${SAID.oldNumber} 555-010-0110. ${SAID.oldNumberNext}`)],
+        ['Press ', b('Save'), '.'],
+        ['Go to ', b('Payments'), ' and search the old number. Tap each payment, change its phone number to the new one, and press ', b('Save'), '. The line under the phone box should show “Donor:” and the donor’s name.'],
+      ),
+      note('To check none were missed, open ', b('Summary'), '. Any payment still under the old number shows up in ', b(HEALTH_LABELS.notMatched), ' under Data health; tap ', b('Show'), ' next to it to see them.'),
     ),
     topic(
       'Handle a donor who paid more than they pledged',

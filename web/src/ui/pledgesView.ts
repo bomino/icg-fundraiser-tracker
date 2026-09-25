@@ -66,6 +66,7 @@ export function createPledgesView(deps: ListViewDeps) {
         existing,
         derived,
         pledges: state.pledges,
+        payments: state.payments,
         onSave: (draft, row) => deps.store.savePledge(draft, row),
         onDelete: (current) => deps.store.deletePledge(current),
         latest: () => deps.store.state()?.pledges.find((p) => p.id === existing.id),
