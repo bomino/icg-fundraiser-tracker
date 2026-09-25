@@ -72,19 +72,19 @@ describe('find donor', () => {
     const savePledge = vi.fn(async (_draft: PledgeDraft, _existing?: Pledge, _newId?: string) => undefined);
     const store = { savePledge } as unknown as Store;
     document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
-    search(document.body, '999');
+    search(document.body, '(555) 999-0000');
     expect(document.body.textContent).toContain('No donor found.');
     const addPledge = () => {
       (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
-      expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('999');
+      expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('(555) 999-0000');
       (document.querySelector('dialog[open] input[name=name]') as HTMLInputElement).value = 'Zainab';
       (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
     };
     addPledge();
     addPledge();
     expect(savePledge.mock.calls.map(([draft, existing]) => [draft.phone, draft.name, existing])).toEqual([
-      ['999', 'Zainab', undefined],
-      ['999', 'Zainab', undefined],
+      ['(555) 999-0000', 'Zainab', undefined],
+      ['(555) 999-0000', 'Zainab', undefined],
     ]);
     const [first, second] = savePledge.mock.calls.map(([, , newId]) => newId);
     expect(first).toEqual(expect.any(String));
@@ -92,11 +92,13 @@ describe('find donor', () => {
     expect(second).not.toBe(first);
   });
 
-  it('leaves the phone blank on Add a pledge after a name search', () => {
-    document.body.append(createLookupView({ store: {} as Store, reportError: vi.fn() })(state));
-    search(document.body, 'Zainab');
-    (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
-    expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('');
+  it('leaves the phone blank on Add a pledge after a search with letters in it, digits or not', () => {
+    for (const text of ['Zainab', 'Zainab 2']) {
+      document.body.replaceChildren(createLookupView({ store: {} as Store, reportError: vi.fn() })(state));
+      search(document.body, text);
+      (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
+      expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value, text).toBe('');
+    }
   });
 
   it('hides the Log a payment button on the donor card when the donor has no phone', () => {

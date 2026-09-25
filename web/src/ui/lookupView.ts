@@ -1,6 +1,7 @@
 import { findByPhone, paymentsForKey, type DerivedPayment, type DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
 import { newId as makeId } from '../id';
+import { matchKey } from '../matchKey';
 import { toCents } from '../money';
 import { isPending, type State } from '../store';
 import { methodBadge, statusBadge } from './badges';
@@ -72,8 +73,9 @@ export function createLookupView(deps: ListViewDeps) {
       // One id per opened form: a Save retried after a lost response must name the same row.
       const pledgeId = makeId();
       openPledgeForm({
-        // A name search leaves the phone for the volunteer to type; digits are the number they were given.
-        phone: /\d/.test(text) ? text : undefined,
+        // Only a search that is nothing but a phone number fills the phone in. Letters mean a name was
+        // typed, and "Zainab 2" saved as her phone would match no payment ever logged for her.
+        phone: /^\d+$/.test(matchKey(text).slice(1)) ? text : undefined,
         pledges: state.pledges,
         onSave: (draft) => deps.store.savePledge(draft, undefined, pledgeId),
         reportError: deps.reportError,
