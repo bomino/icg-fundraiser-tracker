@@ -1,4 +1,5 @@
-import type { DerivedPayment } from '../engine';
+import { todayIso } from '../dates';
+import { computeMethods, type DerivedPayment } from '../engine';
 import { formatCents, formatDate } from '../format';
 import { newId as makeId } from '../id';
 import { toCents } from '../money';
@@ -28,6 +29,14 @@ const SORT_OPTIONS: readonly SortOption[] = [
   { label: 'Amount: largest first', sort: { key: 'amount', direction: 'desc' } },
   { label: 'Name A–Z', sort: { key: 'donor', direction: 'asc' } },
 ];
+
+// Split by the Method column rather than trusting a search for "cash", which also matches notes. Only methods that
+// took money are listed, so "No method recorded" shows up exactly when a payment is missing one.
+function methodsLine(rows: readonly DerivedPayment[], methods: readonly string[]): HTMLElement | null {
+  const taken = computeMethods(rows, methods).filter((row) => row.cents !== 0);
+  if (taken.length === 0) return null;
+  return h('p', { class: 'meta' }, taken.map((row) => `${row.label} ${formatCents(row.cents)}`).join(' · '));
+}
 
 export function createPaymentsView(deps: ListViewDeps) {
   let query = '';
@@ -116,8 +125,11 @@ export function createPaymentsView(deps: ListViewDeps) {
         }),
       );
       sortBy.show(sort);
-      const line = showingLine(!!filter || query.trim() !== '' || dateFilterActive(), rows.length, state.computed.payments.length);
-      showing.replaceChildren(...(line ? [line] : []));
+      // Every filtered payment's money, not-counted ones included: at a cash count that money is still in the box.
+      const loggedCents = rows.reduce((sum, d) => sum + (toCents(d.payment.amountReceived) ?? 0), 0);
+      const line = showingLine(!!filter || query.trim() !== '' || dateFilterActive(), rows.length, state.computed.payments.length, loggedCents);
+      const byMethod = line ? methodsLine(rows, state.settings.paymentMethods) : null;
+      showing.replaceChildren(...(line ? [line] : []), ...(byMethod ? [byMethod] : []));
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
     search.value = query;
@@ -131,8 +143,9 @@ export function createPaymentsView(deps: ListViewDeps) {
     dateFromInput.value = dateFrom;
     const dateToInput = h('input', { type: 'date', class: 'input', 'data-focus-key': 'payments-date-to' });
     dateToInput.value = dateTo;
+    const today = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Today');
     const clearDates = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Clear dates');
-    const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput));
+    const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput), today);
     const redrawDateControls = () => {
       clearDates.hidden = !dateFilterActive();
       visibleCount = tablePageSize();
@@ -144,6 +157,13 @@ export function createPaymentsView(deps: ListViewDeps) {
     });
     dateToInput.addEventListener('input', () => {
       dateTo = dateToInput.value;
+      redrawDateControls();
+    });
+    today.addEventListener('click', () => {
+      dateFrom = todayIso();
+      dateTo = dateFrom;
+      dateFromInput.value = dateFrom;
+      dateToInput.value = dateTo;
       redrawDateControls();
     });
     clearDates.hidden = !dateFilterActive();

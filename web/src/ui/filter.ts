@@ -1,3 +1,4 @@
+import { formatCents } from '../format';
 import { h } from './dom';
 
 export interface ListFilter {
@@ -18,8 +19,12 @@ export function toggleChip(label: string, pressed: boolean, onToggle: () => void
   return chip;
 }
 
-/** "Showing N of M", rendered only while the caller says a filter is active. */
-export function showingLine(active: boolean, shown: number, total: number): HTMLElement | null {
+/**
+ * "Showing N of M", rendered only while the caller says a filter is active. Given the rows' money, it adds
+ * "· $X logged": "logged", like the Payments totals band, so it is never read as Summary's "Total received".
+ */
+export function showingLine(active: boolean, shown: number, total: number, loggedCents?: number): HTMLElement | null {
   if (!active) return null;
-  return h('p', { class: 'meta' }, `Showing ${shown} of ${total}`);
+  const logged = loggedCents === undefined ? '' : ` · ${formatCents(loggedCents)} logged`;
+  return h('p', { class: 'meta' }, `Showing ${shown} of ${total}${logged}`);
 }

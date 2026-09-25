@@ -13,7 +13,8 @@ test('the Payments date range filters the table to that window', async ({ page }
   await page.getByLabel('From').fill('2026-06-01');
   await page.getByLabel('To').fill('2026-06-30');
 
-  await expect(page.getByText(`Showing 4 of ${totalCount}`)).toBeVisible();
+  await expect(page.getByText(`Showing 4 of ${totalCount} · $1,550.00 logged`, { exact: true })).toBeVisible();
+  await expect(page.getByText('Cash $700.00 · Card $250.00 · Check $600.00', { exact: true })).toBeVisible();
   await expect(rows).toHaveCount(4);
   // Selecting by the cell's data-label (not column position) survives a column being reordered.
   for (const date of await page.locator('.data-table tbody tr td[data-label="Date Received"]').allTextContents()) {
@@ -23,4 +24,23 @@ test('the Payments date range filters the table to that window', async ({ page }
   await page.getByRole('button', { name: 'Clear dates' }).click();
   await expect(page.getByText(`Showing 4 of ${totalCount}`)).toHaveCount(0);
   await expect(rows).toHaveCount(totalCount);
+});
+
+test('Today narrows Payments to today and adds up its money by method', async ({ page }) => {
+  // Pinned to a seeded payment date, so the spec doesn't depend on the day it runs. Timers still run,
+  // so the demo API's simulated latency resolves as usual.
+  await page.clock.setFixedTime(new Date('2026-06-20T20:00:00'));
+  await openApp(page, 'payments');
+
+  const rows = page.locator('.data-table tbody tr');
+  const totalCount = await rows.count();
+  expect(totalCount).toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
+
+  await expect(page.getByLabel('From')).toHaveValue('2026-06-20');
+  await expect(page.getByLabel('To')).toHaveValue('2026-06-20');
+  await expect(rows).toHaveCount(1);
+  await expect(page.getByText(`Showing 1 of ${totalCount} · $200.00 logged`, { exact: true })).toBeVisible();
+  await expect(page.getByText('Cash $200.00', { exact: true })).toBeVisible();
 });

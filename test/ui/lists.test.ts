@@ -388,6 +388,64 @@ describe('payments view: date range', () => {
   });
 });
 
+describe('payments view: money in the filtered rows', () => {
+  const nightPayments = [
+    payment({ id: 'n1', phone: '555-010-0103', amountReceived: 0.1, dateReceived: '2026-08-02', method: 'Cash' }),
+    payment({ id: 'n2', phone: '555-010-0103', amountReceived: 0.2, dateReceived: '2026-08-02', method: 'Cash' }),
+    payment({ id: 'n3', phone: '555-999-0001', amountReceived: 150, dateReceived: '2026-08-02', method: 'Cash' }),
+    payment({ id: 'n4', phone: '555-010-0103', amountReceived: 50, dateReceived: '2026-08-02', method: 'Card' }),
+    payment({ id: 'n5', phone: '555-010-0103', amountReceived: 0.1, dateReceived: '2026-08-02', method: '' }),
+    payment({ id: 'n6', phone: '555-010-0103', amountReceived: 75, dateReceived: '2026-08-01', method: 'Check', notes: 'Said he would pay cash next time' }),
+  ];
+  const nightState: State = { pledges, payments: nightPayments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, nightPayments, SETTINGS, TODAY) };
+  const ids = (view: HTMLElement) => [...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+  const dateInput = (view: HTMLElement, key: string) => view.querySelector(`input[type=date][data-focus-key="${key}"]`) as HTMLInputElement;
+  const metaLines = (view: HTMLElement) => [...view.querySelectorAll('p.meta')].map((line) => line.textContent);
+
+  it('adds up every filtered payment, not-counted ones too, and splits it by the methods that took money', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    expect(metaLines(view)).toEqual([]);
+    type(dateInput(view, 'payments-date-from'), '2026-08-02');
+    expect(view.querySelector('tr[data-id="n3"]')?.textContent).toContain('⚠ phone not in Pledges');
+    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash $150.30 · Card $50.00 · No method recorded $0.10']);
+    type(dateInput(view, 'payments-date-from'), '2030-01-01');
+    expect(metaLines(view)).toEqual(['Showing 0 of 6 · $0.00 logged']);
+  });
+
+  it('redraws the money with the search, and keeps a payment whose notes mention cash out of the Cash figure', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    vi.useFakeTimers();
+    type(view.querySelector('input[type=search]') as HTMLInputElement, 'cash');
+    expect(metaLines(view)).toEqual([]);
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(metaLines(view)).toEqual(['Showing 4 of 6 · $225.30 logged', 'Cash $150.30 · Check $75.00']);
+  });
+
+  it('adds up the rows a Data-health Show found', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, { label: 'Payments not matched to a pledge', ids: new Set(['n3']) }, () => undefined);
+    expect(metaLines(view)).toEqual(['Showing 1 of 6 · $150.00 logged', 'Cash $150.00']);
+  });
+
+  it('sets both dates to today with Today, so tonight’s cash can be read straight off', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    const button = (label: string) => Array.from(view.querySelectorAll('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+    expect(button('Clear dates').hidden).toBe(true);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 2, 21, 30));
+    button('Today').click();
+    vi.useRealTimers();
+    expect(dateInput(view, 'payments-date-from').value).toBe('2026-08-02');
+    expect(dateInput(view, 'payments-date-to').value).toBe('2026-08-02');
+    expect(ids(view)).toEqual(['n5', 'n4', 'n3', 'n2', 'n1']);
+    expect(button('Clear dates').hidden).toBe(false);
+    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash $150.30 · Card $50.00 · No method recorded $0.10']);
+  });
+});
+
 describe('pledges view: paging at event scale', () => {
   const manyPledges = Array.from({ length: 240 }, (_, i) => pledge({ id: `big${i}`, phone: `555-400-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
   const manyState: State = { pledges: manyPledges, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(manyPledges, [], SETTINGS, TODAY) };
