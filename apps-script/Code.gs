@@ -389,6 +389,27 @@ function historySheet_(tab) {
   return ensureTab_(SpreadsheetApp.getActiveSpreadsheet(), tab + ' history', HEADERS[tab].concat(HISTORY_HEADERS), () => {});
 }
 
+// A simple trigger: Sheets runs it for edits typed or pasted into the Sheet, never for this
+// script's own writes. Without a new updatedAt, a volunteer who opened the row before the edit
+// would pass the version check and save the old values back over it. Only rows that already have
+// an id are stamped, since giving a row one would count a totals or notes row as an entry.
+// Columns right of updatedBy are never read or written, so edits there need no new version.
+function onEdit(e) {
+  const sheet = e.range.getSheet();
+  const tab = sheet.getName();
+  if (Object.keys(HEADERS).indexOf(tab) < 0 || e.range.getColumn() > HEADERS[tab].length) return;
+  const first = Math.max(e.range.getRow(), 2);
+  const count = e.range.getLastRow() - first + 1;
+  if (count < 1) return;
+  // After a column is moved, updatedAt's place holds some other field, which a stamp would overwrite.
+  assertHeaders_(tab, sheet.getRange(1, 1, 1, HEADERS[tab].length).getValues()[0]);
+  const stamp = [[toCell_(new Date().toISOString()), toCell_((e.user && e.user.getEmail()) || 'edited in Sheet')]];
+  const versionColumn = HEADERS[tab].indexOf('updatedAt') + 1;
+  sheet.getRange(first, 1, count, 1).getValues().forEach((row, i) => {
+    if (row[0] !== '') sheet.getRange(first + i, versionColumn, 1, 2).setValues(stamp);
+  });
+}
+
 function readSettings_() {
   const values = {};
   sheet_('Settings').getDataRange().getValues().slice(1).forEach((row) => {

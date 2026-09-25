@@ -59,7 +59,7 @@ Row 1 holds the headers and data starts at row 2. There are no formulas anywhere
 | `Pledges history` / `Payments history` | the `Pledges`/`Payments` columns, then `changedAt` · `changedBy` · `action` (`edit` or `delete`) |
 
 - `id` is a UUID chosen by the client (`crypto.randomUUID()`) — the server only validates its shape. A create is therefore idempotent by id: a Save retried after a lost response cannot add a duplicate.
-- `updatedAt` is an ISO timestamp and `updatedBy` an email, both stamped by the server.
+- `updatedAt` is an ISO timestamp and `updatedBy` an email, both stamped by the server. An edit typed or pasted straight into a Pledges or Payments row that has an `id` is stamped too, by an `onEdit` simple trigger (`updatedBy` is `edited in Sheet` when Google doesn't share the editor's email), so a volunteer's older copy fails the version check instead of overwriting the fix. The trigger never adds an `id`. Added 2026-09-25.
 - Dates are stored as ISO `YYYY-MM-DD` text, so nothing is shifted by time zones.
 - Amounts are stored as numbers with at most 2 decimals. A blank cell means "not entered", which is different from 0 (§5).
 - Row order in the Sheet is insertion order. The engine keeps that order, because "first matching pledge" matters (§5.3).

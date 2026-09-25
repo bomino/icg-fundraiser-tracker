@@ -405,6 +405,64 @@ describe('change history', () => {
   });
 });
 
+// Sheets leaves updatedAt alone when someone types in the Sheet, so without the onEdit trigger a
+// volunteer holding the older copy would pass the version check and save the old values back.
+describe('edits made directly in the Sheet', () => {
+  const ORGANISER = 'organiser@example.com';
+  const OLD_VERSION = '2025-01-01T00:00:00.000Z';
+  const STAMP = expect.stringMatching(/^'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  const pledgeRow = (id: string) => [id, '555-010-0101', 'Aisha Rahman', '2025-01-10', 500, '', OLD_VERSION, OWNER];
+
+  it('marks an edited row as changed, so a volunteer holding the older copy is asked to reload instead of undoing the edit', () => {
+    server.sheet('Pledges').appendRow(pledgeRow('p1'));
+    server.editInSheet('Pledges', 2, 2, [['555-010-9999']], ORGANISER);
+    expect(server.sheet('Pledges').raw[1].slice(6)).toEqual([STAMP, `'${ORGANISER}`]);
+    const stale = server.post('upsertPledge', { ...pledgeDraft, amountPledged: 750, id: 'p1', updatedAt: OLD_VERSION }, token);
+    expect(stale.error).toMatchObject({ code: 'CONFLICT', current: { id: 'p1', phone: '555-010-9999', updatedBy: ORGANISER } });
+    const reloaded = server.post('upsertPledge', { ...pledgeDraft, phone: '555-010-9999', amountPledged: 750, id: 'p1', updatedAt: stale.error?.current.updatedAt }, token);
+    expect(reloaded.data).toMatchObject({ phone: '555-010-9999', amountPledged: 750 });
+  });
+
+  it('says the row was edited in the Sheet when Google does not share who edited it', () => {
+    server.sheet('Payments').appendRow(['y1', '555-010-0101', '2025-01-15', 200, 'Cash', '', OLD_VERSION, OWNER]);
+    server.editInSheet('Payments', 2, 4, [[250]]);
+    const [row] = server.post('load', {}, token).data.payments;
+    expect(row).toMatchObject({ amountReceived: 250, updatedBy: 'edited in Sheet' });
+    expect(row.updatedAt).not.toBe(OLD_VERSION);
+  });
+
+  it('stamps each row of a pasted block that has an id, and never gives a row an id', () => {
+    const sheet = server.sheet('Pledges');
+    sheet.appendRow(pledgeRow('p1'));
+    sheet.appendRow(['', '', 'Total', '', 1000, '', '', '']);
+    sheet.appendRow(pledgeRow('p3'));
+    server.editInSheet('Pledges', 1, 6, [['notes'], ['Pays monthly'], ['Check the sum'], ['Pays yearly']], ORGANISER);
+    expect(sheet.raw.map((row) => row.slice(6, 8))).toEqual([['updatedAt', 'updatedBy'], [STAMP, `'${ORGANISER}`], ['', ''], [STAMP, `'${ORGANISER}`]]);
+    expect(sheet.raw[2][0]).toBe('');
+    expect(server.post('load', {}, token).data.pledges.map((row: { id: string }) => row.id)).toEqual(['p1', 'p3']);
+  });
+
+  it('leaves the version alone for edits to the header row, to columns right of updatedBy, and to other tabs', () => {
+    server.sheet('Pledges').appendRow(pledgeRow('p1'));
+    server.editInSheet('Pledges', 1, 3, [['Name']], ORGANISER);
+    server.editInSheet('Pledges', 2, 9, [['Receipt sent']], ORGANISER);
+    server.editInSheet('Settings', 2, 2, [[25000]], ORGANISER);
+    expect(server.sheet('Pledges').raw[0].slice(6)).toEqual(['updatedAt', 'updatedBy']);
+    expect(server.sheet('Pledges').raw[1].slice(6, 8)).toEqual([OLD_VERSION, OWNER]);
+    expect(server.sheet('Settings').raw[1]).toEqual(['goal', 25000]);
+  });
+
+  it('stamps nothing in a tab whose columns have moved, where updatedAt is no longer in its place', () => {
+    const sheet = server.sheet('Pledges');
+    sheet.appendRow(pledgeRow('p1'));
+    sheet.raw.forEach((row, i) => row.splice(2, 0, i === 0 ? 'Email' : 'aisha@example.com'));
+    const expected = structuredClone(sheet.raw);
+    expected[1][3] = 'Aisha R.';
+    expect(() => server.editInSheet('Pledges', 2, 4, [['Aisha R.']], ORGANISER)).toThrow('The 3rd column of the "Pledges" tab should be "name" but is "Email".');
+    expect(sheet.raw).toEqual(expected);
+  });
+});
+
 // Code.gs reads and writes Pledges and Payments by column position, so an organiser's change to
 // row 1 must stop it rather than shift every field.
 describe('sheet layout', () => {

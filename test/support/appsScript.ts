@@ -28,13 +28,21 @@ export class FakeSheet {
   getMaxRows() {
     return 1000;
   }
+  getName() {
+    return this.name;
+  }
   setFrozenRows(_rows: number) {}
-  getRange(row: number, column: number, _numRows = 1, _numColumns = 1) {
+  getRange(row: number, column: number, numRows = 1, numColumns = 1) {
     const write = (r: number, c: number, value: unknown) => {
       while (this.raw.length < r) this.raw.push([]);
       this.raw[r - 1][c - 1] = value;
     };
     return {
+      getSheet: () => this,
+      getRow: () => row,
+      getColumn: () => column,
+      getLastRow: () => row + numRows - 1,
+      getValues: () => Array.from({ length: numRows }, (_, i) => Array.from({ length: numColumns }, (_, j) => stripQuotePrefix(this.raw[row - 1 + i]?.[column - 1 + j] ?? ''))),
       setValues: (values: unknown[][]) => values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value))),
       setValue: (value: unknown) => write(row, column, value),
     };
@@ -152,5 +160,13 @@ export function createServer() {
     return JSON.parse(output.text) as { ok: boolean; data?: any; error?: { code: string; message: string; field?: string; current?: any } };
   }
 
-  return { sheets, cache, state, call, tokenFor, setTokenResponse, post, sheet: (name: string) => sheets.get(name) as FakeSheet };
+  // Types or pastes into the Sheet as a person would (no apostrophes), then runs the onEdit simple
+  // trigger as Sheets does. Google leaves the editor's email blank when it may not share it.
+  function editInSheet(tab: string, row: number, column: number, values: unknown[][], email = '') {
+    const range = (sheets.get(tab) as FakeSheet).getRange(row, column, values.length, values[0].length);
+    range.setValues(values);
+    call('onEdit', { range, user: { getEmail: () => email } });
+  }
+
+  return { sheets, cache, state, call, tokenFor, setTokenResponse, post, editInSheet, sheet: (name: string) => sheets.get(name) as FakeSheet };
 }

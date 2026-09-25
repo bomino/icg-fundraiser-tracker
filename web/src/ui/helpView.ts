@@ -154,7 +154,7 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.conflict)],
-    meaning: ['Another volunteer saved a change to the same pledge or payment after you opened it.'],
+    meaning: ['Another volunteer saved a change to the same pledge or payment after you opened it, or the organiser corrected it in the sheet.'],
     action: ['Press ', b('Reload'), ', open the row again, look at their change, and redo yours if it is still needed.'],
   },
   {
@@ -530,7 +530,7 @@ function workingTogether(): Child[] {
     ),
     topic(
       'When two people change the same row',
-      p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, your save stops and you see the message below, starting with what you were saving. If you are already typing in another form, it waits until you close that form:'),
+      p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, or the organiser corrected it in the sheet, your save stops and you see the message below, starting with what you were saving. If you are already typing in another form, it waits until you close that form:'),
       p(said(SAID.conflict)),
       steps(['Press ', b('Reload'), '.'], ['Open the row again and look at what changed.'], ['Make your change again if it is still needed.']),
       p('If you reopen a save that seemed to fail and press Save again, the tracker checks whether the first one actually went through. If it did, nothing is added twice. If the saved values differ from what you are sending, you see the same message — reload and check the row.'),
@@ -569,6 +569,15 @@ function forTheOrganiser(): Child[] {
       bullets(
         ['Do not format the Pledges or Payments columns as ', b('Plain text'), '. Leave them on Automatic, or phone numbers and dates get corrupted.'],
         ['Add pledges and payments through the app. Rows typed directly into the sheet have no id and are ignored.'],
+        [
+          'You can correct a pledge or payment directly in the sheet. The tracker marks the row as changed, filling in ',
+          b('updatedAt'),
+          ' and ',
+          b('updatedBy'),
+          ' for you, so a volunteer who opened it before your fix is asked to reload instead of saving the old values over it. Rows brought in with ',
+          b('File → Import'),
+          ' are not marked, so do not use Import to change rows.',
+        ],
         [
           'Add your own columns to Pledges or Payments only to the right of the last one, ',
           b('updatedBy'),
