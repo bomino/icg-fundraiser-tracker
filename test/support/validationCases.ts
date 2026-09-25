@@ -32,7 +32,9 @@ export const VALIDATION_CASES: ValidationCase[] = [
   { name: 'payment with a punctuation-only phone', tab: 'Payments', draft: { ...payment, phone: '(--)' }, invalidField: 'phone' },
   { name: 'payment with a Unicode dash and space phone', tab: 'Payments', draft: { ...payment, phone: '–\u00a0—' }, invalidField: 'phone' },
   { name: 'payment with a Unicode-dashed phone', tab: 'Payments', draft: { ...payment, phone: '555–010–0101' }, invalidField: null },
-  { name: 'payment with a phone of only invisible marks', tab: 'Payments', draft: { ...payment, phone: '\u202a\u200e\u202c' }, invalidField: 'phone' },
+  // The first and last mark of every range IGNORED_CHARACTERS and PHONE_IGNORED strip, so a range
+  // missing from either copy fails here.
+  { name: 'payment with a phone of only invisible marks', tab: 'Payments', draft: { ...payment, phone: '\u200b\u200f\u202a\u202e\u2060\u2064\u2066\u2069' }, invalidField: 'phone' },
   { name: 'payment with a phone wrapped the way Mac Contacts copies it', tab: 'Payments', draft: { ...payment, phone: '\u202d555-010-0101\u202c' }, invalidField: null },
   { name: 'payment with a full-width punctuation phone', tab: 'Payments', draft: { ...payment, phone: '＋（）' }, invalidField: 'phone' },
   // Both blank (after trim) and over the length limit - client and server must agree on which
