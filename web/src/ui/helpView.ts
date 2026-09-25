@@ -220,7 +220,7 @@ function gettingStarted(): Child[] {
       bullets(
         [
           b('Best'),
-          ' — use a Guest or private window (Incognito in Chrome, InPrivate in Edge). To open one, press Ctrl+Shift+N, or ⌘+Shift+N on a Mac (Ctrl+Shift+P in Firefox), then open the tracker in it. When you finish, press ',
+          ' — use a Guest or private window (Incognito in Chrome, InPrivate in Edge). To open one, press Ctrl+Shift+N, or ⌘+Shift+N on a Mac (in Firefox, P instead of N), then open the tracker in it. When you finish, press ',
           b('Sign out'),
           ' and close the window: closing it signs Google out too. If you opened more than one private window, close them all.',
         ],
@@ -411,7 +411,7 @@ function howTo(): Child[] {
         ['Open the tracker in that window and sign in.'],
         ['On ', b('Summary'), ', press ', b('Friday display'), '.'],
         ['Make the browser full screen (F11 on most computers).'],
-        ['When the announcement is over, press ', b('Exit'), ', then ', b('Sign out'), ', then close the window. Press F11 first to leave full screen.'],
+        ['When the announcement is over, press F11 to leave full screen, then press ', b('Exit'), ', then ', b('Sign out'), ', then close the window.'],
       ),
       p('The screen shows the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
       p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),

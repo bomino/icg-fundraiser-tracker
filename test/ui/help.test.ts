@@ -162,10 +162,11 @@ describe('createHelpView', () => {
     expect(text).toContain('Guest or private window');
   });
 
-  it('starts the projector steps in a Guest or private window and ends them by signing out and closing it', () => {
+  // Volunteers follow steps in the order written, and full screen hides the window's close button.
+  it('starts the projector steps in a Guest or private window and ends them by leaving full screen, signing out and closing it', () => {
     const steps = Array.from(topicOf(createHelpView(), 'Show the fundraiser on the projector').querySelectorAll('.help-steps > li'), (step) => step.textContent ?? '');
     expect(steps[0]).toContain('Guest or private window');
-    expect(steps.at(-1)).toMatch(/Exit.*Sign out.*close the window/);
+    expect(steps.at(-1)).toMatch(/F11.*Exit.*Sign out.*close the window/);
   });
 
   it('describes the form fields with the same help the forms show', () => {
