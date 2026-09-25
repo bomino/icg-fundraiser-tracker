@@ -23,7 +23,7 @@ describe('setup', () => {
   it('creates the tabs with headers, defaults and the owner allowlisted', () => {
     expect(server.sheet('Pledges').getDataRange().getValues()[0]).toEqual(PLEDGE_COLUMNS);
     expect(server.sheet('Payments').getDataRange().getValues()[0][3]).toBe('amountReceived');
-    expect(server.sheet('Settings').getDataRange().getValues()).toEqual([['key', 'value'], ['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other']]);
+    expect(server.sheet('Settings').getDataRange().getValues()).toEqual([['key', 'value'], ['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other'], ['campaignName', 'Fundraiser']]);
     expect(server.sheet('Allowlist').getDataRange().getValues()).toEqual([['email'], [OWNER]]);
     expect(server.sheet('Pledges history').getDataRange().getValues()).toEqual([[...PLEDGE_COLUMNS, ...HISTORY_COLUMNS]]);
     expect(server.sheet('Payments history').getDataRange().getValues()).toEqual([[...PAYMENT_COLUMNS, ...HISTORY_COLUMNS]]);
@@ -31,7 +31,7 @@ describe('setup', () => {
   it('is safe to run twice', () => {
     server.call('setup');
     expect(server.sheet('Allowlist').getDataRange().getValues()).toHaveLength(2);
-    expect(server.sheet('Settings').getDataRange().getValues()).toHaveLength(3);
+    expect(server.sheet('Settings').getDataRange().getValues()).toHaveLength(4);
     expect(server.sheet('Pledges history').getDataRange().getValues()).toHaveLength(1);
   });
 });
@@ -42,6 +42,7 @@ describe('setup', () => {
 const CODE_GS_HASHES: readonly string[] = [
   '1c6e1dfdb6cddfe037685187ab10f2c79672ba514f4795ef48180765ed8a5a6e',
   'b434fcfe2d5ad025ed10258a6a5fdaad9edab441d52f2c1c8296e371f84f6404',
+  'a31b0be676c13b86d466f74db90359ea434f86ddd3bf9a68ded9ca3acb90803c',
 ];
 
 describe('API_VERSION', () => {
@@ -182,7 +183,7 @@ describe('load', () => {
   it('returns rows, settings, the caller and the API version', () => {
     expect(server.post('load', {}, token)).toEqual({
       ok: true,
-      data: { pledges: [], payments: [], settings: { goal: 10000, paymentMethods: METHODS }, me: OWNER, rowsWithoutId: { pledges: 0, payments: 0 }, apiVersion: server.evaluate('API_VERSION') },
+      data: { pledges: [], payments: [], settings: { goal: 10000, paymentMethods: METHODS, campaignName: 'Fundraiser' }, me: OWNER, rowsWithoutId: { pledges: 0, payments: 0 }, apiVersion: server.evaluate('API_VERSION') },
     });
     expect(Number.isInteger(server.evaluate('API_VERSION'))).toBe(true);
   });
@@ -600,12 +601,21 @@ describe('sheet layout', () => {
 
 describe('settings', () => {
   it('changes the goal', () => {
-    expect(server.post('setSetting', { key: 'goal', value: 25000 }, token).data).toEqual({ goal: 25000, paymentMethods: METHODS });
+    expect(server.post('setSetting', { key: 'goal', value: 25000 }, token).data).toEqual({ goal: 25000, paymentMethods: METHODS, campaignName: 'Fundraiser' });
   });
   it('refuses a negative goal on the goal field and any other key on the key field', () => {
     expect(server.post('setSetting', { key: 'goal', value: -1 }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
     expect(server.post('setSetting', { key: 'goal', value: '5' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
     expect(server.post('setSetting', { key: 'paymentMethods', value: 'Cash' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'key' });
+  });
+  it('reads the campaign name the organiser typed, trimmed, and blank on a Sheet set up without one', () => {
+    const settings = server.sheet('Settings');
+    settings.raw[3] = ['campaignName', '  Masjid Expansion 2026 '];
+    expect(server.post('load', {}, token).data.settings.campaignName).toBe('Masjid Expansion 2026');
+    settings.raw[3] = ['campaignName', 2026];
+    expect(server.post('load', {}, token).data.settings.campaignName).toBe('2026');
+    settings.raw.splice(3, 1);
+    expect(server.post('load', {}, token).data.settings.campaignName).toBe('');
   });
 });
 

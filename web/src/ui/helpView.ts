@@ -440,7 +440,7 @@ function howTo(): Child[] {
         ['On ', b('Summary'), ', press ', b('Friday display'), '.'],
         ['Make the browser full screen (F11 on most computers).'],
       ),
-      p('The screen shows the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
+      p('The screen shows the drive’s name (or just “Fundraiser” until the organiser sets one), the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
       p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
       p('If a sign-in box appears when you press ', b('Friday display'), ', sign in: your sign-in was about to run out, and signing in now keeps the screen updating for about another hour.'),
       note('Google sign-ins last about an hour. After that the figures stop updating, and after 15 minutes a small note says ', said(SAID.displayStale), '. Tap it and sign in to bring the figures up to date. Press ', b('Exit'), ' in the top corner to go back to the Summary.'),
@@ -580,8 +580,12 @@ function forTheOrganiser(): Child[] {
       p('To remember whose address is whose, you can type each volunteer’s name in the second column, next to their email. The tracker reads only the first column.'),
     ),
     topic(
-      'Payment methods and the goal',
+      'Payment methods, the goal and the drive’s name',
       p('The ', b('Settings'), ' tab has one setting per row. ', b('paymentMethods'), ' is the list volunteers pick from, separated by commas — for example Cash,Bank Transfer,Card,Check,Online,Other. ', b('goal'), ' is the fundraiser target; volunteers can also change it with ', b('Edit goal'), ' on the Summary.'),
+      p(
+        b('campaignName'),
+        ' is the title of the Friday display, such as Masjid Expansion 2026. Left blank, the display says Fundraiser. If the tab has no campaignName row, add one: campaignName in the first column and the name in the second.',
+      ),
       p('Volunteers see changes to Settings after pressing Refresh. Payments that use a method you removed are grouped as “Other / unlisted” on the Summary, and must be given a listed method the next time someone edits them.'),
     ),
     topic(
@@ -717,7 +721,7 @@ function forTheOrganiser(): Child[] {
           ', and rename the copy with the drive’s year, such as Pledges 2026. The tracker only uses the tabs with exactly those four names, so it ignores the copies.',
         ],
         ['In each of the four original tabs, click the 2 at the left of row 2, hold Shift and click the number of the last row, then press Delete on the keyboard. That empties the rows.'],
-        ['Set the new goal with ', b('Edit goal'), ' on the Summary.'],
+        ['Set the new goal with ', b('Edit goal'), ' on the Summary, and the new drive’s name in the ', b('campaignName'), ' row of the Settings tab.'],
         ['Put the new drive’s volunteers back on the Allowlist.'],
         ['Ask every volunteer to press ', b('Refresh'), ' before adding anything. A page left open still shows the old drive until it reloads.'],
       ),

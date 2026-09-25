@@ -54,7 +54,7 @@ Row 1 holds the headers and data starts at row 2. There are no formulas anywhere
 |---|---|
 | `Pledges` | `id` · `phone` · `name` · `datePledged` · `amountPledged` · `notes` · `updatedAt` · `updatedBy` |
 | `Payments` | `id` · `phone` · `dateReceived` · `amountReceived` · `method` · `notes` · `updatedAt` · `updatedBy` |
-| `Settings` | key/value rows: `goal` (default 10000), `paymentMethods` (default `Cash,Bank Transfer,Card,Check,Online,Other`) |
+| `Settings` | key/value rows: `goal` (default 10000), `paymentMethods` (default `Cash,Bank Transfer,Card,Check,Online,Other`), `campaignName` (default `Fundraiser`; the Friday display's title, which reads `Fundraiser` when it is blank or missing; added 2026-09-25) |
 | `Allowlist` | `email` (one per row, compared case-insensitively); the organiser may keep a `name` in column B, which is never read |
 | `Pledges history` / `Payments history` | the `Pledges`/`Payments` columns, then `changedAt` · `changedBy` · `action` (`edit` or `delete`) |
 

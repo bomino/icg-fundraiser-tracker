@@ -6,7 +6,7 @@ import { h } from './dom';
 export const DISPLAY_REFRESH_MS = 3 * 60 * 1000;
 export const DISPLAY_STALE_AFTER_MS = 15 * 60 * 1000;
 const STALE_CHECK_MS = 30 * 1000;
-const DISPLAY_TITLE = 'Fundraiser';
+const DEFAULT_DISPLAY_TITLE = 'Fundraiser';
 
 export interface DisplayDeps {
   store: Store;
@@ -64,7 +64,7 @@ export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
   function render(state: State) {
     stack.replaceChildren(
       h('p', { class: 'eyebrow friday-eyebrow' }, 'Islamic Center of Greensboro'),
-      h('h1', { class: 'friday-title' }, DISPLAY_TITLE),
+      h('h1', { class: 'friday-title' }, state.settings.campaignName || DEFAULT_DISPLAY_TITLE),
       ...figures(state),
     );
     showStatus();

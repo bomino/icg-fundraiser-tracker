@@ -12,7 +12,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **Donor lookup** by phone number (any formatting) or name, with a card showing a donor's pledge, payments and status — and a **Log a payment** button that carries the phone number straight into the payment form.
 - **Status chips and Needs follow-up** on Pledges: filter to Pending/Partial/Paid/Overpaid, or to Pending/Partial donors with no activity in 30+ days, biggest balance first. A **date range** filter on Payments.
 - **A possible-duplicate-payments check** (app-only, on top of the six core data-health checks) flags payments that share a phone number, amount and date.
-- **Friday display**: a full-screen, name-free projector view of progress toward the goal that never interrupts an announcement with a sign-in prompt.
+- **Friday display**: a full-screen, name-free projector view of progress toward the goal, titled with the drive's name from the Sheet's Settings tab, that never interrupts an announcement with a sign-in prompt.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
 - **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
 - **Change history**: every edit or delete first copies the old row, with who changed it and when, to a history tab in the Sheet, so the organiser can bring back a row deleted by mistake without rolling back anyone else's work.

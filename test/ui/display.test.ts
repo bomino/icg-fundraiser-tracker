@@ -130,6 +130,21 @@ describe('Friday display', () => {
     exitAgain();
   });
 
+  it('is titled with the campaign name from Settings, or Fundraiser while that is blank', () => {
+    const { store } = fakeStore();
+    const named = { ...settings, campaignName: 'Masjid Expansion 2026' };
+    vi.spyOn(store, 'state').mockReturnValue({ pledges, payments, settings: named, me: 'me', computed: compute(pledges, payments, named, TODAY) });
+    const exit = mountDisplay(root, { store, auth: fakeAuth(true).auth, reconnect: vi.fn(async () => undefined) });
+    expect(root.querySelector('h1')?.textContent).toBe('Masjid Expansion 2026');
+    exit();
+
+    const blank = { ...settings, campaignName: '' };
+    vi.spyOn(store, 'state').mockReturnValue({ pledges, payments, settings: blank, me: 'me', computed: compute(pledges, payments, blank, TODAY) });
+    const exitAgain = mountDisplay(root, { store, auth: fakeAuth(true).auth, reconnect: vi.fn(async () => undefined) });
+    expect(root.querySelector('h1')?.textContent).toBe('Fundraiser');
+    exitAgain();
+  });
+
   it('says "1 donor has pledged" for a single donor', () => {
     const { store } = fakeStore([pledges[0]]);
     const exit = mountDisplay(root, { store, auth: fakeAuth(true).auth, reconnect: vi.fn(async () => undefined) });

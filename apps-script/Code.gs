@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 2;
+const API_VERSION = 3;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -19,7 +19,7 @@ const ENTRY_FIELDS = {
 const HISTORY_HEADERS = ['changedAt', 'changedBy', 'action'];
 const AMOUNT_FIELDS = ['amountPledged', 'amountReceived'];
 const DATE_FIELDS = ['datePledged', 'dateReceived'];
-const DEFAULT_SETTINGS = [['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other']];
+const DEFAULT_SETTINGS = [['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other'], ['campaignName', 'Fundraiser']];
 // Keep in step with web/src/validate.ts.
 const MAX_TEXT = 500;
 const MAX_AMOUNT = 1000000000;
@@ -454,6 +454,7 @@ function readSettings_() {
   return {
     goal: goal === null || isFinite(goal) ? goal : null,
     paymentMethods: String(values.paymentMethods || '').split(',').map((method) => method.trim()).filter(Boolean),
+    campaignName: String(values.campaignName || '').trim(),
   };
 }
 

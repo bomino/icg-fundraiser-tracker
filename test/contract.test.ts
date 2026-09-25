@@ -58,11 +58,11 @@ describe('the client against the real Code.gs', () => {
     const received = await api.savePayment(paymentDraft, { id: randomUUID() });
     const editedPayment = await api.savePayment({ ...paymentDraft, method: 'Card' }, received);
     expect(editedPayment).toEqual({ ...paymentDraft, method: 'Card', id: received.id, updatedAt: expect.any(String), updatedBy: OWNER });
-    expect(await api.setGoal(25000)).toEqual({ goal: 25000, paymentMethods: METHODS });
+    expect(await api.setGoal(25000)).toEqual({ goal: 25000, paymentMethods: METHODS, campaignName: 'Fundraiser' });
     expect(await api.load()).toEqual({
       pledges: [edited],
       payments: [editedPayment],
-      settings: { goal: 25000, paymentMethods: METHODS },
+      settings: { goal: 25000, paymentMethods: METHODS, campaignName: 'Fundraiser' },
       me: OWNER,
       rowsWithoutId: { pledges: 0, payments: 0 },
       apiVersion: SITE_API_VERSION,
@@ -159,7 +159,7 @@ describe('a change whose first response Google lost after Code.gs ran', () => {
     loseNextResponse();
     await store.setGoal(25000);
     expect(sent).toEqual(['load', 'setSetting', 'setSetting']);
-    expect((await api.load()).settings).toEqual({ goal: 25000, paymentMethods: METHODS });
-    expect(store.state()?.settings).toEqual({ goal: 25000, paymentMethods: METHODS });
+    expect((await api.load()).settings).toEqual({ goal: 25000, paymentMethods: METHODS, campaignName: 'Fundraiser' });
+    expect(store.state()?.settings).toEqual({ goal: 25000, paymentMethods: METHODS, campaignName: 'Fundraiser' });
   });
 });
