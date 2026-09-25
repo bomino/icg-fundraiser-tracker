@@ -1,10 +1,12 @@
 /* Nav */
 .nav-bar { position: sticky; top: 0; z-index: 10; background: var(--color-bg); }
-/* Without this a focused control or a jumped-to Help section is scrolled only to the page edge, under the sticky nav (72px; about 122px on phones). */
+/* Without this a focused control or a jumped-to Help section is scrolled only to the page edge, under the sticky nav (72px; about 124px on phones). */
 html { scroll-padding-top: 88px; }
 .nav-inner { max-width: var(--container-wide); margin: 0 auto; padding: var(--space-md) var(--space-lg); display: flex; align-items: center; gap: var(--space-lg); flex-wrap: wrap; }
 .wordmark {
   font: 600 1.125rem/1.2 var(--font-display);
+  /* WCAG 2.5.8's 24px target: its line alone is 21.6px, and below about 352px the nav's buttons wrap in under it too close to excuse that. */
+  min-height: 24px;
   text-decoration: none;
   background: linear-gradient(to right, var(--color-gold), var(--color-emerald));
   -webkit-background-clip: text;
