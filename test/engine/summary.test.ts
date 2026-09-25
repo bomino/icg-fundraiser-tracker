@@ -46,6 +46,11 @@ describe('totals', () => {
   it('reports a zero credit as +0, never -0', () => {
     expect(Object.is(compute([], [], SETTINGS, TODAY).totals.creditCents, 0)).toBe(true);
   });
+
+  it('reports every payment on a zero pledge as credit, never as outstanding', () => {
+    const { totals } = compute([pledge({ phone: 'z', amountPledged: 0 })], [payment({ phone: 'z', amountReceived: 25 })], SETTINGS, TODAY);
+    expect(totals).toMatchObject({ receivedCents: 2500, outstandingCents: 0, creditCents: 2500, statusCounts: { Paid: 0, Partial: 0, Pending: 0, Overpaid: 1 } });
+  });
 });
 
 describe('data health', () => {

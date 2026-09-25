@@ -72,6 +72,11 @@ describe('toCents', () => {
     expect(toCents(0.1 + 0.2)).toBe(30);
     expect(toCents(20.25)).toBe(2025);
   });
+  it('rounds up an amount whose ×100 lands just under the whole cent', () => {
+    // 0.29 * 100 is 28.999999999999996 and 1.15 * 100 is 114.99999999999999, so truncating would lose a cent.
+    expect(toCents(0.29)).toBe(29);
+    expect(toCents(1.15)).toBe(115);
+  });
 });
 
 describe('dates', () => {
