@@ -204,7 +204,14 @@ describe('find donor', () => {
     search(view, '2');
     // #then its edit button says why it cannot be used yet, since an edit opened now would start from a version about to be replaced
     const edit = view.querySelector('.lookup-card button') as HTMLButtonElement;
-    expect({ text: edit.textContent, disabled: edit.disabled }).toEqual({ text: 'Saving…', disabled: true });
+    edit.click();
+    // Still focusable, like a saving row's button, so a keyboard volunteer who saved from it is not thrown to the top of the page.
+    expect({ text: edit.textContent, ariaDisabled: edit.getAttribute('aria-disabled'), disabled: edit.disabled, opened: document.querySelector('dialog[open]') }).toEqual({
+      text: 'Saving…',
+      ariaDisabled: 'true',
+      disabled: false,
+      opened: null,
+    });
   });
 
   it('labels a payment that is still saving in the donor card history', async () => {

@@ -680,6 +680,29 @@ describe('mountApp', () => {
       expect(document.activeElement).toBe(mainButton('Log a payment'));
     });
 
+    it('returns focus to the donor card’s Edit pledge once the pledge is saved, and keeps it there when the save settles', async () => {
+      // #given the donor card found by phone, and its pledge opened from the keyboard
+      history.replaceState(null, '', '#find');
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      const search = root.querySelector('#lookup-input') as HTMLInputElement;
+      search.value = '555-010-0101';
+      search.dispatchEvent(new Event('input'));
+      const editPledge = () => root.querySelector<HTMLButtonElement>('[data-focus-key="lookup-edit-pledge"]');
+      openWithKeyboard(mainButton('Edit pledge'));
+      fill('amountPledged', '150');
+
+      // #when it is saved
+      submitDialog();
+
+      // #then focus stays on the button while it reads "Saving…", and after the save settles
+      expect(editPledge()?.textContent).toBe('Saving…');
+      expect(document.activeElement).toBe(editPledge());
+      answerAll();
+      await vi.waitFor(() => expect(editPledge()?.textContent).toBe('Edit pledge'));
+      expect(document.activeElement).toBe(editPledge());
+    });
+
     it('keeps a focused Show N through a redraw, and moves focus to the list’s heading once Show N opens it', async () => {
       history.replaceState(null, '', '#summary');
       const { store, publish } = fakeStore({ payments: [payment({ id: 'y1', phone: '555-999-0000', amountReceived: 5, method: 'Cash' })] });

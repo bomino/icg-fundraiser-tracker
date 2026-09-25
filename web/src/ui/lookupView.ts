@@ -36,9 +36,11 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], actions: Ca
     ['Notes', donor.pledge.notes],
   ];
   // Held back like a saving row on Pledges: an edit opened now would start from a version about to be replaced.
+  // aria-disabled, as on that row, not disabled: the Save that started it redraws the card, and a keyboard
+  // volunteer's focus can only come back to a button that can take it.
   const saving = isPending(donor.pledge);
-  const editPledge = h('button', { type: 'button', class: 'btn btn-secondary', disabled: saving }, saving ? 'Saving…' : 'Edit pledge');
-  editPledge.addEventListener('click', actions.editPledge);
+  const editPledge = h('button', { type: 'button', class: 'btn btn-secondary', 'aria-disabled': saving ? 'true' : undefined, 'data-focus-key': 'lookup-edit-pledge' }, saving ? 'Saving…' : 'Edit pledge');
+  if (!saving) editPledge.addEventListener('click', actions.editPledge);
   // Same rule as the pledge dialog: no phone means there is nowhere for the payment to match to.
   let logPayment: HTMLButtonElement | null = null;
   if (donor.key !== '') {
