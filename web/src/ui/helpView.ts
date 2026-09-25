@@ -15,6 +15,7 @@ const SAID = {
   busy: 'The tracker is busy. Try again in a moment.',
   serverError: 'Something went wrong on the server. Try again.',
   expired: 'Your sign-in has expired. Please sign in again.',
+  signInIdsDiffer: 'This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.',
   cancelled: 'Sign-in was cancelled.',
   googleDidNotLoad: 'Google sign-in did not load. Check your connection and reload the page.',
   notOnList: 'is not on the volunteer list.',
@@ -144,6 +145,11 @@ const PROBLEMS: readonly Problem[] = [
     message: [said(SAID.expired)],
     meaning: ['Google sign-ins last about an hour. The tracker renews yours quietly, but sometimes it has to ask.'],
     action: ['Sign in again in the window that appears. The save carries on by itself once you are back.'],
+  },
+  {
+    message: [said(SAID.signInIdsDiffer)],
+    meaning: ['The tracker’s website and the part that runs on Google’s side (Code.gs) are set up for different Google sign-ins, usually because the organiser has just changed a setting. Signing in again will not fix it. This is not something you caused.'],
+    action: ['Reload the page. If it still says this, tell the organiser, and include the exact message.'],
   },
   {
     message: [said(SAID.cancelled)],

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from '../web/src/api';
 import { SITE_API_VERSION, behindHalf } from '../web/src/version';
 import { WARNING_MARK } from '../web/src/engine/constants';
@@ -88,6 +88,14 @@ describe('the client against the real Code.gs', () => {
     // A RegExp from the script's own realm, so it is compared by its parts rather than as an object.
     const phoneIgnored = server.evaluate<RegExp>('PHONE_IGNORED');
     expect({ source: phoneIgnored.source, flags: phoneIgnored.flags }).toEqual({ source: IGNORED_CHARACTERS.source, flags: IGNORED_CHARACTERS.flags });
+  });
+
+  it('names a site and server set up with different sign-in IDs instead of asking for a new sign-in', async () => {
+    const server = createServer();
+    const getToken = vi.fn(async (_force: boolean) => server.tokenFor(OWNER, { aud: 'other-client.apps.googleusercontent.com' }));
+    const api = createApi(URL, getToken, async (_input, init) => new Response(server.call<{ text: string }>('doPost', { postData: { contents: String(init?.body) } }).text), async () => {});
+    await expect(api.load()).rejects.toMatchObject({ code: 'INTERNAL', message: expect.stringContaining('different Google sign-in IDs') });
+    expect(getToken.mock.calls).toEqual([[false]]);
   });
 
   it('finds neither half out of date when both come from the same commit', async () => {

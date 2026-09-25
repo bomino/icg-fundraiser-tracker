@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { OWNER, createServer } from '../support/appsScript';
+import { CLIENT_ID, OWNER, createServer } from '../support/appsScript';
 import { METHODS, VALIDATION_CASES } from '../support/validationCases';
 
 let server: ReturnType<typeof createServer>;
@@ -39,7 +39,10 @@ describe('setup', () => {
 // One entry per API_VERSION, oldest first: the SHA-256 of Code.gs, with LF line endings and its
 // API_VERSION line blanked. Every edit to Code.gs must be redeployed by hand, and only a raised
 // API_VERSION makes the site's banner tell the organiser that it hasn't been.
-const CODE_GS_HASHES: readonly string[] = ['1c6e1dfdb6cddfe037685187ab10f2c79672ba514f4795ef48180765ed8a5a6e'];
+const CODE_GS_HASHES: readonly string[] = [
+  '1c6e1dfdb6cddfe037685187ab10f2c79672ba514f4795ef48180765ed8a5a6e',
+  '352a0a8d8af1e25039c92c0ced5320d64fdf735840cd2e7af738cd532978b08b',
+];
 
 describe('API_VERSION', () => {
   it('is raised whenever Code.gs changes', () => {
@@ -59,20 +62,31 @@ describe('authentication', () => {
     expect(server.post('load', {}, idToken).error?.code).toBe('UNAUTHENTICATED');
   });
   it.each([
-    ['another app’s token', { aud: 'someone-else' }],
     ['an unverified email', { email_verified: 'false' }],
     ['an expired token', { exp: String(Math.floor(Date.now() / 1000) - 5) }],
     ['a foreign issuer', { iss: 'https://evil.example.com' }],
   ])('rejects %s', (_label, overrides) => {
     expect(server.post('load', {}, server.tokenFor(OWNER, overrides)).error?.code).toBe('UNAUTHENTICATED');
   });
-  it('says the server is not configured when the CLIENT_ID script property is missing', () => {
-    server.state.clientId = null;
+  it('rejects a token that tokeninfo says was issued to another app', () => {
+    const t = server.tokenFor(OWNER);
+    server.setTokenResponse(t, 200, { aud: 'someone-else', iss: 'https://accounts.google.com', email: OWNER, email_verified: 'true', exp: String(Math.floor(Date.now() / 1000) + 3600) });
+    expect(server.post('load', {}, t).error?.code).toBe('UNAUTHENTICATED');
+  });
+  it.each([
+    ['missing', null],
+    ['blank', '  '],
+  ])('says the server is not configured when the CLIENT_ID script property is %s', (_label, clientId) => {
+    server.state.clientId = clientId;
     expect(server.post('load', {}, token).error).toEqual({
       code: 'INTERNAL',
       message: 'The server is not configured: set the CLIENT_ID script property (see docs/SETUP.md).',
     });
     expect(server.state.fetchCount).toBe(0);
+  });
+  it('accepts a CLIENT_ID script property pasted with spaces or a line break around it', () => {
+    server.state.clientId = ` ${CLIENT_ID}\n`;
+    expect(server.post('load', {}, token).ok).toBe(true);
   });
   it('forbids accounts that are not on the allowlist', () => {
     const response = server.post('load', {}, server.tokenFor('stranger@example.com'));
@@ -98,13 +112,22 @@ describe('authentication', () => {
     server.sheet('Allowlist').raw.splice(1, 1);
     expect(server.post('load', {}, token).error?.code).toBe('FORBIDDEN');
   });
-  it('rejects a token whose own payload names a foreign audience without calling tokeninfo', () => {
-    const foreign = server.tokenFor(OWNER, { aud: 'someone-else' });
-    expect(server.post('load', {}, foreign).error?.code).toBe('UNAUTHENTICATED');
+  // Signing in again mints a token for the same client ID, so this must not be UNAUTHENTICATED,
+  // which the app answers by asking the volunteer to sign in again.
+  it('says the site and the server use different sign-in IDs when a token names another audience, without calling tokeninfo', () => {
+    const foreign = server.tokenFor(OWNER, { aud: 'other-client.apps.googleusercontent.com' });
+    expect(server.post('load', {}, foreign).error).toEqual({
+      code: 'INTERNAL',
+      message: 'This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.',
+    });
     expect(server.state.fetchCount).toBe(0);
   });
   it('rejects a token that is not three dot-separated segments without calling tokeninfo', () => {
     expect(server.post('load', {}, 'forged').error?.code).toBe('UNAUTHENTICATED');
+    expect(server.state.fetchCount).toBe(0);
+  });
+  it('rejects a token whose middle segment cannot be read without calling tokeninfo', () => {
+    expect(server.post('load', {}, 'header.not-json.sig').error?.code).toBe('UNAUTHENTICATED');
     expect(server.state.fetchCount).toBe(0);
   });
   it('rejects a token when tokeninfo itself answers non-200', () => {

@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 1;
+const API_VERSION = 2;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -104,7 +104,8 @@ function maskToken_(text, token) {
 }
 
 function clientId_() {
-  const clientId = PropertiesService.getScriptProperties().getProperty('CLIENT_ID');
+  // Trimmed, because a space or line break pasted in with the value would make every token look foreign.
+  const clientId = (PropertiesService.getScriptProperties().getProperty('CLIENT_ID') || '').trim();
   // Without it every token looks foreign, which would read to volunteers as an endless "sign-in expired".
   if (!clientId) throw new ApiError('INTERNAL', 'The server is not configured: set the CLIENT_ID script property (see docs/SETUP.md).');
   return clientId;
@@ -157,7 +158,11 @@ function assertPlausibleToken_(token, clientId) {
   } catch (err) {
     throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
   }
-  if (payload.aud !== clientId) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
+  // The site signs volunteers in for its VITE_GOOGLE_CLIENT_ID, so a token for another audience
+  // means that and CLIENT_ID differ. A fresh sign-in would carry the same audience, so this is not
+  // UNAUTHENTICATED, which the app answers by asking for one. The unverified payload only picks
+  // the message: the request is refused either way.
+  if (payload.aud !== clientId) throw new ApiError('INTERNAL', 'This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.');
 }
 
 function allowlist_() {

@@ -42,7 +42,7 @@ The app checks this for you. Each `Code.gs` has a line near the top like `const 
 1. Create a GitHub repository. It must be public for free GitHub Pages. The code holds no donor data, and the data stays in your private Sheet.
 2. Push this folder to it. `.gitignore` keeps the `.xlsx` and `.docx` files out.
 3. In the repository, go to **Settings → Pages → Source: GitHub Actions**.
-4. **Settings → Secrets and variables → Actions → Variables**: add `VITE_SCRIPT_URL` (from step 3) and `VITE_GOOGLE_CLIENT_ID` (from step 2).
+4. **Settings → Secrets and variables → Actions → Variables**: add `VITE_SCRIPT_URL` (from step 3) and `VITE_GOOGLE_CLIENT_ID` (from step 2). Paste each value exactly, with no spaces. If either is missing or isn't the right kind of value (a `/dev` URL, say), every **Test and deploy** run stops at **Check the repository variables** with a message saying which one and where it comes from, and deploys nothing, so the live site stays as it was.
 5. **Actions → Test and deploy → Run workflow**. When it finishes, the site is at `https://<user>.github.io/<repo>/`.
 
 ## Local development
@@ -74,7 +74,7 @@ The Sheet is the only copy of the fundraiser's records — there is no separate 
 | The app says | Likely cause and fix |
 |---|---|
 | *The server is not configured: set the CLIENT_ID script property* | The `CLIENT_ID` script property is missing or misnamed. Add it as in step 2.5, then try again. No redeploy is needed. |
-| *Your sign-in has expired. Please sign in again.* on every attempt | The `CLIENT_ID` script property and the site's `VITE_GOOGLE_CLIENT_ID` hold different client IDs. Make them identical. |
+| *This site and the server are set up with different Google sign-in IDs.* | The `CLIENT_ID` script property and the site's `VITE_GOOGLE_CLIENT_ID` hold different client IDs. Copy the Client ID from step 2.4 into whichever is wrong: the script property needs no redeploy, while a changed repository variable needs **Actions → Test and deploy → Run workflow** (step 4.5), and every open page must be reloaded to pick it up. A `Code.gs` older than this message says *Your sign-in has expired. Please sign in again.* on every attempt instead. |
 | *Could not reach the tracker … may not allow access to "Anyone"*, or *The tracker sent back an unexpected page* | The deployment's **Who has access** isn't **Anyone**, or `VITE_SCRIPT_URL` isn't the `/exec` URL. Fix it under **Deploy → Manage deployments** (step 3). If the device really is offline, the message stops at "try again". |
 | *… is not on the volunteer list* | That Google account isn't on the **Allowlist** tab. Add the email exactly, one per row (step 1.6), or sign in with the listed account. |
 | *The 3rd column of the "Pledges" tab should be …* | A column was inserted, moved or deleted in that tab, or its header row was cleared (step 1.9). Undo it with **File → Version history**, or move a new column to the right of `updatedBy`. |

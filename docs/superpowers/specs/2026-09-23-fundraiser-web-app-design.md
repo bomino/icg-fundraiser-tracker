@@ -44,7 +44,7 @@ ui/*     Summary · Pledges · Payments · Find donor
 
 - **Full load and client-side calculation.** `load` returns every row of every tab. The engine recalculates everything in memory after each load or change. At the expected volume the payload is under 1 MB and the calculation takes milliseconds, so the O(n²) lookup cost of the sheet formulas goes away.
 - **No CORS preflight.** Requests are `POST` with `Content-Type: text/plain;charset=utf-8` and a JSON body. Apps Script can't answer an `OPTIONS` preflight, and its responses reach the browser through a `googleusercontent.com` redirect, which `fetch` follows.
-- **Config** comes from two build-time variables: `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID`. Neither is secret, because security rests on the server-side token check and allowlist.
+- **Config** comes from two build-time variables: `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID`. Neither is secret, because security rests on the server-side token check and allowlist. A build without them still succeeds and shows "Not set up yet", so the deploy workflow checks both before uploading the site and deploys nothing when either is missing or malformed (§8). Added 2026-09-25.
 
 ## 3. Google Sheet schema
 
@@ -73,7 +73,7 @@ Every request looks like `{idToken, op, payload}`. Every response is `{ok: true,
 - Call `https://oauth2.googleapis.com/tokeninfo?id_token=…`.
 - Require `aud == CLIENT_ID` (a Script property), `email_verified == "true"`, an `exp` in the future, and the email on the `Allowlist` tab.
 - Cache the verified email in `CacheService`, keyed by a hash of the token, for `min(300 s, exp − now)`.
-- Error codes: `UNAUTHENTICATED` for a bad or expired token, `FORBIDDEN` for an email not on the allowlist.
+- Error codes: `UNAUTHENTICATED` for a bad or expired token, `FORBIDDEN` for an email not on the allowlist. A token whose own payload names an audience other than `CLIENT_ID` answers `INTERNAL` "This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.", because signing in again can't fix it (§7). Added 2026-09-25.
 
 | op | payload | behaviour |
 |---|---|---|
@@ -272,6 +272,8 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 7. Set the `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID` repo variables and enable Pages from Actions.
 
 The Vite `base` is set to the repo name. Vite also reads `API_VERSION` from `apps-script/Code.gs`, so every change to `Code.gs` raises it (a test enforces this) and is deployed before the site (§7, Errors and state).
+
+Before uploading the site, the build job checks the two repo variables on every run except a pull request's: `VITE_SCRIPT_URL` must be an Apps Script `/exec` URL (the `/macros/s/…` form or a Workspace account's `/a/macros/<domain>/s/…`), and `VITE_GOOGLE_CLIENT_ID` must end in `.apps.googleusercontent.com` with no whitespace. Otherwise the run fails, naming the variable and the `SETUP.md` step, and the live site is left as it was. Added 2026-09-25.
 
 **Privacy:** the repo, CI logs and the build contain no donor data. Fixtures use `555-01xx` numbers and made-up names. The Sheet stays private to the owner; only the Apps Script, running as the owner, touches it.
 
