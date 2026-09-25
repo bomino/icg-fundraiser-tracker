@@ -267,7 +267,7 @@ function theScreens(): Child[] {
     ),
     topic(
       'Find donor',
-      p('Type a donor’s phone number, in any format, or part of their name. The whole number takes you straight to the donor. Part of a number, such as the last four digits, or part of a name shows a list of matching donors with their status; tap one to open it.'),
+      p('Type a donor’s phone number, in any format, or part of their name. The whole number takes you straight to the donor. Part of a number, such as the last four digits, or part of a name shows a list of matching donors with their number and status. Several donors can share the same last few digits, so check the name as well before you tap one to open it.'),
       p('When lots of donors match, only the first 20 are listed, under a line such as ', said(`Showing 20 of 312 — ${SAID.keepTyping}`), ' Type a few more letters or digits and the list shrinks.'),
       p('If nobody matches, it says ', said(SAID.noDonorFound), ' and offers ', b('Add a pledge'), '. If you searched by phone number, that number is already filled in on the pledge form. If you only typed part of the number, type the rest before saving.'),
       p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made.'),
