@@ -82,6 +82,8 @@ Every request looks like `{idToken, op, payload}`. Every response is `{ok: true,
 
 Writes run under `LockService.getScriptLock().tryLock(10000)`, which throws `BUSY` "The tracker is busy. Try again in a moment." rather than waiting indefinitely, and rows are found by scanning column A for the `id`. `setup()` is run once by hand from the Apps Script editor.
 
+A body that isn't a JSON object answers `BAD_REQUEST` "The request could not be read." Any other unexpected failure answers `INTERNAL` "Something went wrong on the server. Try again." and is logged for the owner with its operation and stack; `BUSY` and `FORBIDDEN` are logged as one-line warnings. The caller's token is masked in every log line (see `docs/SETUP.md`, "Reading the server's log").
+
 ## 5. Calculation engine (`web/src/engine.ts`)
 
 This is a pure module with no DOM and no network access. Money is handled internally in **integer cents**: the value from the Sheet is converted with `Math.round(x * 100)`. That gives exact sums, and it's why `ROUND(…,2)` in the workbook has a direct counterpart. "Blank" means the cell or field is empty. It is not zero.

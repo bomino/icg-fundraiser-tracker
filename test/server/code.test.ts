@@ -56,6 +56,12 @@ describe('authentication', () => {
     const response = server.post('load', {}, server.tokenFor('stranger@example.com'));
     expect(response.error).toMatchObject({ code: 'FORBIDDEN', message: 'stranger@example.com is not on the volunteer list.' });
   });
+  it('logs a warning naming the operation and the refused email', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    server.post('load', {}, server.tokenFor('stranger@example.com'));
+    expect(warnSpy).toHaveBeenCalledWith('FORBIDDEN in load: stranger@example.com is not on the volunteer list.');
+    warnSpy.mockRestore();
+  });
   it('matches the allowlist case-insensitively', () => {
     server.sheet('Allowlist').appendRow(['  Volunteer@Example.com ']);
     expect(server.post('load', {}, server.tokenFor('volunteer@example.com')).ok).toBe(true);
@@ -95,12 +101,15 @@ describe('authentication', () => {
     server.setTokenResponse(t, 200, 'not json at all');
     expect(server.post('load', {}, t).error?.code).toBe('INTERNAL');
   });
-  it('answers INTERNAL without logging the token when the tokeninfo fetch itself throws', () => {
+  it('answers INTERNAL and logs a fixed reason, not the token-bearing URL, when the tokeninfo fetch itself throws', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     server.state.fetchThrows = true;
     const response = server.post('load', {}, token);
     expect(response.error).toMatchObject({ code: 'INTERNAL' });
-    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain(token);
+    const logged = errorSpy.mock.calls.flat().join(' ');
+    expect(logged).toContain('tokeninfo request failed');
+    expect(logged).not.toContain('oauth2.googleapis.com');
+    expect(logged).not.toContain(token);
     errorSpy.mockRestore();
   });
   it('re-verifies via tokeninfo instead of trusting a cache entry keyed without the current clientId', () => {
@@ -251,9 +260,12 @@ describe('writes', () => {
     expect(server.post('upsertPledge', newRow({ ...pledgeDraft, amountPledged: '12' }), token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'amountPledged' });
   });
 
-  it('answers BUSY instead of waiting forever for the lock', () => {
+  it('answers BUSY instead of waiting forever for the lock, and logs a warning naming the operation', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     server.state.lockAvailable = false;
     expect(server.post('upsertPledge', newRow(pledgeDraft), token).error?.code).toBe('BUSY');
+    expect(warnSpy).toHaveBeenCalledWith('BUSY in upsertPledge: The tracker is busy. Try again in a moment.');
+    warnSpy.mockRestore();
   });
 
   it('acquires the lock after waiting, rather than answering BUSY immediately', () => {
@@ -281,13 +293,34 @@ describe('writes', () => {
     expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
   });
 
-  it('logs a fixed string and the error name for an unhandled error, never the raw message', () => {
+  // An unreadable body can't be searched for its token, so it must never reach the log at all.
+  it.each([
+    ['a body that is not JSON', { postData: { contents: 'super-secret-token-xyz' } }],
+    ['a JSON body that is not an object', { postData: { contents: 'null' } }],
+    ['no body', {}],
+  ])('answers BAD_REQUEST for %s and logs nothing', (_label, event) => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const output = server.call<{ text: string }>('doPost', { postData: { contents: 'super-secret-token-xyz' } });
-    const response = JSON.parse(output.text);
-    expect(response.error).toMatchObject({ code: 'INTERNAL' });
-    expect(errorSpy).toHaveBeenCalledWith('Unhandled server error', 'SyntaxError');
-    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('super-secret-token-xyz');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const output = server.call<{ text: string }>('doPost', event);
+    expect(JSON.parse(output.text).error).toEqual({ code: 'BAD_REQUEST', message: 'The request could not be read.' });
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it('logs the operation and stack of an unexpected error with the caller’s token masked, never the raw request', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    server.sheet('Payments').getDataRange = () => {
+      throw new Error(`Service Spreadsheets failed while handling ${token}`);
+    };
+    const response = server.post('load', {}, token);
+    expect(response.error).toEqual({ code: 'INTERNAL', message: 'Something went wrong on the server. Try again.' });
+    const logged = errorSpy.mock.calls.flat().join(' ');
+    expect(logged).toContain('Unhandled server error in load: Error: Service Spreadsheets failed while handling <token>');
+    expect(logged).toMatch(/\n\s+at readRows_ \(Code\.gs:\d+/);
+    expect(logged).not.toContain(token);
+    expect(logged).not.toContain(JSON.stringify({ idToken: token, op: 'load', payload: {} }));
     errorSpy.mockRestore();
   });
 });

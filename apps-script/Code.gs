@@ -33,15 +33,29 @@ class ApiError extends Error {
 }
 
 function doPost(e) {
+  let request = {};
   let body;
   try {
-    const request = JSON.parse(e.postData.contents);
+    request = readRequest_(e);
     const email = verifyToken_(request.idToken);
     body = { ok: true, data: dispatch_(request.op, request.payload || {}, email) };
   } catch (err) {
-    body = { ok: false, error: errorBody_(err) };
+    body = { ok: false, error: errorBody_(err, request) };
   }
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Parsed on its own so that a JSON.parse error, which quotes the raw body and its idToken, is
+// never logged: a body that can't be read has no known token to mask.
+function readRequest_(e) {
+  let request;
+  try {
+    request = JSON.parse(e.postData.contents);
+  } catch (err) {
+    request = null;
+  }
+  if (request === null || typeof request !== 'object') throw new ApiError('BAD_REQUEST', 'The request could not be read.');
+  return request;
 }
 
 function dispatch_(op, payload, email) {
@@ -63,11 +77,23 @@ function dispatch_(op, payload, email) {
   }
 }
 
-function errorBody_(err) {
-  if (err instanceof ApiError) return Object.assign({ code: err.code, message: err.message }, err.extra);
-  // Never log err.message: for a JSON.parse failure it can echo the raw request body, idToken included.
-  console.error('Unhandled server error', err && err.name);
+// doPost answers every error itself, so the Executions page lists each run as Completed and these
+// lines are the owner's only trace of what went wrong. Every line has the caller's token masked.
+function errorBody_(err, request) {
+  if (err instanceof ApiError) {
+    // The other refusals are the volunteer's to fix; these show how often the tracker is
+    // overloaded, and who was turned away (an Allowlist typo, say).
+    if (err.code === 'BUSY' || err.code === 'FORBIDDEN') console.warn(maskToken_(err.code + ' in ' + request.op + ': ' + err.message, request.idToken));
+    return Object.assign({ code: err.code, message: err.message }, err.extra);
+  }
+  // The whole stack, message included, because "Service Spreadsheets timed out" and a TypeError
+  // need different fixes. readRequest_ and fetchTokenInfo_ keep out the errors that quote the token.
+  console.error(maskToken_('Unhandled server error in ' + request.op + ': ' + (err && err.stack ? err.stack : err), request.idToken));
   return { code: 'INTERNAL', message: 'Something went wrong on the server. Try again.' };
+}
+
+function maskToken_(text, token) {
+  return typeof token === 'string' && token !== '' ? String(text).split(token).join('<token>') : String(text);
 }
 
 function clientId_() {
@@ -88,7 +114,7 @@ function verifyToken_(token) {
   const cacheKey = 'tok_' + clientId + '_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
   let email = cache.get(cacheKey);
   if (!email) {
-    const response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+    const response = fetchTokenInfo_(token);
     if (response.getResponseCode() !== 200) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
     const info = JSON.parse(response.getContentText());
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -101,6 +127,15 @@ function verifyToken_(token) {
   // Not cached, so removing someone from the Allowlist takes effect on their next request.
   if (allowlist_().indexOf(email) < 0) throw new ApiError('FORBIDDEN', email + ' is not on the volunteer list.');
   return email;
+}
+
+// A failed fetch's own error quotes the URL, token included, so a fixed one is thrown instead.
+function fetchTokenInfo_(token) {
+  try {
+    return UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+  } catch (err) {
+    throw new Error('tokeninfo request failed');
+  }
 }
 
 // Rejects malformed tokens and tokens minted for a different app locally, before spending a

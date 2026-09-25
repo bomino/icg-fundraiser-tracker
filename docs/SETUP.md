@@ -71,3 +71,11 @@ The Sheet is the only copy of the fundraiser's records — there is no separate 
 | *The 3rd column of the "Pledges" tab should be …* | A column was inserted, moved or deleted in that tab, or its header row was cleared (step 1.9). Undo it with **File → Version history**, or move a new column to the right of `updatedBy`. |
 | *The "Pledges" tab is missing* | The tab was renamed or deleted. Rename it back, or restore a deleted one with **File → Version history**. Don't run `setup()` again: it adds a new, empty tab and leaves the records in the renamed one. |
 | *Someone else deleted this row* when **adding** a pledge or payment, or *Missing or malformed row id* | The site and `Code.gs` are out of step: `Code.gs` was changed without deploying a **new version**, or the site wasn't rebuilt. Redeploy `Code.gs` (**Manage deployments → ✎ → New version**) and re-run the site's workflow. |
+
+### Reading the server's log
+
+When a volunteer reports *Something went wrong on the server*, or you want to check the tracker is healthy, open the Sheet's **Extensions → Apps Script**, then **Executions** in the left-hand menu. Each `doPost` row is one request from the app. The server answers every problem itself, so a failed request still shows as **Completed**: click the row to open its log. Most runs log nothing. These are the lines to look for:
+
+- `BUSY in upsertPledge: The tracker is busy…`: a save waited more than 10 seconds for other saves to finish, and the volunteer was asked to try again. The odd one on a busy day is harmless; many close together mean the Sheet is slow or very busy.
+- `FORBIDDEN in load: someone@example.com is not on the volunteer list.`: that Google account was turned away. If it belongs to a volunteer, compare it with their row on the **Allowlist** tab (step 1.6).
+- `Unhandled server error in <operation>: …`: something unexpected failed, and its first line says what. `Service Spreadsheets timed out` or a quota message is on Google's side, so try again later. A `TypeError` or `ReferenceError` just after a `Code.gs` change is a mistake in that change: switch the deployment back to the previous version (**Manage deployments → ✎ → Version**). The `at …` lines below it name the function and the `Code` line that failed. Where a volunteer's sign-in token would appear, the log shows `<token>` instead.

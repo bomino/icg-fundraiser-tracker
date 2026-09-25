@@ -55,7 +55,8 @@ export function createServer() {
   const state: {
     fetchCount: number;
     // Throws on the *next* fetch call only, then resets itself, mimicking a one-off transient
-    // network failure rather than a permanently broken connection.
+    // network failure rather than a permanently broken connection. Like the real UrlFetchApp, the
+    // error's message quotes the URL, and so the id_token in it.
     fetchThrows: boolean;
     lockAvailable: boolean;
     // How long (ms) it takes the lock to free up while `lockAvailable` is false. `tryLock(ms)`
@@ -87,7 +88,7 @@ export function createServer() {
       fetch: (url: string) => {
         if (state.fetchThrows) {
           state.fetchThrows = false;
-          throw new Error('Simulated network failure calling tokeninfo');
+          throw new Error(`Address unavailable: ${url}`);
         }
         state.fetchCount += 1;
         const token = decodeURIComponent(new URL(url).searchParams.get('id_token') ?? '');
