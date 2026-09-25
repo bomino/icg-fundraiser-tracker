@@ -166,6 +166,8 @@ describe('showToast', () => {
     showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
     vi.advanceTimersByTime(8000);
     expect(toasts().map((toast) => toast.classList.contains('toast-with-action'))).toEqual([true]);
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    expect(toasts()).toHaveLength(1);
     button('Dismiss').click();
     expect(toasts()).toHaveLength(0);
   });

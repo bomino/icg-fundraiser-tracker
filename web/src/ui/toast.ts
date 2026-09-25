@@ -87,7 +87,7 @@ export function showToast(message: string, kind: 'info' | 'error' = 'info', acti
   });
   dismiss.addEventListener('click', close);
   syncReady();
-  // No expiry: the row is already gone from the list, so Reopen holds the only copy of what was typed,
+  // No expiry: the store has already rolled the change back, so Reopen holds the only copy of what was typed,
   // and the toast may have landed unseen behind a form or the Friday display. Losing it is the
   // volunteer's choice (Dismiss), never a timer's.
   region(kind).append(toast);
