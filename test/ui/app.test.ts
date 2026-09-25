@@ -304,6 +304,24 @@ describe('mountApp', () => {
     expect([redrawn.selectionStart, redrawn.selectionEnd]).toEqual([2, 3]);
   });
 
+  it('keeps focus and the choice in the phone Sort by list when the store publishes', () => {
+    const { store, publish } = fakeStore();
+    mountApp(root, { store, auth: fakeAuth() });
+    const sortBy = root.querySelector('.sort-by select') as HTMLSelectElement;
+    sortBy.focus();
+    sortBy.value = ([...sortBy.options].find((option) => option.textContent === 'Name A–Z') as HTMLOptionElement).value;
+    sortBy.dispatchEvent(new Event('change'));
+
+    publish();
+
+    const redrawn = root.querySelector('.sort-by select') as HTMLSelectElement;
+    expect({ replaced: redrawn !== sortBy, focused: document.activeElement === redrawn, shown: redrawn.selectedOptions[0]?.textContent }).toEqual({
+      replaced: true,
+      focused: true,
+      shown: 'Name A–Z',
+    });
+  });
+
   it('starts each Data-health Show with a clear search, but keeps a search typed there when the store publishes', async () => {
     history.replaceState(null, '', '#payments');
     const { store, publish } = fakeStore([payment({ id: 'y1', phone: '555-010-0101', amountReceived: 40 }), payment({ id: 'y2', phone: '555-999-0000', amountReceived: 35 })]);

@@ -33,6 +33,13 @@ describe('find donor', () => {
     expect(view.textContent).toContain('Partial');
   });
 
+  it('labels the payment history columns with plain text, since that table cannot be sorted', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(view, '555-010-0101');
+    expect(view.querySelector('.lookup-card thead button')).toBeNull();
+    expect([...view.querySelectorAll('.lookup-card thead th')].map((th) => th.textContent)).toEqual(['Date', 'Amount', 'Method', 'Notes']);
+  });
+
   it('lists name matches, then opens the chosen donor', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, 'aisha');

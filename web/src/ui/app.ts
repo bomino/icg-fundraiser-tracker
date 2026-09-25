@@ -141,18 +141,20 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     main,
   ];
 
-  // Store publishes rebuild the whole view; without this a volunteer typing a search loses the box mid-word.
-  function focusedSearch() {
+  // Store publishes rebuild the whole view; without this a volunteer typing a search loses the box mid-word, and a
+  // background reload pulls focus off a phone's Sort by list.
+  function focusedKey() {
     const active = document.activeElement;
-    if (!(active instanceof HTMLInputElement) || !main.contains(active) || !active.dataset.focusKey) return null;
-    return { key: active.dataset.focusKey, start: active.selectionStart, end: active.selectionEnd };
+    if (!(active instanceof HTMLElement) || !main.contains(active) || !active.dataset.focusKey) return null;
+    const input = active instanceof HTMLInputElement ? active : null;
+    return { key: active.dataset.focusKey, start: input?.selectionStart ?? null, end: input?.selectionEnd ?? null };
   }
 
   function restoreFocus(focus: { key: string; start: number | null; end: number | null }) {
-    const input = main.querySelector<HTMLInputElement>(`input[data-focus-key="${focus.key}"]`);
-    if (!input) return;
-    input.focus();
-    if (focus.start !== null && focus.end !== null) input.setSelectionRange(focus.start, focus.end);
+    const control = main.querySelector<HTMLElement>(`[data-focus-key="${focus.key}"]`);
+    if (!control) return;
+    control.focus();
+    if (control instanceof HTMLInputElement && focus.start !== null && focus.end !== null) control.setSelectionRange(focus.start, focus.end);
   }
 
   function render() {
@@ -198,7 +200,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
             location.hash = target;
           },
         });
-    const focus = focusedSearch();
+    const focus = focusedKey();
     main.replaceChildren(content);
     if (focus) restoreFocus(focus);
     rememberView(view);

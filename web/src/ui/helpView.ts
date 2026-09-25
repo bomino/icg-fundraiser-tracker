@@ -40,6 +40,9 @@ const SAID = {
   saved: 'Saved.',
   couldNotSave: "Couldn't save",
   couldNotDelete: "Couldn't delete",
+  sortBy: 'Sort by',
+  oldestFirst: 'Oldest first',
+  defaultOrder: 'Default order',
 } as const;
 
 export const QUOTED_MESSAGES: readonly string[] = Object.values(SAID);
@@ -272,7 +275,8 @@ function theScreens(): Child[] {
       'Search and sort',
       bullets(
         ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too. Clear the box to see everything again.'],
-        ['Lists start with the most recently added entry, so a pledge or payment you have just added is at the top. Tap a column heading to sort by it. Tap it again to reverse the order, and a third time to go back to the order the list started in.'],
+        ['Lists start with the most recently added entry, so a pledge or payment you have just added is at the top. Tap a column heading to sort by it. An arrow beside the heading shows which way: ▲ is A to Z, smallest or oldest first, and ▼ is the reverse. Tap it again to reverse the order, and a third time to go back to the order the list started in.'],
+        ['On a phone, use ', b(SAID.sortBy), ' above the list instead. Each choice says which way it sorts, and ', b(SAID.oldestFirst), ' goes by the date on each entry. ', b(SAID.defaultOrder), ' goes back to the order the list started in.'],
         [
           'On Pledges, the ',
           b('Pending'),
@@ -302,7 +306,7 @@ function theScreens(): Child[] {
     ),
     topic(
       'On a phone',
-      p('On a narrow screen each row becomes a small card, with the column name on the left of every value. Everything works the same way: tap a card to open it.'),
+      p('On a narrow screen each row becomes a small card, with the column name on the left of every value. Tap a card to open it. The column headings are hidden, so to sort, use ', b(SAID.sortBy), ' above the list.'),
     ),
   ];
 }

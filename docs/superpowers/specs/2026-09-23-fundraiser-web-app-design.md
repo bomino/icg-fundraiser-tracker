@@ -203,7 +203,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
   - With no column sorted, the most recently added row comes first (the reverse of Sheet order), so a just-added row is on the first page (an edited row keeps its place). A third tap on a sorted header returns to the default order.
   - Derived columns are read-only and styled differently.
   - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date.
-  - On narrow screens the table collapses to cards.
+  - On narrow screens the table collapses to cards. The column headers are hidden there, so a "Sort by" list above the table takes over sorting. Each option names its direction ("Amount: largest first"), and "Default order" returns to the default. On wider screens the sorted header shows a ▲ or ▼ arrow.
 - **Add/edit dialog**
   - Entry fields only.
   - Payment method is a `<select>` from Settings.

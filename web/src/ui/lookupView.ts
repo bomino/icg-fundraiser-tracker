@@ -41,7 +41,7 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], onLogPaymen
     donor.duplicate ? h('p', { class: 'hint hint-warning' }, 'This phone number is on more than one pledge, so its payments are counted twice. Remove the extra pledge.') : null,
     h('dl', {}, ...rows.flatMap(([label, value]) => [h('dt', {}, label), h('dd', {}, value)])),
     h('h3', { class: 'heading-md' }, 'Payments'),
-    renderTable({ columns: HISTORY, rows: payments, sort: null, rowId: (d) => d.payment.id, pending: (d) => isPending(d.payment), onSort: () => undefined, empty: 'No payments recorded for this donor.' }),
+    renderTable({ columns: HISTORY, rows: payments, sort: null, rowId: (d) => d.payment.id, pending: (d) => isPending(d.payment), empty: 'No payments recorded for this donor.' }),
   );
 }
 

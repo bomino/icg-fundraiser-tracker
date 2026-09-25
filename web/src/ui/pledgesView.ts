@@ -11,7 +11,7 @@ import { filterChip, showingLine, toggleChip, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import { openPledgeForm } from './pledgeForm';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
-import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type SortState } from './table';
+import { nextSort, renderTable, sortRows, sortSelect, TABLE_PAGE_SIZE, type Column, type SortOption, type SortState } from './table';
 
 export interface ListViewDeps {
   store: Store;
@@ -34,6 +34,14 @@ const COLUMNS: Column<DerivedPledge>[] = [
 const ALL_CHIP = 'All';
 const FOLLOW_UP_CHIP = 'Needs follow-up';
 const STATUS_CHIPS: readonly string[] = [ALL_CHIP, STATUS.pending, STATUS.partial, STATUS.paid, STATUS.overpaid, FOLLOW_UP_CHIP];
+
+const SORT_OPTIONS: readonly SortOption[] = [
+  { label: 'Default order', sort: null },
+  { label: 'Oldest first', sort: { key: 'datePledged', direction: 'asc' } },
+  { label: 'Amount: largest first', sort: { key: 'amountPledged', direction: 'desc' } },
+  { label: 'Balance: largest first', sort: { key: 'balance', direction: 'desc' } },
+  { label: 'Name A–Z', sort: { key: 'name', direction: 'asc' } },
+];
 
 export function createPledgesView(deps: ListViewDeps) {
   let query = '';
@@ -88,6 +96,15 @@ export function createPledgesView(deps: ListViewDeps) {
     };
     const tableSlot = h('div');
     const showing = h('div');
+    const sortBy = sortSelect(
+      SORT_OPTIONS,
+      sort,
+      (picked) => {
+        sort = picked;
+        drawTable();
+      },
+      'pledges-sort',
+    );
     const drawTable = () => {
       const rows = state.computed.pledges.filter(
         (d) => (!filter || filter.ids.has(d.pledge.id)) && matchesChip(d) && matchesQuery(query, [d.pledge.phone, d.pledge.name, d.pledge.notes], d.key),
@@ -96,7 +113,7 @@ export function createPledgesView(deps: ListViewDeps) {
       // page is drawn, so a just-saved row and its "Saving…" state would otherwise land out of sight.
       const addedOrder = sort ? rows : [...rows].reverse();
       // "Needs follow-up" defaults to worst-balance-first, and the sort is stable, so equal balances stay most recently
-      // added first; a column click still wins once the volunteer picks one.
+      // added first; a sort picked from a heading or the phone's Sort by list still wins.
       const ordered = statusChip === FOLLOW_UP_CHIP && !sort ? [...addedOrder].sort((a, b) => (b.balanceCents ?? 0) - (a.balanceCents ?? 0)) : addedOrder;
       tableSlot.replaceChildren(
         renderTable({
@@ -119,6 +136,7 @@ export function createPledgesView(deps: ListViewDeps) {
           },
         }),
       );
+      sortBy.show(sort);
       const line = showingLine(!!filter || query.trim() !== '' || statusChip !== ALL_CHIP, rows.length, state.computed.pledges.length);
       showing.replaceChildren(...(line ? [line] : []));
     };
@@ -151,7 +169,7 @@ export function createPledgesView(deps: ListViewDeps) {
       { class: 'view' },
       h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Donors'), h('h1', { class: 'display-md' }, 'Pledges')), add),
       h('p', { class: 'totals-band' }, `Pledged ${formatCents(totals.pledgedCents)} · Received ${formatCents(totals.receivedCents)} · Outstanding ${formatCents(totals.outstandingCents)} · ${totals.pledgePaymentCount} payments`),
-      h('div', { class: 'toolbar' }, search, filter ? filterChip(filter, clearFilter) : null),
+      h('div', { class: 'toolbar' }, search, sortBy.wrapper, filter ? filterChip(filter, clearFilter) : null),
       chipRow,
       showing,
       tableSlot,

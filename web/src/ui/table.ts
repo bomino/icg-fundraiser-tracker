@@ -23,7 +23,8 @@ export interface TableOptions<R> {
   rowClass?: (row: R) => string | undefined;
   /** A row whose save has not been confirmed: faded, labelled "Saving…", and not openable, since editing it would start from a version about to be replaced. */
   pending?: (row: R) => boolean;
-  onSort: (key: string) => void;
+  /** Omitted for a table that cannot be reordered (Find donor's history), whose headings are then plain text rather than buttons that do nothing. */
+  onSort?: (key: string) => void;
   onOpen?: (row: R) => void;
   empty: string;
   /**
@@ -43,6 +44,43 @@ export const TABLE_PAGE_SIZE = 100;
 export function nextSort(current: SortState | null, key: string): SortState | null {
   if (current?.key !== key) return { key, direction: 'asc' };
   return current.direction === 'asc' ? { key, direction: 'desc' } : null;
+}
+
+export interface SortOption {
+  label: string;
+  /** null is the list's own default order. */
+  sort: SortState | null;
+}
+
+export interface SortSelect {
+  wrapper: HTMLElement;
+  /** Called on every redraw, since a heading tap on a wide screen changes the sort without going through this list. */
+  show(sort: SortState | null): void;
+}
+
+const sameSort = (a: SortState | null, b: SortState | null) => a?.key === b?.key && a?.direction === b?.direction;
+
+/**
+ * The sort control on a phone, where the CSS hides the column headings (each card already labels its values) and shows
+ * this instead. Every option names its direction, so nobody has to sort twice to find out which way it went.
+ */
+export function sortSelect(options: readonly SortOption[], sort: SortState | null, onChange: (sort: SortState | null) => void, focusKey: string): SortSelect {
+  const select = h('select', { class: 'input', 'data-focus-key': focusKey }, ...options.map((option, index) => h('option', { value: String(index) }, option.label)));
+  // Reachable only by sorting from a heading on a wide screen and then narrowing the window.
+  const headingSort = h('option', { value: '', disabled: true }, 'Sorted by a column heading');
+  const show = (current: SortState | null) => {
+    const index = options.findIndex((option) => sameSort(option.sort, current));
+    if (index === -1) select.append(headingSort);
+    else headingSort.remove();
+    select.value = index === -1 ? headingSort.value : String(index);
+  };
+  select.addEventListener('change', () => {
+    // Past the end of `options` sits only the heading-sort option, which is not a sort anyone can pick.
+    const picked = options[select.selectedIndex];
+    if (picked) onChange(picked.sort);
+  });
+  show(sort);
+  return { wrapper: h('label', { class: 'meta sort-by' }, 'Sort by', select), show };
 }
 
 const isBlank = (value: string | number | null) => value === null || value === '';
@@ -65,14 +103,17 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
   if (options.rows.length === 0) return h('p', { class: 'empty' }, options.empty);
   const visibleCount = Math.min(options.visibleCount ?? options.rows.length, options.rows.length);
   const visibleRows = options.rows.slice(0, visibleCount);
+  const { onSort } = options;
   const head = h(
     'tr',
     {},
     ...options.columns.map((column) => {
       const sorted = options.sort?.key === column.key ? options.sort.direction : null;
+      const heading = (content: Child) => h('th', { scope: 'col', class: column.numeric ? 'num' : undefined, 'aria-sort': sorted === null ? undefined : sorted === 'asc' ? 'ascending' : 'descending' }, content);
+      if (!onSort) return heading(h('span', { class: 'eyebrow' }, column.label));
       const button = h('button', { type: 'button' }, column.label);
-      button.addEventListener('click', () => options.onSort(column.key));
-      return h('th', { scope: 'col', class: column.numeric ? 'num' : undefined, 'aria-sort': sorted === null ? undefined : sorted === 'asc' ? 'ascending' : 'descending' }, button);
+      button.addEventListener('click', () => onSort(column.key));
+      return heading(button);
     }),
   );
   const body = h(

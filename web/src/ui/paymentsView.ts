@@ -10,7 +10,7 @@ import { filterChip, showingLine, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
-import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type SortState } from './table';
+import { nextSort, renderTable, sortRows, sortSelect, TABLE_PAGE_SIZE, type Column, type SortOption, type SortState } from './table';
 
 const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'phone', label: 'Phone Number', value: (d) => d.payment.phone },
@@ -19,6 +19,13 @@ const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'amount', label: 'Amount', numeric: true, value: (d) => d.payment.amountReceived, display: (d) => formatCents(toCents(d.payment.amountReceived)) },
   { key: 'method', label: 'Method', value: (d) => d.payment.method, display: (d) => methodBadge(d.payment.method) },
   { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },
+];
+
+const SORT_OPTIONS: readonly SortOption[] = [
+  { label: 'Default order', sort: null },
+  { label: 'Oldest first', sort: { key: 'dateReceived', direction: 'asc' } },
+  { label: 'Amount: largest first', sort: { key: 'amount', direction: 'desc' } },
+  { label: 'Name A–Z', sort: { key: 'donor', direction: 'asc' } },
 ];
 
 export function createPaymentsView(deps: ListViewDeps) {
@@ -68,6 +75,15 @@ export function createPaymentsView(deps: ListViewDeps) {
     };
     const tableSlot = h('div');
     const showing = h('div');
+    const sortBy = sortSelect(
+      SORT_OPTIONS,
+      sort,
+      (picked) => {
+        sort = picked;
+        drawTable();
+      },
+      'payments-sort',
+    );
     const drawTable = () => {
       const rows = state.computed.payments.filter(
         (d) =>
@@ -98,6 +114,7 @@ export function createPaymentsView(deps: ListViewDeps) {
           },
         }),
       );
+      sortBy.show(sort);
       const line = showingLine(!!filter || query.trim() !== '' || dateFilterActive(), rows.length, state.computed.payments.length);
       showing.replaceChildren(...(line ? [line] : []));
     };
@@ -145,7 +162,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       { class: 'view' },
       h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Money received'), h('h1', { class: 'display-md' }, 'Payments')), add),
       h('p', { class: 'totals-band' }, `${totals.paymentsWithAmount} payments · ${formatCents(totals.loggedCents)} logged`),
-      h('div', { class: 'toolbar' }, search, dateRange, clearDates, filter ? filterChip(filter, clearFilter) : null),
+      h('div', { class: 'toolbar' }, search, sortBy.wrapper, dateRange, clearDates, filter ? filterChip(filter, clearFilter) : null),
       showing,
       tableSlot,
     );

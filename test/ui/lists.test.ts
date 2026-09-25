@@ -26,6 +26,14 @@ const type = (input: HTMLInputElement, value: string) => {
   input.value = value;
   input.dispatchEvent(new Event('input'));
 };
+const sortBy = (view: HTMLElement) => view.querySelector('.sort-by select') as HTMLSelectElement;
+const sortChoices = (view: HTMLElement) => [...sortBy(view).options].map((option) => option.textContent);
+const sortShown = (view: HTMLElement) => sortBy(view).selectedOptions[0]?.textContent;
+const pickSort = (view: HTMLElement, label: string) => {
+  const select = sortBy(view);
+  select.value = ([...select.options].find((option) => option.textContent === label) as HTMLOptionElement).value;
+  select.dispatchEvent(new Event('change'));
+};
 
 describe('pledges view', () => {
   it('marks duplicates red and filters by search without losing the box', () => {
@@ -123,6 +131,31 @@ describe('pledges view: status chips and follow-up', () => {
     document.body.append(view);
     chip(view, 'Needs follow-up').click();
     expect(ids(view)).toEqual(['f5', 'f4', 'f1']);
+  });
+
+  it('sorts from the phone Sort by list, whose Default order keeps "Needs follow-up" biggest balance first', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    expect(sortChoices(view)).toEqual(['Default order', 'Oldest first', 'Amount: largest first', 'Balance: largest first', 'Name A–Z']);
+    expect(sortShown(view)).toBe('Default order');
+    pickSort(view, 'Oldest first');
+    expect(ids(view)).toEqual(['f3', 'f4', 'f1', 'f2']);
+    pickSort(view, 'Balance: largest first');
+    expect(ids(view)).toEqual(['f4', 'f1', 'f2', 'f3']);
+    chip(view, 'Needs follow-up').click();
+    pickSort(view, 'Name A–Z');
+    expect(ids(view)).toEqual(['f1', 'f4']);
+    pickSort(view, 'Default order');
+    expect(ids(view)).toEqual(['f4', 'f1']);
+  });
+
+  it('keeps the picked sort when the store re-renders the view', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() });
+    document.body.append(view(followUpState, null, () => undefined));
+    pickSort(document.body, 'Name A–Z');
+    document.body.replaceChildren(view(followUpState, null, () => undefined));
+    expect(sortShown(document.body)).toBe('Name A–Z');
+    expect(ids(document.body)).toEqual(['f1', 'f2', 'f3', 'f4']);
   });
 
   it('lets a column sort override the default balance ordering under "Needs follow-up"', () => {
@@ -247,6 +280,28 @@ describe('payments view: date range', () => {
     expect(ids(document.body)).toEqual(['r3', 'r2', 'r1', 'r4']);
     dateHeader().click();
     expect(ids(document.body)).toEqual(['r4', 'r3', 'r2', 'r1']);
+  });
+
+  it('sorts from the phone Sort by list, which offers no balance on Payments', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    expect(sortChoices(view)).toEqual(['Default order', 'Oldest first', 'Amount: largest first', 'Name A–Z']);
+    pickSort(view, 'Oldest first');
+    expect(ids(view)).toEqual(['r1', 'r2', 'r3', 'r4']);
+    pickSort(view, 'Default order');
+    expect(ids(view)).toEqual(['r4', 'r3', 'r2', 'r1']);
+  });
+
+  it('shows a heading sort in the Sort by list too, so narrowing the window never shows a stale choice', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    const amountHeader = () => Array.from(view.querySelectorAll<HTMLButtonElement>('th button')).find((b) => b.textContent === 'Amount') as HTMLButtonElement;
+    amountHeader().click();
+    expect(sortShown(view)).toBe('Sorted by a column heading');
+    amountHeader().click();
+    expect(sortShown(view)).toBe('Amount: largest first');
+    amountHeader().click();
+    expect(sortShown(view)).toBe('Default order');
   });
 
   it('clears both bounds with the Clear dates control', () => {
