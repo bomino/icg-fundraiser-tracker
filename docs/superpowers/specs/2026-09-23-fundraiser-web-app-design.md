@@ -209,7 +209,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
   - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed.
   - Help text under each field reuses the workbook's header tooltips.
   - Delete lives inside the edit dialog and asks for confirmation.
-- **Export:** SheetJS builds a workbook with a Pledges sheet (entries plus derived columns), a Payments sheet and a Summary sheet. It's a backup and treasurer copy, not a round-trip format.
+- **Export:** SheetJS builds a workbook that opens on a Summary sheet, followed by a Pledges sheet (entries plus derived columns) and a Payments sheet. It's a backup and treasurer copy, not a round-trip format, so it's laid out to be read in Excel as it opens: columns sized to their contents (capped at about 40 characters), money in the app's accounting style ($1,650.30, a credit as ($50.00)), and a header filter on Pledges and Payments. There are no print titles (a malformed `_xlnm.Print_Titles` name makes Excel offer to repair the file) and no frozen header row (SheetJS CE can't write one).
 
 **Validation**, identical on client and server:
 - `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23.

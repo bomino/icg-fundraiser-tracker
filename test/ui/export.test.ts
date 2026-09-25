@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compute } from '../../web/src/engine';
 import type { State } from '../../web/src/store';
-import { DATE_SHEET_OPTIONS, buildSummarySheet, paymentSheetRows, pledgeSheetRows, summarySheetRows } from '../../web/src/ui/export';
+import { DATE_SHEET_OPTIONS, buildSummarySheet, buildWorkbook, paymentSheetRows, pledgeSheetRows, summarySheetRows } from '../../web/src/ui/export';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 const utc = (year: number, month: number, day: number) => new Date(Date.UTC(year, month - 1, day));
@@ -71,5 +71,84 @@ describe('workbook date cells', () => {
     expect(sheet['C2'].z).toBe('yyyy-mm-dd');
     expect(sheet['C2'].v).toEqual(utc(2026, 3, 1));
     expect(sheet['C3']).toBeUndefined();
+  });
+});
+
+describe('workbook layout', () => {
+  const MONEY_FORMAT = '"$"#,##0.00;("$"#,##0.00)';
+  const longNote = 'Pays in instalments after each Friday prayer until the end of Ramadan';
+  const layoutPledges = [
+    pledge({ phone: '555-0101', name: 'Aisha', datePledged: '2026-03-01', amountPledged: 1000, notes: longNote }),
+    pledge({ phone: '555-0102', name: 'Bilal', datePledged: '2026-03-02', amountPledged: 50 }),
+  ];
+  const layoutPayments = [
+    payment({ phone: '555-0101', dateReceived: '2026-03-05', amountReceived: 650.3, method: 'Cash' }),
+    payment({ phone: '555-0102', dateReceived: '2026-03-06', amountReceived: 100, method: 'Check' }),
+  ];
+  const layoutState: State = {
+    pledges: layoutPledges,
+    payments: layoutPayments,
+    settings: SETTINGS,
+    me: 'me@example.com',
+    computed: compute(layoutPledges, layoutPayments, SETTINGS, TODAY),
+  };
+  const summaryCell = (sheet: import('xlsx').WorkSheet, label: string) => sheet[`B${summarySheetRows(layoutState).findIndex((row) => row[0] === label) + 1}`];
+
+  it('opens on the Summary sheet, ahead of Pledges and Payments', async () => {
+    const book = await buildWorkbook(layoutState);
+    expect(book.SheetNames).toEqual(['Summary', 'Pledges', 'Payments']);
+  });
+
+  it('widens every date column past the Excel default, so a date never shows as ########', async () => {
+    const { Sheets } = await buildWorkbook(layoutState);
+    // Pledges C and E are Date Pledged and Last Payment Date; Payments C is Date Received.
+    expect(Sheets.Pledges['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
+    expect(Sheets.Pledges['!cols']?.[4].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
+    expect(Sheets.Payments['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
+  });
+
+  it('sizes each column to its longest text, counting money as Excel shows it, but caps a long note', async () => {
+    const { Sheets } = await buildWorkbook(layoutState);
+    expect(Sheets.Pledges['!cols']?.[1].wch).toBeGreaterThanOrEqual('Donor Name'.length);
+    const notesWidth = Sheets.Pledges['!cols']?.[9].wch ?? 0;
+    expect(notesWidth).toBeGreaterThanOrEqual('Notes'.length);
+    expect(notesWidth).toBeLessThan(longNote.length);
+    expect(Sheets.Summary['!cols']?.[0].wch).toBeGreaterThanOrEqual('Total (should match Payments Logged)'.length);
+    // The goal reads "$10,000.00" in Excel, twice as wide as the bare number 10000.
+    expect(Sheets.Summary['!cols']?.[1].wch).toBeGreaterThanOrEqual('$10,000.00'.length);
+  });
+
+  it('formats every money cell as dollars and cents, with a credit in brackets', async () => {
+    const { Sheets } = await buildWorkbook(layoutState);
+    // Pledges D, F and G are Amount Pledged, Amount Received and Balance Due; Payments D is the amount.
+    for (const ref of ['D2', 'F2', 'G2', 'D3', 'F3', 'G3']) expect(Sheets.Pledges[ref].z).toBe(MONEY_FORMAT);
+    expect(Sheets.Pledges['G3'].v).toBe(-50);
+    expect(Sheets.Payments['D2'].z).toBe(MONEY_FORMAT);
+    expect(Sheets.Pledges['H2'].z).toBeUndefined();
+    expect(Sheets.Pledges['C2'].z).toBe('yyyy-mm-dd');
+
+    for (const label of ['Fundraiser Goal ($)', 'Total Received ($)', 'Total Overpaid / Credit ($)', 'Cash', 'Check', 'Total (should match Payments Logged)']) {
+      expect(summaryCell(Sheets.Summary, label).z, label).toBe(MONEY_FORMAT);
+    }
+    expect(summaryCell(Sheets.Summary, 'Number of Donors (pledged)').z).toBeUndefined();
+    expect(summaryCell(Sheets.Summary, 'Donors listed more than once').z).toBeUndefined();
+    expect(summaryCell(Sheets.Summary, '% of Goal Received').z).toBe('0.0%');
+  });
+
+  it('puts a filter on the header row of each list, covering every entry, and none on Summary', async () => {
+    const { Sheets } = await buildWorkbook(layoutState);
+    expect(Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:K3' });
+    expect(Sheets.Payments['!autofilter']).toEqual({ ref: 'A1:G3' });
+    expect(Sheets.Summary['!autofilter']).toBeUndefined();
+  });
+
+  it('keeps that layout once written to a file and read back', async () => {
+    const XLSX = await import('xlsx');
+    const written = XLSX.write(await buildWorkbook(layoutState), { type: 'buffer', bookType: 'xlsx' });
+    const book = XLSX.read(written, { cellNF: true, cellStyles: true });
+    expect(book.SheetNames).toEqual(['Summary', 'Pledges', 'Payments']);
+    expect(book.Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:K3' });
+    expect(book.Sheets.Pledges['G3'].z).toBe(MONEY_FORMAT);
+    expect(book.Sheets.Pledges['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
   });
 });

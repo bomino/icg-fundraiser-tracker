@@ -428,9 +428,10 @@ function howTo(): Child[] {
       'Download a copy',
       steps(
         ['On ', b('Summary'), ', press ', b('Download .xlsx'), '.'],
-        ['Your device saves a file named like ICG-Fundraiser-2026-09-24.xlsx, with Pledges, Payments and Summary sheets.'],
+        ['Your device saves a file named like ICG-Fundraiser-2026-09-24.xlsx. It opens on the Summary sheet, followed by the Pledges and Payments sheets.'],
       ),
       p('The file is a snapshot of that moment. Changes made afterwards are not in it.'),
+      p('On the Pledges and Payments sheets, the small arrow beside each heading lets you show only some rows, for example only Partial pledges or only Cash payments.'),
     ),
     topic(
       'See only the problem rows',
