@@ -214,7 +214,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 
 **Validation**, identical on client and server:
 - `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23.
-- Amounts are blank or numbers ≥ 0 with at most 2 decimals.
+- Amounts are numbers ≥ 0 with at most 2 decimals. A pledge's amount may be blank; a payment's may not (0 is allowed), because a payment with no amount still counts toward # Payments and moves Last Payment, which drops a donor who paid nothing off Needs follow-up. Health check B24 still catches blank amounts on rows typed into the Sheet or saved before this rule.
 - Dates are blank or valid `YYYY-MM-DD`.
 - `method` is blank or one of the configured methods.
 - Text fields are at most 500 characters.

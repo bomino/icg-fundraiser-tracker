@@ -28,6 +28,7 @@ const SAID = {
   negative: 'Enter an amount of 0 or more.',
   decimals: 'Use at most 2 decimal places.',
   noPhone: "Enter the donor's phone number.",
+  noAmount: 'Enter the amount received.',
   pickMethod: 'Pick a method from the list.',
   duplicateHint: 'This phone number is already on the pledge for',
   discardPledge: 'Discard your changes to this pledge?',
@@ -549,7 +550,7 @@ function whenSomethingGoesWrong(): Child[] {
     topic(
       'Messages inside a form',
       p('These appear in red under a box when something in it needs fixing. Correct the box and press Save again.'),
-      bullets([said(SAID.notANumber)], [said(SAID.negative)], [said(SAID.decimals)], [said(SAID.noPhone)], [said(SAID.pickMethod)]),
+      bullets([said(SAID.notANumber)], [said(SAID.negative)], [said(SAID.decimals)], [said(SAID.noPhone)], [said(SAID.noAmount)], [said(SAID.pickMethod)]),
     ),
   ];
 }

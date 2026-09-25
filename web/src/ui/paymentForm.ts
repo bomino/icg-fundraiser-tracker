@@ -36,7 +36,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
     dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : todayIso(), help: PAYMENT_HELP.dateReceived }),
-    amountReceived: field({ name: 'amountReceived', label: 'Amount received ($)', inputmode: 'decimal', value: existing?.amountReceived?.toString() ?? '', help: PAYMENT_HELP.amountReceived }),
+    amountReceived: field({ name: 'amountReceived', label: 'Amount received ($)', inputmode: 'decimal', value: existing?.amountReceived?.toString() ?? '', help: PAYMENT_HELP.amountReceived, required: true }),
     method: field({ name: 'method', label: 'Payment method', type: 'select', options: options.methods, value: existing?.method ?? '', help: PAYMENT_HELP.method }),
     notes: field({ name: 'notes', label: 'Notes', type: 'textarea', value: existing?.notes ?? '', help: PAYMENT_HELP.notes }),
   };

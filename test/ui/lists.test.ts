@@ -319,6 +319,17 @@ describe('payment form', () => {
     expect(onSave.mock.calls[0][0]).toEqual({ phone: '555-010-0103', dateReceived: TODAY_LOCAL(), amountReceived: 1200, method: '', notes: '' });
   });
 
+  it('marks the amount as required and will not save a payment without one', () => {
+    const onSave = vi.fn(async () => undefined);
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave, reportError: vi.fn() });
+    const amount = document.querySelector('input[name=amountReceived]') as HTMLInputElement;
+    expect(amount.getAttribute('aria-required')).toBe('true');
+    (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(amount.closest('.field')?.querySelector('.field-error')?.textContent).toBe('Enter the amount received.');
+    expect(document.querySelector('dialog[open]')).not.toBeNull();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('saves a new payment under the id it was opened with', async () => {
     const onSave = vi.fn<PaymentFormOptions['onSave']>(async () => undefined);
     openPaymentForm({ newId: 'chosen-id', phone: '555-010-0103', methods: METHODS, pledges, onSave, reportError: vi.fn() });
