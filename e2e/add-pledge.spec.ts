@@ -12,7 +12,7 @@ test('adding a pledge shows it on the Pledges tab', async ({ page }) => {
   await dialog.getByLabel('Phone number').fill('555-9201');
   await dialog.getByLabel('Donor name').fill('Playwright Test Donor');
   await dialog.getByLabel('Amount pledged ($)').fill('321');
-  await dialog.getByRole('button', { name: 'Save' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
 
   await expect(page.getByText('Saved.')).toBeVisible();
   await expect(dialog).toBeHidden();

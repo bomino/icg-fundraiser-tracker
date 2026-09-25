@@ -170,6 +170,7 @@ Each non-zero item links to the Pledges or Payments view, filtered to the rows t
 ### 5.7 Donor lookup (B41–B50)
 - The input is normalized with `matchKey`, and the result is the **first** Pledges row with that key. That row's fields are shown (name, date pledged, amount, last payment date, received, balance, # payments, status, notes), or "Not found".
 - Beyond the workbook: the lookup also accepts a name search (case-insensitive substring), which lists the candidate rows, and it shows the matched donor's payment history.
+- The donor card is also a place to fix mistakes: **Edit pledge** and each payment row open the same edit forms as Pledges and Payments, and **Log a payment** opens a new payment with the donor's phone filled in. Once the pledge editor is opened from the card, the card stays on that pledge rather than on the search text, so changing the phone that was searched for does not turn it into "Not found".
 
 ## 6. Testing
 
@@ -211,14 +212,19 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - **Add/edit dialog**
   - Entry fields only.
   - Payment method is a `<select>` from Settings.
-  - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed.
+  - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed. For `⚠ phone not in Pledges` on a new payment it also says how to record a donor who hasn't pledged: Cancel, then Pledges → Add pledge → Save and log a payment. An existing payment never says this, as that path would enter its money a second time; adding a plain pledge with that phone makes it count.
+  - For `⚠ phone not in Pledges`, new or existing, the Payments dialog also asks about up to 3 pledges whose number is probably the one meant, comparing digits only: first the same number (the same last 10 digits when both have 10 or more, which covers a country code against a trunk 0, or identical digits), then a number of the same length, 7 digits or more, with one digit different or two neighbouring digits swapped. More than 3 of the latter means the numbers are too close to guess, so none of them is offered. Each is a question naming the donor, "Is this from Aisha Rahman (555-010-0101)?", with a **Use their number** button that fills in that pledge's phone. It is only ever a suggestion, never applied by itself, and the match key and the join are unchanged.
+  - On a new payment the donor line also says what the donor still owes ("owes $400.00 of $500.00", "has paid in full" or "has paid $50.00 more than pledged"). An edit shows no balance, as its payment is already in it; a pledge of 0 shows none; a donor listed more than once shows "listed more than once" instead, as their balance is double-counted. An amber note under the amount says when a payment with the same match key, amount and date is already logged — the Possible duplicate payments rule, applied while typing — and to press Cancel (Delete, on an edit) if it is the same payment. Both are advisory: Save stays enabled, since two real installments can match, and the note only knows the payments already loaded on that device.
+  - The Add pledge dialog has a **Save and log a payment** button, shown once a phone is typed. It saves the pledge as Save does, then opens the Payments dialog with that phone filled in, so a donor who pledges and pays at once is entered with the phone typed once. A Payments dialog opened with the phone filled in (from a pledge, the donor card or this button) starts with the cursor in the amount.
+  - The Add pledge and Log a payment dialogs opened from the Pledges and Payments headers have a **Save and add another** button. It saves as Save does, then opens an empty dialog for the next entry that keeps the date (and, for payments, the method) and starts in the phone number. That dialog saves nothing until something is typed in it: Save just closes it and Save and add another does nothing, so a double tap never enters a blank pledge. Nothing carries over otherwise: a plain Add or Log starts on today with no method, so a forgotten method still shows under "No method recorded" rather than a remembered one that looks right.
+  - The Edit pledge dialog warns when a new phone number would leave payments behind. Payments keep the number they were logged with, so once the typed number differs from the old one (ignoring formatting) it says how many payments were logged under the old number and that, after saving, each needs changing to the new number on Payments. It stays quiet while another pledge keeps the old number, since those payments stay matched to it. It never moves the payments itself.
   - Help text under each field reuses the workbook's header tooltips.
   - Delete lives inside the edit dialog and asks for confirmation.
 - **Export:** SheetJS builds a workbook with a Pledges sheet (entries plus derived columns), a Payments sheet and a Summary sheet. It's a treasurer copy, not a backup, and not a round-trip format: it has no row ids and no Allowlist, so the backup is the Sheet's own **File → Make a copy** (`docs/SETUP.md`, Data safety routine). Changed 2026-09-25.
 
 **Validation**, identical on client and server:
 - `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23.
-- Amounts are blank or numbers ≥ 0 with at most 2 decimals.
+- Amounts are numbers ≥ 0 with at most 2 decimals. A pledge's amount may be blank; a payment's may not (0 is allowed), because a payment with no amount still counts toward # Payments and moves Last Payment, which drops a donor who paid nothing off Needs follow-up. Health check B24 still catches blank amounts on rows typed into the Sheet or saved before this rule.
 - Dates are blank or valid `YYYY-MM-DD`.
 - `method` is blank or one of the configured methods.
 - Text fields are at most 500 characters.

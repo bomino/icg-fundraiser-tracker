@@ -23,8 +23,23 @@ export interface FormSpec<D> {
   onSave(draft: D): Promise<void>;
   onDelete?: () => Promise<void>;
   deleteMessage: string;
-  /** A secondary footer action (e.g. "Log a payment"). Disabled once Save is pressed. */
-  secondary?: { label: string; run(): void };
+  /**
+   * A secondary footer action (e.g. "Log a payment"). Disabled once Save is pressed. Set
+   * `discardsTyping` when it closes the form, so it asks first, as Cancel does, before losing typing.
+   * With `offered`, it is hidden whenever that returns false, checked again as any field is typed in.
+   */
+  secondary?: { label: string; run(): void; discardsTyping?: boolean; offered?: () => boolean };
+  /**
+   * Offers "Save and add another", for typing up a stack of entries: it saves exactly as Save does,
+   * then, once the dialog has closed, calls this with what was saved to open the next form.
+   */
+  addAnother?: (saved: D) => void;
+  /**
+   * Set on the empty form "Save and add another" opens. Until something is typed in it, it holds
+   * nothing to save: Save closes it, and "Save and add another" is ignored. A double tap's second
+   * press lands on this form's own button, and a pledge with every box empty would otherwise save.
+   */
+  nextEntry?: boolean;
   /** `context` names the interrupted change, e.g. "Couldn't save Aisha", because the form has already closed by then. */
   reportError(err: unknown, context: string): void;
   /**
@@ -58,6 +73,8 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Cancel');
   const remove = spec.onDelete ? h('button', { type: 'button', class: 'btn btn-danger' }, 'Delete') : null;
   const secondary = spec.secondary ? h('button', { type: 'button', class: 'btn btn-secondary' }, spec.secondary.label) : null;
+  // A plain button, not a second submit: Enter in a box submits with the first submit button, which must stay Save.
+  const addAnother = spec.addAnother ? h('button', { type: 'button', class: 'btn btn-secondary' }, 'Save and add another') : null;
   const formError = h('p', { class: 'hint hint-warning form-error', role: 'alert', hidden: true });
   spec.form.append(formError);
   const showFormError = (message: string | null) => {
@@ -66,9 +83,15 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
     // Long forms scroll inside the dialog; a volunteer reopening a failed save must still see why it failed.
     if (message !== null) formError.scrollIntoView({ block: 'nearest' });
   };
-  const dialog = openDialog(spec.title, spec.form, [secondary, remove, h('span', { class: 'spacer' }), cancel, save]);
-  const buttons = [save, cancel, remove, secondary].filter((b): b is HTMLButtonElement => b !== null);
+  // The "Save and …" actions lead, so a footer too wide for a phone wraps them onto rows of their own
+  // and keeps Cancel and Save together on the last one.
+  const dialog = openDialog(spec.title, spec.form, [secondary, addAnother, remove, h('span', { class: 'spacer' }), cancel, save]);
+  const buttons = [save, cancel, remove, secondary, addAnother].filter((b): b is HTMLButtonElement => b !== null);
   const typedValues = () => Object.fromEntries(Object.entries(spec.fields).map(([name, f]) => [name, f.input.value]));
+  // Taken before a Reopen refills the fields, so a reopened form counts as typed in: closing it must
+  // not silently lose the very values its error toast was there to bring back.
+  const openedWith = typedValues();
+  const typedSinceOpen = () => Object.entries(typedValues()).some(([name, value]) => value !== openedWith[name]);
   // Named as the row was when opened, so a failed delete names the row that is coming back.
   const openedAs = spec.describe(spec.read().draft);
 
@@ -87,19 +110,60 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
     (fieldName ? spec.fields[fieldName] : Object.values(spec.fields)[0])?.input.focus();
   }
 
-  cancel.addEventListener('click', () => dialog.close());
+  let askingToDiscard = false;
+  // On a phone Cancel sits right next to Save, and Escape or Back closes a form just as easily: a
+  // stray tap at a busy table must never silently lose a payment that was being typed in.
+  const askBeforeDiscarding = (then: () => void) => {
+    if (!typedSinceOpen()) {
+      then();
+      return;
+    }
+    if (askingToDiscard) return;
+    askingToDiscard = true;
+    void confirmDialog('Discard what you typed?', 'Discard', 'danger', 'Keep editing').then((discard) => {
+      askingToDiscard = false;
+      if (discard) then();
+    });
+  };
+
+  cancel.addEventListener('click', () => askBeforeDiscarding(() => dialog.close()));
+  dialog.element.addEventListener('cancel', (event) => {
+    // Chrome won't let a page hold back a close request with no tap or keypress since the last one;
+    // the form closes regardless then, and a question would be asking about a form already gone.
+    if (!event.cancelable || !typedSinceOpen()) return;
+    event.preventDefault();
+    askBeforeDiscarding(() => dialog.close());
+  });
 
   if (secondary && spec.secondary) {
-    const run = spec.secondary.run;
+    const { run, discardsTyping, offered } = spec.secondary;
     secondary.addEventListener('click', () => {
       if (secondary.disabled) return;
-      run();
+      if (discardsTyping) askBeforeDiscarding(run);
+      else run();
     });
+    if (offered) {
+      const offer = () => { secondary.hidden = !offered(); };
+      for (const f of Object.values(spec.fields)) f.input.addEventListener('input', offer);
+      offer();
+    }
   }
+
+  let addingAnother = false;
+  addAnother?.addEventListener('click', () => {
+    // requestSubmit runs the submit handler before it returns, so only this press's submit sees the flag.
+    addingAnother = true;
+    spec.form.requestSubmit();
+    addingAnother = false;
+  });
 
   spec.form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (save.disabled) return;
+    if (spec.nextEntry && !typedSinceOpen()) {
+      if (!addingAnother) dialog.close();
+      return;
+    }
     showFormError(null);
     const { draft, errors: parseErrors } = spec.read();
     const errors = { ...spec.validate(draft), ...parseErrors };
@@ -129,6 +193,9 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
         });
       },
     );
+    // Last, so this save's failure message is wired up whatever opening the next form does. This
+    // dialog has already closed, so the next form never stacks on it.
+    if (addingAnother) spec.addAnother?.(draft);
   });
 
   if (remove && spec.onDelete) {

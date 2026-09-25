@@ -9,13 +9,18 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 ## Features
 
 - **Pledges, Payments and Summary**, with totals, statuses and data-health checks verified against a frozen test fixture (`test/engine/parity.test.ts`).
-- **Donor lookup** by phone number (any formatting) or name, with a card showing a donor's pledge, payments and status — and a **Log a payment** button that carries the phone number straight into the payment form.
+- **Donor lookup** by phone number (any formatting) or name, with a card showing a donor's pledge, payments and status. From the card, **Log a payment** carries the phone number straight into the payment form, **Edit pledge** opens the donor's pledge, and tapping a payment opens it for editing.
 - **Status chips and Needs follow-up** on Pledges: filter to Pending/Partial/Paid/Overpaid, or to Pending/Partial donors with no activity in 30+ days, biggest balance first. A **date range** filter on Payments.
-- **A possible-duplicate-payments check** (app-only, on top of the six core data-health checks) flags payments that share a phone number, amount and date.
+- **A possible-duplicate-payments check** (app-only, on top of the six core data-health checks) flags payments that share a phone number, amount and date. The payment form warns about the same match while the payment is being typed in, and shows what the donor still owes.
 - **Friday display**: a full-screen, name-free projector view of progress toward the goal, titled with the drive's name from the Sheet's Settings tab, that never interrupts an announcement with a sign-in prompt.
 - **Sign out for shared computers**: Sign out lands on a signed-out page rather than a fresh sign-in prompt, and tells a volunteer on a shared computer to close their Guest or private window or sign out of Google too, since the app can't end their Google session itself.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
 - **Resilient saves**: a save is retried automatically if Google's servers hiccup, the sheet is busy with other saves, or the connection drops for a moment; a stalled request times out instead of hanging; a retry that actually landed is recognised rather than resurfaced as an error; and Sign out, or closing the tab on a computer, asks first while a change is still saving.
+- **No lost typing**: Cancel, Escape or Back on a form with anything typed in it asks "Discard what you typed?" before closing it.
+- **Phone corrections that don't strand payments**: changing the phone number on a pledge says how many payments were logged under the old number, and how to move them to the new one, before anything is saved.
+- **Near-miss phone numbers**: when a payment's number is on no pledge but is one digit off a donor's, has two digits swapped, or is the same 10-digit number with a country code or a leading 0 in front of only one of them, the payment form asks "Is this from …?" and fills in that donor's number on a tap, never by itself.
+- **Pledge and pay at once**: a new pledge's **Save and log a payment** saves it and opens the payment form already matched to that donor, with the cursor in the amount, so the phone number is typed only once. Any payment form opened for a known donor starts in the amount too.
+- **Save and add another** on a new pledge or payment: saves it and opens an empty form for the next one, keeping the date (and the payment method), for typing up a stack of cards or envelopes.
 - **Change history**: every edit or delete first copies the old row, with who changed it and when, to a history tab in the Sheet, so the organiser can bring back a row deleted by mistake without rolling back anyone else's work.
 - **Starting the next drive**: a menu in the Sheet keeps a finished drive's records in tabs named for it and empties the live tabs for the next one, keeping their column names.
 - **Safe corrections in the Sheet**: a fix the organiser types straight into a pledge or payment marks the row as changed, so a volunteer holding an older copy is asked to reload instead of saving over it.
@@ -36,7 +41,7 @@ To look at every screen without a Google account or a deployed Apps Script backe
 
 ## Browser smoke tests
 
-`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, filter Pledges/Payments, the Friday display, layout at 360px). They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`.
+`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, Escape and Cancel on a half-typed form, filter Pledges/Payments, the Friday display, layout at 360px). They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`.
 
 ```bash
 npx playwright install chromium   # once, downloads a browser

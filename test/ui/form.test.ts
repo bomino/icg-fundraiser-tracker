@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../web/src/api';
 import { h } from '../../web/src/ui/dom';
 import { field } from '../../web/src/ui/field';
-import { runForm, type FormRestore } from '../../web/src/ui/form';
+import { runForm, type FormRestore, type FormSpec } from '../../web/src/ui/form';
 import { openGoalForm } from '../../web/src/ui/goalForm';
 
 afterEach(() => {
@@ -14,7 +14,10 @@ afterEach(() => {
 
 type Draft = { name: string };
 
-function setup(onSave: (draft: Draft) => Promise<void>, options: { restore?: FormRestore; onDelete?: () => Promise<void>; busy?: () => boolean } = {}) {
+function setup(
+  onSave: (draft: Draft) => Promise<void>,
+  options: { restore?: FormRestore; onDelete?: () => Promise<void>; busy?: () => boolean; secondary?: FormSpec<Draft>['secondary']; addAnother?: FormSpec<Draft>['addAnother']; nextEntry?: boolean } = {},
+) {
   const name = field({ name: 'name', label: 'Name', value: '' });
   const form = h('form', { class: 'form' }, name.wrapper);
   const reportError = vi.fn();
@@ -33,6 +36,9 @@ function setup(onSave: (draft: Draft) => Promise<void>, options: { restore?: For
     reopen,
     restore: options.restore,
     busy: options.busy,
+    secondary: options.secondary,
+    addAnother: options.addAnother,
+    nextEntry: options.nextEntry,
   });
   const submit = () => form.dispatchEvent(new Event('submit', { cancelable: true }));
   return { name, dialog, submit, reportError, reopen };
@@ -43,6 +49,14 @@ const toastButton = (label: string) => Array.from(document.querySelectorAll<HTML
 const confirmDelete = (dialog: HTMLDialogElement) => {
   (dialog.querySelector('.btn-danger') as HTMLButtonElement).click();
   (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog .btn-danger')).find((button) => !dialog.contains(button)) as HTMLButtonElement).click();
+};
+const buttonIn = (within: ParentNode, label: string) => Array.from(within.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+const discardQuestions = () => Array.from(document.querySelectorAll<HTMLDialogElement>('dialog[open]')).filter((d) => d.textContent?.includes('Discard what you typed?'));
+// Stands in for Escape, or Back on Android: jsdom has no close watcher to send the dialog a real close request.
+const requestClose = (dialog: HTMLDialogElement, cancelable = true) => {
+  const event = new Event('cancel', { cancelable });
+  dialog.dispatchEvent(event);
+  return event;
 };
 
 describe('runForm', () => {
@@ -269,6 +283,209 @@ describe('runForm', () => {
     expect(secondary.disabled).toBe(true);
     secondary.click();
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes a form with nothing typed at once, on Cancel or on Escape', () => {
+    const { dialog } = setup(async () => undefined);
+    buttonIn(dialog.element, 'Cancel').click();
+    expect(dialog.element.open).toBe(false);
+    const again = setup(async () => undefined);
+    expect(requestClose(again.dialog.element).defaultPrevented).toBe(false);
+    expect(discardQuestions()).toHaveLength(0);
+  });
+
+  it('asks before Cancel throws away typing, keeps the form on Keep editing, and closes it on Discard', async () => {
+    // #given a form with something typed in it
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    // #when Cancel is pressed
+    buttonIn(dialog.element, 'Cancel').click();
+    // #then the form stays until the volunteer answers
+    expect(dialog.element.open).toBe(true);
+    const [question] = discardQuestions();
+    buttonIn(question, 'Keep editing').click();
+    await vi.waitFor(() => expect(discardQuestions()).toHaveLength(0));
+    expect(dialog.element.open).toBe(true);
+    expect(name.input.value).toBe('Aisha');
+    buttonIn(dialog.element, 'Cancel').click();
+    buttonIn(discardQuestions()[0], 'Discard').click();
+    await vi.waitFor(() => expect(dialog.element.open).toBe(false));
+  });
+
+  it('asks before Escape or Back throws away typing', async () => {
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    expect(requestClose(dialog.element).defaultPrevented).toBe(true);
+    expect(dialog.element.open).toBe(true);
+    buttonIn(discardQuestions()[0], 'Discard').click();
+    await vi.waitFor(() => expect(dialog.element.open).toBe(false));
+  });
+
+  it('asks nothing when the browser will not let a close request be held back', () => {
+    // Chrome does this to a second Back with no tap in between: the form closes whatever the page does.
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    expect(requestClose(dialog.element, false).defaultPrevented).toBe(false);
+    expect(discardQuestions()).toHaveLength(0);
+  });
+
+  it('counts a form reopened after a failed save as typed in, so closing it asks first', () => {
+    const { dialog } = setup(async () => undefined, { restore: { values: { name: 'Aisha' }, error: new ApiError('BUSY', 'busy') } });
+    buttonIn(dialog.element, 'Cancel').click();
+    expect(dialog.element.open).toBe(true);
+    expect(discardQuestions()).toHaveLength(1);
+  });
+
+  it('asks once, even when Cancel is pressed twice', () => {
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    buttonIn(dialog.element, 'Cancel').click();
+    buttonIn(dialog.element, 'Cancel').click();
+    expect(requestClose(dialog.element).defaultPrevented).toBe(true);
+    expect(discardQuestions()).toHaveLength(1);
+  });
+
+  it('asks before a secondary action that discards typing, and runs it only on Discard', async () => {
+    const run = vi.fn();
+    const { name, dialog } = setup(async () => undefined, { secondary: { label: 'Log a payment', run, discardsTyping: true } });
+    buttonIn(dialog.element, 'Log a payment').click();
+    expect(run).toHaveBeenCalledTimes(1);
+    name.input.value = 'Aisha';
+    buttonIn(dialog.element, 'Log a payment').click();
+    buttonIn(discardQuestions()[0], 'Keep editing').click();
+    await vi.waitFor(() => expect(discardQuestions()).toHaveLength(0));
+    expect(run).toHaveBeenCalledTimes(1);
+    buttonIn(dialog.element, 'Log a payment').click();
+    buttonIn(discardQuestions()[0], 'Discard').click();
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2));
+  });
+
+  it('runs a secondary action that keeps the form without asking, whatever was typed', () => {
+    const run = vi.fn();
+    const { name, dialog } = setup(async () => undefined, { secondary: { label: 'Check', run } });
+    name.input.value = 'Aisha';
+    buttonIn(dialog.element, 'Check').click();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(discardQuestions()).toHaveLength(0);
+  });
+
+  describe('a secondary action offered only sometimes', () => {
+    const nameTyped = () => (document.querySelector('input[name=name]') as HTMLInputElement).value !== '';
+
+    it('is hidden while not offered, and checked again as each field is typed in', () => {
+      const { name, dialog } = setup(async () => undefined, { secondary: { label: 'Check', run: vi.fn(), offered: nameTyped } });
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(true);
+      name.input.value = 'Aisha';
+      name.input.dispatchEvent(new Event('input'));
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(false);
+      name.input.value = '';
+      name.input.dispatchEvent(new Event('input'));
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(true);
+    });
+
+    it('is offered at once on a form reopened with what it needs', () => {
+      const { dialog } = setup(async () => undefined, {
+        secondary: { label: 'Check', run: vi.fn(), offered: nameTyped },
+        restore: { values: { name: 'Aisha' }, error: new ApiError('BUSY', 'busy') },
+      });
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(false);
+    });
+  });
+
+  describe('Save and add another', () => {
+    it('is offered only on a form that has a next entry to open, with the other actions ahead of Cancel and Save', () => {
+      const plain = setup(async () => undefined);
+      expect(buttonIn(plain.dialog.element, 'Save and add another')).toBeUndefined();
+      document.body.replaceChildren();
+      const { dialog } = setup(async () => undefined, { addAnother: vi.fn(), secondary: { label: 'Save and check', run: vi.fn() } });
+      const labels = Array.from(dialog.element.querySelectorAll('.modal-actions button')).map((b) => b.textContent);
+      expect(labels).toEqual(['Save and check', 'Save and add another', 'Cancel', 'Save']);
+    });
+
+    it('saves exactly as Save does, then opens the next entry from what was saved, once this form has closed', async () => {
+      // #given
+      let finish!: () => void;
+      const onSave = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+      const openWhenCalled: number[] = [];
+      const addAnother = vi.fn(() => { openWhenCalled.push(document.querySelectorAll('dialog[open]').length); });
+      const { name, dialog } = setup(onSave, { addAnother });
+      name.input.value = '  Aisha  ';
+      // #when
+      buttonIn(dialog.element, 'Save and add another').click();
+      // #then
+      expect(onSave).toHaveBeenCalledWith({ name: 'Aisha' });
+      expect(dialog.element.open).toBe(false);
+      expect(addAnother).toHaveBeenCalledTimes(1);
+      expect(addAnother).toHaveBeenCalledWith({ name: 'Aisha' });
+      expect(onSave.mock.invocationCallOrder[0]).toBeLessThan(addAnother.mock.invocationCallOrder[0]);
+      expect(openWhenCalled).toEqual([0]);
+      finish();
+      await vi.waitFor(() => expect(document.querySelector('.toast-info')?.textContent).toBe('Saved.'));
+    });
+
+    it('keeps the form, opening nothing, when the checks fail - even on a later Cancel', () => {
+      const onSave = vi.fn(async () => undefined);
+      const addAnother = vi.fn();
+      const { dialog } = setup(onSave, { addAnother });
+      buttonIn(dialog.element, 'Save and add another').click();
+      expect(dialog.element.open).toBe(true);
+      expect(document.querySelector('.field-error')?.textContent).toBe('Required.');
+      buttonIn(dialog.element, 'Cancel').click();
+      expect(dialog.element.open).toBe(false);
+      expect(onSave).not.toHaveBeenCalled();
+      expect(addAnother).not.toHaveBeenCalled();
+    });
+
+    it('opens no next entry on a plain Save, and is ignored once Save has been pressed', () => {
+      const onSave = vi.fn(() => new Promise<void>(() => undefined));
+      const addAnother = vi.fn();
+      const { name, dialog, submit } = setup(onSave, { addAnother });
+      name.input.value = 'Aisha';
+      submit();
+      const button = buttonIn(dialog.element, 'Save and add another');
+      expect(button.disabled).toBe(true);
+      button.click();
+      expect(onSave).toHaveBeenCalledTimes(1);
+      expect(addAnother).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed save as Save does, with Reopen bringing back what was typed', async () => {
+      const error = new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.');
+      const { name, dialog, reopen } = setup(async () => { throw error; }, { addAnother: vi.fn() });
+      name.input.value = 'Aisha';
+      buttonIn(dialog.element, 'Save and add another').click();
+      await vi.waitFor(() => expect(errorToast()?.querySelector('.toast-message')?.textContent).toBe(`Couldn't save Aisha. ${error.message}`));
+      (toastButton('Reopen') as HTMLButtonElement).click();
+      expect(reopen).toHaveBeenCalledWith({ values: { name: 'Aisha' }, error });
+    });
+
+    it('saves nothing from the untouched form it opened: a second press is ignored, and Save closes it', () => {
+      // #given the next entry's form, nothing typed in it yet
+      const onSave = vi.fn(async () => undefined);
+      const addAnother = vi.fn();
+      const { dialog, submit } = setup(onSave, { addAnother, nextEntry: true });
+      // #when a double tap's second press lands on its button
+      buttonIn(dialog.element, 'Save and add another').click();
+      // #then it stays open for the next entry, with no error about boxes never typed in
+      expect(dialog.element.open).toBe(true);
+      expect((document.querySelector('.field-error') as HTMLElement).hidden).toBe(true);
+      // #when Save is pressed at the end of the stack
+      submit();
+      // #then it closes, with nothing to save
+      expect(dialog.element.open).toBe(false);
+      expect(onSave).not.toHaveBeenCalled();
+      expect(addAnother).not.toHaveBeenCalled();
+    });
+
+    it('saves the next entry as usual once something is typed in it', () => {
+      const onSave = vi.fn(async () => undefined);
+      const addAnother = vi.fn();
+      const { name, dialog } = setup(onSave, { addAnother, nextEntry: true });
+      name.input.value = 'Aisha';
+      buttonIn(dialog.element, 'Save and add another').click();
+      expect(onSave).toHaveBeenCalledWith({ name: 'Aisha' });
+      expect(addAnother).toHaveBeenCalledWith({ name: 'Aisha' });
+    });
   });
 
   it('reopens the goal form with the typed goal and the server field error', async () => {

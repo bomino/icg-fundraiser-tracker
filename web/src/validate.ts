@@ -51,7 +51,9 @@ export function validatePayment(draft: PaymentDraft, methods: readonly string[])
     // field order before its Payments-only blank-phone check runs.
     phone: textError(draft.phone) ?? (matchKey(draft.phone) === '' ? "Enter the donor's phone number." : undefined),
     dateReceived: dateError(draft.dateReceived),
-    amountReceived: amountError(draft.amountReceived),
+    // Blank is refused here, unlike a pledge's amount: a payment of nothing still counts as a
+    // payment and moves the donor's Last payment date, which hides them from Needs follow-up.
+    amountReceived: draft.amountReceived === null ? 'Enter the amount received.' : amountError(draft.amountReceived),
     method: draft.method === '' || methods.includes(draft.method) ? undefined : 'Pick a method from the list.',
     notes: textError(draft.notes),
   });

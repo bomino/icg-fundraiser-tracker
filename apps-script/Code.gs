@@ -342,6 +342,7 @@ function validateRow_(tab, payload, methods) {
   if (tab === 'Pledges' && row.name.indexOf(WARNING_MARK) === 0) throw invalid_('name', 'A name cannot start with ' + WARNING_MARK + '.');
   if (tab === 'Payments') {
     if (row.phone.replace(PHONE_IGNORED, '') === '') throw invalid_('phone', "Enter the donor's phone number.");
+    if (row.amountReceived === null) throw invalid_('amountReceived', 'Enter the amount received.');
     if (row.method !== '' && methods.indexOf(row.method) < 0) throw invalid_('method', 'Pick a method from the list.');
   }
   return row;

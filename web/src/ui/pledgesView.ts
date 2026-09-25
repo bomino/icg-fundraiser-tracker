@@ -1,7 +1,6 @@
 import { todayIso } from '../dates';
 import { needsFollowUp, STATUS, type DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
-import { newId as makeId } from '../id';
 import { toCents } from '../money';
 import { isPending, type State, type Store } from '../store';
 import type { Pledge } from '../types';
@@ -9,7 +8,7 @@ import { statusBadge } from './badges';
 import { h } from './dom';
 import { filterChip, showingLine, toggleChip, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
-import { openPledgeForm } from './pledgeForm';
+import { openPledgeForm, type PledgeCarry } from './pledgeForm';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
 import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type SortState } from './table';
 
@@ -51,27 +50,41 @@ export function createPledgesView(deps: ListViewDeps) {
       // A leftover status chip would hide the very rows the filter just arrived to show.
       if (filter) statusChip = ALL_CHIP;
     }
-    const openPaymentFor = (pledge: Pledge) => {
-      // One id per opened form: a Save retried after a lost response must name the same row.
-      const newId = makeId();
+    const openPaymentFor = (phone: string) => {
+      // Read now, not at render: a pledge whose save has just started is already in the store, and the donor preview must find it.
+      const current = deps.store.state() ?? state;
       openPaymentForm({
-        phone: pledge.phone,
-        methods: state.settings.paymentMethods,
-        pledges: state.pledges,
-        onSave: (draft) => deps.store.savePayment(draft, undefined, newId),
+        phone,
+        methods: current.settings.paymentMethods,
+        pledges: current.pledges,
+        computed: current.computed,
+        onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });
     };
-    const openEditor = (existing?: Pledge) => {
-      // One id per opened form: a Save retried after a lost response must name the same row.
-      const newId = existing ? undefined : makeId();
+    const openEditor = (existing: Pledge, derived: DerivedPledge) => {
       openPledgeForm({
         existing,
+        derived,
         pledges: state.pledges,
-        onSave: (draft, current) => deps.store.savePledge(draft, current, newId),
+        payments: state.payments,
+        onSave: (draft, row) => deps.store.savePledge(draft, row),
         onDelete: (current) => deps.store.deletePledge(current),
-        latest: () => deps.store.state()?.pledges.find((p) => p.id === existing?.id),
-        onLogPayment: existing ? () => openPaymentFor(existing) : undefined,
+        latest: () => deps.store.state()?.pledges.find((p) => p.id === existing.id),
+        onLogPayment: openPaymentFor,
+        reportError: deps.reportError,
+      });
+    };
+    const addPledge = (carried?: PledgeCarry) => {
+      // Read now, not at render: a run of "Save and add another" outlasts the render it began in, and
+      // the duplicate-phone hint must see the pledges typed in earlier in the run.
+      const current = deps.store.state() ?? state;
+      openPledgeForm({
+        carried,
+        pledges: current.pledges,
+        onSave: (draft, row) => deps.store.savePledge(draft, row),
+        onLogPayment: openPaymentFor,
+        onAddAnother: addPledge,
         reportError: deps.reportError,
       });
     };
@@ -102,7 +115,7 @@ export function createPledgesView(deps: ListViewDeps) {
             sort = nextSort(sort, key);
             drawTable();
           },
-          onOpen: (d) => openEditor(d.pledge),
+          onOpen: (d) => openEditor(d.pledge, d),
           empty: filter || query || statusChip !== ALL_CHIP ? 'No pledges match.' : 'No pledges yet. Use “Add pledge” to record the first one.',
           visibleCount,
           onShowMore: () => {
@@ -123,7 +136,7 @@ export function createPledgesView(deps: ListViewDeps) {
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary', 'data-focus-key': 'pledges-add' }, 'Add pledge');
-    add.addEventListener('click', () => openEditor());
+    add.addEventListener('click', () => addPledge());
     const chipRow = h(
       'div',
       { class: 'chip-row', role: 'group', 'aria-label': 'Filter by status' },
