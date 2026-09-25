@@ -1,9 +1,11 @@
+import { asciiDigits } from '../matchKey';
 import { h } from './dom';
 
 // The phone field is free text, so a dial string keeps only its digits and '+': spaces, brackets,
-// letters or a '#', ';' or '?' would otherwise reach the dialer as link syntax it misreads.
+// letters or a '#', ';' or '?' would otherwise reach the dialer as link syntax it misreads. Digits
+// typed on an Arabic, Urdu or full-width keyboard are the same number, as they are to matchKey.
 export function dialNumber(phone: string): string {
-  const number = phone.replace(/[^0-9+]/g, '');
+  const number = asciiDigits(phone).replace(/[^0-9+]/g, '');
   return /[0-9]/.test(number) ? number : '';
 }
 

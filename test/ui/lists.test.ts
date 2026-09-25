@@ -1066,6 +1066,17 @@ describe('pledge form', () => {
     expect(link('Text').closest('[hidden]')).not.toBeNull();
   });
 
+  it('dials a phone typed in Arabic, Persian or full-width digits, which count the same as 0-9 everywhere else', () => {
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+    const link = (name: string) => Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === name) as HTMLAnchorElement;
+    const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
+    for (const typed of ['٥٥٥٠١٠٠١٠١', '۵۵۵-۰۱۰-۰۱۰۱', '＋１ ５５５ ０１０ ０１０１']) {
+      type(phone, typed);
+      expect(link('Call').closest('[hidden]'), typed).toBeNull();
+      expect([link('Call').getAttribute('href'), link('Text').getAttribute('href')], typed).toEqual(typed.startsWith('＋') ? ['tel:+15550100101', 'sms:+15550100101'] : ['tel:5550100101', 'sms:5550100101']);
+    }
+  });
+
   it('keeps Call and Text off a new pledge, even once a phone number is filled in or typed', () => {
     openPledgeForm({ pledges, phone: '555 0101', onSave: vi.fn(), reportError: vi.fn() });
     const link = (name: string) => Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === name) as HTMLAnchorElement;

@@ -12,16 +12,18 @@ const EASTERN_DIGITS = /[\u0660-\u0669\u06f0-\u06f9]/g;
 // start with 0 or 1, so '10551234567' is not one and keeps its leading 1.
 const US_COUNTRY_CODE = /^1(?=[2-9]\d{9}$)/;
 
+/** The text with full-width, Arabic-Indic and Persian digits (and full-width punctuation) read as ASCII: NFKC, then EASTERN_DIGITS. */
+export function asciiDigits(text: string): string {
+  return text.normalize('NFKC').replace(EASTERN_DIGITS, (digit) => String(digit.charCodeAt(0) & 0xf));
+}
+
 // Normalizes a phone number for cross-record joins. The '#' prefix stops it from being
 // coerced to a number (which would drop a leading zero, e.g. '0551234'); lower-casing
 // keeps the comparison case-insensitive. A phone with nothing left after stripping is blank,
 // not '#': otherwise every punctuation-only phone would join every other one. NFKC turns
 // full-width digits and punctuation into ASCII; Code.gs's blank-phone check applies it too.
 export function matchKey(phone: string): string {
-  const stripped = phone
-    .normalize('NFKC')
-    .replace(EASTERN_DIGITS, (digit) => String(digit.charCodeAt(0) & 0xf))
-    .replace(IGNORED_CHARACTERS, '');
+  const stripped = asciiDigits(phone).replace(IGNORED_CHARACTERS, '');
   if (stripped === '') return '';
   return `#${stripped.replace(US_COUNTRY_CODE, '')}`.toLowerCase();
 }
