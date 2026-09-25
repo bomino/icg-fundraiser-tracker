@@ -368,7 +368,7 @@ function howTo(): Child[] {
       note(
         'What the donor still owes is there so you can check the amount with them. A donor who has paid it all shows ',
         said(SAID.paidInFull),
-        ', and one who has paid extra shows how much more than the pledge. No amount shows when you edit a payment (it is already counted in it) or when the amount pledged is 0 (not known yet). If it says instead ',
+        ', and one who has paid extra shows how much more than the pledge. What they owe is not shown when you edit a payment, because that payment is already counted in it, or when the amount pledged is 0 (not known yet). If it says instead ',
         said(SAID.listedTwice),
         ', the donor is on more than one pledge and their payments are counted twice — see ',
         b('Fix a donor entered twice'),
