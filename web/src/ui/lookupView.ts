@@ -1,4 +1,4 @@
-import { findByName, findByPhone, paymentsForKey, type DerivedPayment, type DerivedPledge } from '../engine';
+import { findByPhone, paymentsForKey, type DerivedPayment, type DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
 import { newId as makeId } from '../id';
 import { toCents } from '../money';
@@ -6,8 +6,14 @@ import { isPending, type State } from '../store';
 import { methodBadge, statusBadge } from './badges';
 import { h } from './dom';
 import { openPaymentForm } from './paymentForm';
+import { openPledgeForm } from './pledgeForm';
 import type { ListViewDeps } from './pledgesView';
+import { matchesQuery } from './search';
 import { renderTable, type Column } from './table';
+
+// A one-letter search at event scale matches nearly every donor; drawing them all froze a phone
+// while a queue waited. The cap is what keeps each keystroke instant, so the list needs no debounce.
+const MATCH_LIMIT = 20;
 
 const HISTORY: Column<DerivedPayment>[] = [
   { key: 'date', label: 'Date', value: (d) => d.payment.dateReceived, display: (d) => formatDate(d.payment.dateReceived) },
@@ -62,6 +68,17 @@ export function createLookupView(deps: ListViewDeps) {
         reportError: deps.reportError,
       });
     };
+    const openNewPledge = (text: string) => {
+      // One id per opened form: a Save retried after a lost response must name the same row.
+      const pledgeId = makeId();
+      openPledgeForm({
+        // A name search leaves the phone for the volunteer to type; digits are the number they were given.
+        phone: /\d/.test(text) ? text : undefined,
+        pledges: state.pledges,
+        onSave: (draft) => deps.store.savePledge(draft, undefined, pledgeId),
+        reportError: deps.reportError,
+      });
+    };
     const draw = () => {
       const computed = state.computed;
       const text = query.trim();
@@ -75,17 +92,22 @@ export function createLookupView(deps: ListViewDeps) {
         results.replaceChildren(donorCard(donor, paymentsForKey(computed, donor.key), () => openPaymentFor(donor)));
         return;
       }
-      const matches = findByName(computed, text);
+      // Names only, not notes: a word from someone's notes would list donors the volunteer never asked about.
+      const matches = computed.pledges.filter((d) => matchesQuery(text, [d.pledge.name], d.key));
       if (matches.length === 0) {
-        results.replaceChildren(h('p', { class: 'empty' }, 'Not found.'));
+        // At the door, a donor nobody can find is almost always a new pledge.
+        const addPledge = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add a pledge');
+        addPledge.addEventListener('click', () => openNewPledge(text));
+        results.replaceChildren(h('div', { class: 'empty view' }, h('p', {}, 'No donor found.'), h('div', {}, addPledge)));
         return;
       }
       results.replaceChildren(
+        ...(matches.length > MATCH_LIMIT ? [h('p', { class: 'meta' }, `Showing ${MATCH_LIMIT} of ${matches.length} — keep typing to narrow it down.`)] : []),
         h(
           'ul',
           { class: 'match-list' },
-          ...matches.map((d) => {
-            const button = h('button', { type: 'button', class: 'match' }, d.pledge.name || '(no name)', h('span', { class: 'meta' }, `  ${d.pledge.phone}`));
+          ...matches.slice(0, MATCH_LIMIT).map((d) => {
+            const button = h('button', { type: 'button', class: 'match' }, d.pledge.name || '(no name)', h('span', { class: 'meta' }, `  ${d.pledge.phone}  `), statusBadge(d.status));
             button.addEventListener('click', () => {
               chosenId = d.pledge.id;
               draw();

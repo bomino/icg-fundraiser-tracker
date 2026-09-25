@@ -323,4 +323,16 @@ describe('mountApp', () => {
       caret: [1, 2],
     });
   });
+
+  it('focuses the Find donor search on arriving at the tab, but never pulls focus back when the store publishes', () => {
+    const { store, publish } = fakeStore();
+    mountApp(root, { store, auth: fakeAuth() });
+    history.replaceState(null, '', '#find');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(document.activeElement).toBe(root.querySelector('#lookup-input'));
+
+    (document.activeElement as HTMLElement).blur();
+    publish();
+    expect(document.activeElement).not.toBe(root.querySelector('#lookup-input'));
+  });
 });

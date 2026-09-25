@@ -4,7 +4,7 @@ import { compute } from '../../web/src/engine';
 import type { Api } from '../../web/src/api';
 import { createStore, type State, type Store } from '../../web/src/store';
 import { createLookupView } from '../../web/src/ui/lookupView';
-import type { PaymentDraft } from '../../web/src/types';
+import type { PaymentDraft, Pledge, PledgeDraft } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 afterEach(() => document.body.replaceChildren());
@@ -42,10 +42,61 @@ describe('find donor', () => {
     expect(view.textContent).toContain('Aisha Khan');
   });
 
-  it('says Not found', () => {
+  it('lists donors whose number contains the typed digits when no number matches in full', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
-    search(view, '999');
-    expect(view.textContent).toContain('Not found');
+    for (const partial of ['0101', '555-010']) {
+      search(view, partial);
+      expect(Array.from(view.querySelectorAll('.match')).map((match) => match.textContent), partial).toEqual([expect.stringContaining('555-010-0101')]);
+    }
+  });
+
+  it('shows each match with its status', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(view, 'aisha');
+    expect(Array.from(view.querySelectorAll('.match .badge')).map((badge) => badge.textContent)).toEqual(['Partial', 'Pending']);
+  });
+
+  it('shows only the first 20 matches, saying how many there are in all', () => {
+    const crowd = Array.from({ length: 25 }, (_, i) => pledge({ phone: `555-020-${String(i).padStart(4, '0')}`, name: `Donor ${i + 1}`, amountPledged: 10 }));
+    const crowdState: State = { pledges: crowd, payments: [], settings: SETTINGS, me: 'me', computed: compute(crowd, [], SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(crowdState);
+    search(view, 'donor');
+    expect(view.querySelectorAll('.match')).toHaveLength(20);
+    expect(view.textContent).toContain('Showing 20 of 25 — keep typing to narrow it down.');
+    search(view, 'donor 2');
+    expect(view.querySelectorAll('.match')).toHaveLength(7);
+    expect(view.textContent).not.toContain('Showing');
+  });
+
+  it('says No donor found and offers Add a pledge with the typed number filled in, naming a new row per open', () => {
+    const savePledge = vi.fn(async (_draft: PledgeDraft, _existing?: Pledge, _newId?: string) => undefined);
+    const store = { savePledge } as unknown as Store;
+    document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
+    search(document.body, '999');
+    expect(document.body.textContent).toContain('No donor found.');
+    const addPledge = () => {
+      (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
+      expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('999');
+      (document.querySelector('dialog[open] input[name=name]') as HTMLInputElement).value = 'Zainab';
+      (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    };
+    addPledge();
+    addPledge();
+    expect(savePledge.mock.calls.map(([draft, existing]) => [draft.phone, draft.name, existing])).toEqual([
+      ['999', 'Zainab', undefined],
+      ['999', 'Zainab', undefined],
+    ]);
+    const [first, second] = savePledge.mock.calls.map(([, , newId]) => newId);
+    expect(first).toEqual(expect.any(String));
+    expect(second).toEqual(expect.any(String));
+    expect(second).not.toBe(first);
+  });
+
+  it('leaves the phone blank on Add a pledge after a name search', () => {
+    document.body.append(createLookupView({ store: {} as Store, reportError: vi.fn() })(state));
+    search(document.body, 'Zainab');
+    (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
+    expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('');
   });
 
   it('hides the Log a payment button on the donor card when the donor has no phone', () => {

@@ -12,6 +12,8 @@ import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
 
 export interface PledgeFormOptions {
   existing?: Pledge;
+  /** Default phone for a new pledge, e.g. the number typed into Find donor when nobody matched it. */
+  phone?: string;
   pledges: readonly Pledge[];
   /** Saves against `existing` as this form holds it; a reopened form may hold a newer version than the first one did. */
   onSave(draft: PledgeDraft, existing: Pledge | undefined): Promise<void>;
@@ -32,7 +34,7 @@ function otherPledgeWithPhone(pledges: readonly Pledge[], phone: string, exceptI
 export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore): void {
   const existing = options.existing;
   const fields = {
-    phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? '', help: PLEDGE_HELP.phone }),
+    phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PLEDGE_HELP.phone }),
     name: field({ name: 'name', label: 'Donor name', value: existing?.name ?? '', help: PLEDGE_HELP.name }),
     datePledged: field({ name: 'datePledged', label: 'Date pledged', type: 'date', value: existing ? existing.datePledged : todayIso(), help: PLEDGE_HELP.datePledged }),
     amountPledged: field({ name: 'amountPledged', label: 'Amount pledged ($)', inputmode: 'decimal', value: existing?.amountPledged?.toString() ?? '', help: PLEDGE_HELP.amountPledged }),

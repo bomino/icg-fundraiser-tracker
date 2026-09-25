@@ -12,12 +12,6 @@ export function findByPhone(computed: Derived, input: string): DerivedPledge | n
   return computed.pledges.find((d) => d.key === key) ?? null;
 }
 
-export function findByName(computed: Derived, query: string): DerivedPledge[] {
-  const needle = query.trim().toLowerCase();
-  if (needle === '') return [];
-  return computed.pledges.filter((d) => d.pledge.name.toLowerCase().includes(needle));
-}
-
 export function paymentsForKey(computed: Derived, key: string): DerivedPayment[] {
   if (key === '') return [];
   return computed.payments.filter((d) => d.key === key);
