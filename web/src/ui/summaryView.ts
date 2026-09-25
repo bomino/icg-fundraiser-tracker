@@ -10,7 +10,7 @@ export interface SummaryDeps {
   store: Store;
   reportError(err: unknown, context?: string): void;
   showList(view: 'pledges' | 'payments', filter: ListFilter): void;
-  exportWorkbook(state: State): Promise<void>;
+  exportWorkbook(): Promise<void>;
   drawChart(canvas: HTMLCanvasElement, rows: readonly MethodRow[]): void;
 }
 
@@ -67,7 +67,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   editGoal.addEventListener('click', () => openGoalForm(state.settings.goal, (goal) => deps.store.setGoal(goal), deps.reportError));
   const download = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Download .xlsx');
   download.addEventListener('click', () => {
-    deps.exportWorkbook(state).catch(deps.reportError);
+    deps.exportWorkbook().catch((err: unknown) => deps.reportError(err, "Couldn't download the file"));
   });
 
   const hasPayments = methods.some((row) => row.cents > 0);

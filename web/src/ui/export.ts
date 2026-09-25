@@ -2,6 +2,7 @@ import { todayIso } from '../dates';
 import type { Computed } from '../engine';
 import { flooredGoalFraction, formatCents, formatDateTime } from '../format';
 import type { State } from '../store';
+import type { Payment, Pledge } from '../types';
 
 type Cell = string | number | null | Date;
 const dollars = (cents: number | null): number | null => (cents === null ? null : cents / 100);
@@ -14,25 +15,42 @@ function excelDate(iso: string): Date | null {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+// The server stores a save time as UTC text; Excel has no time zones, so it gets the wall-clock time
+// of the device downloading the file, built at UTC so DATE_SHEET_OPTIONS writes those hours as they
+// are. A row still being saved has no time yet, and blank or unreadable text stays blank.
+function excelLocalTime(iso: string): Date | null {
+  const moment = new Date(iso);
+  if (Number.isNaN(moment.getTime())) return null;
+  return new Date(Date.UTC(moment.getFullYear(), moment.getMonth(), moment.getDate(), moment.getHours(), moment.getMinutes(), moment.getSeconds()));
+}
+
 // Passed to XLSX.utils.aoa_to_sheet so a Date cell above becomes a real Excel date, not a number
 // that merely looks like one: cellDates keeps it typed as a date, dateNF sets its display format,
 // and UTC stops SheetJS from re-interpreting the UTC midnight above as local wall-clock time.
 export const DATE_SHEET_OPTIONS = { cellDates: true, dateNF: 'yyyy-mm-dd', UTC: true } as const;
 
+// buildListSheet finds this column by its heading to give it a date-and-time format.
+const LAST_CHANGED_AT = 'Last changed at';
+// Whoever saved the row last, which is not always the volunteer who took the money.
+const LAST_CHANGED_HEADINGS = ['Last changed by', LAST_CHANGED_AT];
+const lastChanged = (row: Pledge | Payment): Cell[] => [row.updatedBy, excelLocalTime(row.updatedAt)];
+
 export function pledgeSheetRows(computed: Computed): Cell[][] {
   return [
-    ['Phone Number', 'Donor Name', 'Date Pledged', 'Amount Pledged ($)', 'Last Payment Date', 'Amount Received ($)', 'Balance Due ($)', '# Payments', 'Status', 'Notes', 'Listed more than once'],
+    ['Phone Number', 'Donor Name', 'Date Pledged', 'Amount Pledged ($)', 'Last Payment Date', 'Amount Received ($)', 'Balance Due ($)', '# Payments', 'Status', 'Notes', 'Listed more than once', ...LAST_CHANGED_HEADINGS],
     ...computed.pledges.map((d) => [
       d.pledge.phone, d.pledge.name, excelDate(d.pledge.datePledged), d.pledge.amountPledged, excelDate(d.lastPaymentDate),
-      dollars(d.receivedCents), dollars(d.balanceCents), d.paymentCount, d.status ?? '', d.pledge.notes, d.duplicate ? 'Yes' : '',
+      dollars(d.receivedCents), dollars(d.balanceCents), d.paymentCount, d.status ?? '', d.pledge.notes, d.duplicate ? 'Yes' : '', ...lastChanged(d.pledge),
     ]),
   ];
 }
 
 export function paymentSheetRows(computed: Computed): Cell[][] {
   return [
-    ['Phone Number', 'Donor Name', 'Date Received', 'Amount Received ($)', 'Payment Method', 'Notes', 'Counted'],
-    ...computed.payments.map((d) => [d.payment.phone, d.donorName, excelDate(d.payment.dateReceived), d.payment.amountReceived, d.payment.method, d.payment.notes, d.notCounted ? 'No' : 'Yes']),
+    ['Phone Number', 'Donor Name', 'Date Received', 'Amount Received ($)', 'Payment Method', 'Notes', 'Counted', ...LAST_CHANGED_HEADINGS],
+    ...computed.payments.map((d) => [
+      d.payment.phone, d.donorName, excelDate(d.payment.dateReceived), d.payment.amountReceived, d.payment.method, d.payment.notes, d.notCounted ? 'No' : 'Yes', ...lastChanged(d.payment),
+    ]),
   ];
 }
 
@@ -77,7 +95,8 @@ type Xlsx = typeof import('xlsx');
 
 // The same accounting style the app shows (format.ts): $1,650.30, and a credit as ($50.00).
 const MONEY_FORMAT = '"$"#,##0.00;("$"#,##0.00)';
-const DATE_WIDTH = DATE_SHEET_OPTIONS.dateNF.length;
+// Sorts and filters as a real time in Excel; 24-hour, like the file name's 1401.
+const DATE_TIME_FORMAT = 'yyyy-mm-dd hh:mm';
 // Room for a heading's filter button and Excel's own cell margins, under a cap so one long note
 // can't stretch its column past the screen.
 const COLUMN_PADDING = 2;
@@ -87,23 +106,29 @@ const MAX_COLUMN_WIDTH = 40;
 // the cells to format: a new money label without it would reach Excel as a bare 1650.3.
 const isMoneyLabel = (label: Cell | undefined): boolean => typeof label === 'string' && label.endsWith('($)');
 
+function listColumnFormat(heading: Cell | undefined): string | undefined {
+  if (isMoneyLabel(heading)) return MONEY_FORMAT;
+  return heading === LAST_CHANGED_AT ? DATE_TIME_FORMAT : undefined;
+}
+
 // Measured as Excel will show the cell, not as String() would print its value: a Date prints as a
-// long timestamp and 1650.3 as six characters, where Excel shows 2026-03-01 and $1,650.30.
-function textWidth(value: Cell, money: boolean): number {
+// long timestamp and 1650.3 as six characters, where Excel shows 2026-03-01 and $1,650.30. Each
+// date format here is fixed-width, so the format is exactly as long as the text it shows.
+function textWidth(value: Cell, format: string | undefined): number {
   if (value === null) return 0;
-  if (value instanceof Date) return DATE_WIDTH;
-  if (money && typeof value === 'number') return formatCents(Math.round(value * 100)).length;
+  if (value instanceof Date) return (format ?? DATE_SHEET_OPTIONS.dateNF).length;
+  if (format === MONEY_FORMAT && typeof value === 'number') return formatCents(Math.round(value * 100)).length;
   return String(value).length;
 }
 
 // Excel never widens a column by itself: at its default of about 8 characters every date reads
 // "########" and each label is cut off by the cell beside it.
-function formatSheet(XLSX: Xlsx, sheet: import('xlsx').WorkSheet, rows: Cell[][], isMoney: (row: number, column: number) => boolean): void {
+function formatSheet(XLSX: Xlsx, sheet: import('xlsx').WorkSheet, rows: Cell[][], formatOf: (row: number, column: number) => string | undefined): void {
   const widths: number[] = [];
   rows.forEach((row, r) => row.forEach((value, c) => {
-    const money = typeof value === 'number' && isMoney(r, c);
-    if (money) sheet[XLSX.utils.encode_cell({ r, c })].z = MONEY_FORMAT;
-    widths[c] = Math.max(widths[c] ?? 0, textWidth(value, money));
+    const format = value === null ? undefined : formatOf(r, c);
+    if (format) sheet[XLSX.utils.encode_cell({ r, c })].z = format;
+    widths[c] = Math.max(widths[c] ?? 0, textWidth(value, format));
   }));
   sheet['!cols'] = widths.map((width) => ({ wch: Math.min(width + COLUMN_PADDING, MAX_COLUMN_WIDTH) }));
 }
@@ -113,7 +138,7 @@ function formatSheet(XLSX: Xlsx, sheet: import('xlsx').WorkSheet, rows: Cell[][]
 function buildListSheet(XLSX: Xlsx, rows: Cell[][]): import('xlsx').WorkSheet {
   const sheet = XLSX.utils.aoa_to_sheet(rows, DATE_SHEET_OPTIONS);
   const headings = rows[0];
-  formatSheet(XLSX, sheet, rows, (r, c) => r > 0 && isMoneyLabel(headings[c]));
+  formatSheet(XLSX, sheet, rows, (r, c) => (r > 0 ? listColumnFormat(headings[c]) : undefined));
   sheet['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 1, c: headings.length - 1 } }) };
   return sheet;
 }
@@ -142,14 +167,14 @@ export async function buildSummarySheet(state: State, loadedAt: number | null): 
     if (cell) cell.z = '0.0%';
   }
   const methodRows = methodRowIndexes(rows);
-  formatSheet(XLSX, sheet, rows, (r, c) => c === 1 && (isMoneyLabel(rows[r][0]) || methodRows.has(r)));
+  formatSheet(XLSX, sheet, rows, (r, c) => (c === 1 && (isMoneyLabel(rows[r][0]) || methodRows.has(r)) ? MONEY_FORMAT : undefined));
   return sheet;
 }
 
 export async function buildWorkbook(state: State, loadedAt: number | null): Promise<import('xlsx').WorkBook> {
   const XLSX = await import('xlsx');
   const book = XLSX.utils.book_new();
-  // No Author: the file gets emailed around, and a volunteer's address has no reason to travel with it.
+  // No Author: who pressed Download says nothing about the figures, and Last changed by already names who saved each row.
   book.Props = { Title: 'ICG Fundraiser Tracker', CreatedDate: new Date() };
   // Summary first, so the file opens on the totals rather than on the raw list of donors.
   XLSX.utils.book_append_sheet(book, await buildSummarySheet(state, loadedAt), 'Summary');

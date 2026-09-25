@@ -101,16 +101,41 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   });
   const main = h('main', { class: 'container', id: 'main' });
   const refresh = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Refresh');
+  // Shared while it runs, so a Download pressed mid-Refresh waits for that load instead of starting another.
+  let loading: Promise<void> | null = null;
+  const load = () =>
+    (loading ??= (async () => {
+      refresh.disabled = true;
+      refresh.textContent = 'Refreshing…';
+      try {
+        await deps.store.load();
+      } finally {
+        refresh.disabled = false;
+        refresh.textContent = 'Refresh';
+        loading = null;
+      }
+    })());
   const reload = async () => {
-    refresh.disabled = true;
-    refresh.textContent = 'Refreshing…';
     try {
-      await deps.store.load();
+      await load();
     } catch (err) {
       reportError(err);
+    }
+  };
+  // Refreshed first: a laptop kept on the collection table all evening never leaves the tab, so it
+  // never reloads on its own, and its copy would lack every other volunteer's entries. A failed
+  // refresh rejects, so no out-of-date file is made. Built from the store afterwards, not from the
+  // state the Summary was drawn with, which the refresh has just replaced.
+  let exporting = false;
+  const exportWorkbook = async () => {
+    if (exporting) return;
+    exporting = true;
+    try {
+      await load();
+      const state = deps.store.state();
+      if (state) await downloadWorkbook(state, deps.store.lastLoadedAt());
     } finally {
-      refresh.disabled = false;
-      refresh.textContent = 'Refresh';
+      exporting = false;
     }
   };
   refresh.addEventListener('click', () => {
@@ -189,7 +214,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
       : renderSummary(state, {
           store: deps.store,
           reportError,
-          exportWorkbook: (exported) => downloadWorkbook(exported, deps.store.lastLoadedAt()),
+          exportWorkbook,
           drawChart: drawMethodChart,
           showList: (target, targetFilter) => {
             listFilter = { view: target, filter: targetFilter };

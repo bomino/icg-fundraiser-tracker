@@ -4,22 +4,35 @@ import type { State } from '../../web/src/store';
 import { DATE_SHEET_OPTIONS, buildSummarySheet, buildWorkbook, paymentSheetRows, pledgeSheetRows, summarySheetRows, workbookFileName } from '../../web/src/ui/export';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
-const utc = (year: number, month: number, day: number) => new Date(Date.UTC(year, month - 1, day));
+const utc = (year: number, month: number, day: number, hour = 0, minute = 0) => new Date(Date.UTC(year, month - 1, day, hour, minute));
 const LOADED_AT = new Date(2026, 8, 24, 14, 1).getTime();
+// 7:30 PM on the downloading device's own clock, whatever time zone the tests run in; the server
+// stores it as UTC text.
+const SAVED_AT = new Date(2026, 8, 24, 19, 30).toISOString();
 
 describe('export rows', () => {
   const computed = compute(
-    [pledge({ phone: '0551234', name: 'Hamza', amountPledged: 50 })],
-    [payment({ phone: '0551234', amountReceived: 20.5, method: 'Cash', dateReceived: '2025-02-11' })],
+    [pledge({ phone: '0551234', name: 'Hamza', amountPledged: 50, updatedBy: 'amina@example.com', updatedAt: SAVED_AT })],
+    [payment({ phone: '0551234', amountReceived: 20.5, method: 'Cash', dateReceived: '2025-02-11', updatedBy: 'bilal@example.com', updatedAt: SAVED_AT })],
     SETTINGS,
     TODAY,
   );
   it('keeps phones as text, dates as UTC-midnight Date objects, and money in dollars', () => {
-    expect(pledgeSheetRows(computed)[1]).toEqual(['0551234', 'Hamza', null, 50, utc(2025, 2, 11), 20.5, 29.5, 1, 'Partial', '', '']);
+    expect(pledgeSheetRows(computed)[0]).toEqual(['Phone Number', 'Donor Name', 'Date Pledged', 'Amount Pledged ($)', 'Last Payment Date', 'Amount Received ($)', 'Balance Due ($)', '# Payments', 'Status', 'Notes', 'Listed more than once', 'Last changed by', 'Last changed at']);
+    expect(pledgeSheetRows(computed)[1]).toEqual(['0551234', 'Hamza', null, 50, utc(2025, 2, 11), 20.5, 29.5, 1, 'Partial', '', '', 'amina@example.com', utc(2026, 9, 24, 19, 30)]);
   });
   it('marks payments that were not counted', () => {
-    expect(paymentSheetRows(computed)[0]).toEqual(['Phone Number', 'Donor Name', 'Date Received', 'Amount Received ($)', 'Payment Method', 'Notes', 'Counted']);
-    expect(paymentSheetRows(computed)[1]).toEqual(['0551234', 'Hamza', utc(2025, 2, 11), 20.5, 'Cash', '', 'Yes']);
+    expect(paymentSheetRows(computed)[0]).toEqual(['Phone Number', 'Donor Name', 'Date Received', 'Amount Received ($)', 'Payment Method', 'Notes', 'Counted', 'Last changed by', 'Last changed at']);
+    expect(paymentSheetRows(computed)[1]).toEqual(['0551234', 'Hamza', utc(2025, 2, 11), 20.5, 'Cash', '', 'Yes', 'bilal@example.com', utc(2026, 9, 24, 19, 30)]);
+  });
+  it('leaves Last changed at blank for a row still being saved, or one with no readable time', () => {
+    const undated = compute(
+      [pledge({ phone: '1', updatedAt: '' }), pledge({ phone: '2', updatedAt: 'last Friday' })],
+      [],
+      SETTINGS,
+      TODAY,
+    );
+    expect(pledgeSheetRows(undated).slice(1).map((row) => row.at(-1))).toEqual([null, null]);
   });
 });
 
@@ -82,7 +95,7 @@ describe('the "Figures as of" stamp', () => {
     expect(workbookFileName(null, new Date(2026, 8, 24, 16, 30))).toBe('ICG-Fundraiser-2026-09-24-1630.xlsx');
   });
 
-  it('gives the file a title and creation time, but never the volunteer’s email', async () => {
+  it('gives the file a title and creation time, but not the email of whoever downloaded it', async () => {
     const XLSX = await import('xlsx');
     const written = XLSX.write(await buildWorkbook(stampState, LOADED_AT), { type: 'buffer', bookType: 'xlsx' });
     const { Props } = XLSX.read(written);
@@ -118,7 +131,7 @@ describe('workbook layout', () => {
   const MONEY_FORMAT = '"$"#,##0.00;("$"#,##0.00)';
   const longNote = 'Pays in instalments after each Friday prayer until the end of Ramadan';
   const layoutPledges = [
-    pledge({ phone: '555-0101', name: 'Aisha', datePledged: '2026-03-01', amountPledged: 1000, notes: longNote }),
+    pledge({ phone: '555-0101', name: 'Aisha', datePledged: '2026-03-01', amountPledged: 1000, notes: longNote, updatedAt: SAVED_AT }),
     pledge({ phone: '555-0102', name: 'Bilal', datePledged: '2026-03-02', amountPledged: 50 }),
   ];
   const layoutPayments = [
@@ -180,10 +193,20 @@ describe('workbook layout', () => {
     expect(summaryCell(Sheets.Summary, '% of Goal Received').z).toBe('0.0%');
   });
 
+  it('writes Last changed at as a real Excel date and time, wide enough to read in full', async () => {
+    const { Sheets } = await buildWorkbook(layoutState, LOADED_AT);
+    // Pledges M and Payments I are Last changed at.
+    expect(Sheets.Pledges['M2'].t).toBe('d');
+    expect(Sheets.Pledges['M2'].z).toBe('yyyy-mm-dd hh:mm');
+    expect(Sheets.Payments['I2'].z).toBe('yyyy-mm-dd hh:mm');
+    expect(Sheets.Pledges['!cols']?.[12].wch).toBeGreaterThanOrEqual('2026-09-24 19:30'.length);
+    expect(Sheets.Pledges['!cols']?.[11].wch).toBeGreaterThanOrEqual('owner@example.com'.length);
+  });
+
   it('puts a filter on the header row of each list, covering every entry, and none on Summary', async () => {
     const { Sheets } = await buildWorkbook(layoutState, LOADED_AT);
-    expect(Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:K3' });
-    expect(Sheets.Payments['!autofilter']).toEqual({ ref: 'A1:G3' });
+    expect(Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:M3' });
+    expect(Sheets.Payments['!autofilter']).toEqual({ ref: 'A1:I3' });
     expect(Sheets.Summary['!autofilter']).toBeUndefined();
   });
 
@@ -192,8 +215,10 @@ describe('workbook layout', () => {
     const written = XLSX.write(await buildWorkbook(layoutState, LOADED_AT), { type: 'buffer', bookType: 'xlsx' });
     const book = XLSX.read(written, { cellNF: true, cellStyles: true });
     expect(book.SheetNames).toEqual(['Summary', 'Pledges', 'Payments']);
-    expect(book.Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:K3' });
+    expect(book.Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:M3' });
     expect(book.Sheets.Pledges['G3'].z).toBe(MONEY_FORMAT);
     expect(book.Sheets.Pledges['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
+    // The downloading device's local time, not the UTC the server stored.
+    expect(book.Sheets.Pledges['M2'].w).toBe('2026-09-24 19:30');
   });
 });
