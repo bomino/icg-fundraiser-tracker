@@ -90,7 +90,7 @@ const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
   },
   futureDated: {
     meaning: 'A payment is dated after today. It is still counted, but it is usually a typo, such as the wrong year.',
-    fix: ['Open the payment and correct the Date received.'],
+    fix: ['Open the payment and correct the Date received. If it is a real post-dated check, see ', b('A donor gives post-dated checks'), ' in How to….'],
   },
   predatesPledge: {
     meaning: 'A donor’s most recent payment is dated before their Date Pledged. One of the dates is probably wrong.',
@@ -412,6 +412,26 @@ function howTo(): Child[] {
         ['If the donor really did give more, you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
       ),
       p('The extra money is shown under ', b('Overpaid / credit'), ' on the Summary. It never hides what other donors still owe.'),
+    ),
+    topic(
+      'A check bounced or money was given back',
+      p('The money has to come off the donor’s total. The tracker has no minus amounts, so you delete the payment — but write down what happened first.'),
+      steps(
+        ['On ', b('Pledges'), ', open the donor’s pledge and add a line to Notes, for example “Check #1042 for $500 dated 2026-09-10 bounced 2026-10-01”. Save.'],
+        ['On ', b('Payments'), ', open that payment and delete it.'],
+      ),
+      p('If only part of the money was given back, do not delete the payment. Edit its amount down to what the masjid kept, and add the same kind of note to the pledge.'),
+      note('The donor’s balance goes back up, and they show on ', b('Needs follow-up'), ' in the usual way, so someone can call them. A deleted payment no longer shows on Payments or in the downloaded copy, so the note on the pledge is the record of what happened.'),
+    ),
+    topic(
+      'A donor gives post-dated checks',
+      p('A post-dated check cannot be paid into the bank before its date. Log each one on the day it is deposited, not the day it is handed over, so the totals only count money the masjid can bank.'),
+      steps(
+        ['When the donor hands the checks over, open their pledge and add a line to Notes, for example “3 post-dated checks held: Nov, Dec, Jan”. Save. Anyone who sees them on ', b('Needs follow-up'), ' then knows not to call them for money already given.'],
+        ['On the day each check is deposited, log it as a payment dated that day, and update the note.'],
+      ),
+      p('If one was already logged with its future date, it shows as an amber date on Payments and under ', b(HEALTH_LABELS.futureDated), ' in Data health. Delete it, add it to the note, and log it again on the day it is deposited.'),
+      note('This is the suggested way. If the organiser prefers another, such as counting the checks as soon as they are handed over, follow theirs.'),
     ),
     topic(
       'Fix a donor entered twice',

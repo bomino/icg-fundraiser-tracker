@@ -137,6 +137,21 @@ describe('createHelpView', () => {
     expect(text).toContain(WARN_NO_AMOUNT);
   });
 
+  it('points only at How-to topics that exist', () => {
+    const view = createHelpView();
+    const howToTitles = Array.from(view.querySelectorAll('#help-how-to .help-topic > h3')).map((heading) => heading.textContent);
+    const pointers = Array.from(view.querySelectorAll('strong')).filter((title) => title.nextSibling?.textContent?.startsWith(' in How to…'));
+    expect(pointers.length).toBeGreaterThan(0);
+    for (const pointer of pointers) expect(howToTitles, pointer.textContent ?? '').toContain(pointer.textContent);
+  });
+
+  it('sends a real post-dated check to its own topic instead of having its date corrected', () => {
+    const view = createHelpView();
+    const howToTitles = Array.from(view.querySelectorAll('#help-how-to .help-topic > h3')).map((heading) => heading.textContent);
+    expect(howToTitles).toEqual(expect.arrayContaining(['A check bounced or money was given back', 'A donor gives post-dated checks']));
+    expect(view.querySelector('dt[data-health="futureDated"] + dd')?.textContent).toContain('A donor gives post-dated checks in How to…');
+  });
+
   it('describes the form fields with the same help the forms show', () => {
     const text = createHelpView().textContent ?? '';
     for (const help of [...Object.values(PLEDGE_HELP), ...Object.values(PAYMENT_HELP)]) expect(text).toContain(help);
