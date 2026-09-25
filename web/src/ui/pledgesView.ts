@@ -77,6 +77,7 @@ export function createPledgesView(deps: ListViewDeps) {
         pledges: current.pledges,
         computed: current.computed,
         pledgesLoadedAt: deps.store.lastLoadedAt(),
+        store: deps.store,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });

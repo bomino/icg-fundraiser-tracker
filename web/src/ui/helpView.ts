@@ -536,7 +536,16 @@ function howTo(): Child[] {
       ),
       note('The ', b('Save and log a payment'), ' button appears once a phone number is typed. A payment finds its donor by phone number, so it needs one.'),
       note(
-        'If the pledge could not be saved, a red message appears at the bottom of the screen. Once the payment form is saved or closed, press ',
+        'If the pledge could not be saved while the payment form is open, the line under the phone number changes to ',
+        said(WARN_NOT_IN_PLEDGES),
+        '. Press Cancel. A red message then appears at the bottom of the screen: press ',
+        b('Reopen'),
+        ' on it, then ',
+        b('Save and log a payment'),
+        '. Do not add the pledge a second time.',
+      ),
+      note(
+        'If the payment was already saved when the red message appeared, press ',
         b('Reopen'),
         ' on the message and ',
         b('Save'),

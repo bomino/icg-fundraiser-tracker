@@ -5,7 +5,7 @@ import { formatCents, formatDate, parseAmount } from '../format';
 import { newId as makeId } from '../id';
 import { matchKey } from '../matchKey';
 import { toCents } from '../money';
-import { isPending } from '../store';
+import { isPending, type State, type Store } from '../store';
 import type { Payment, PaymentDraft, Pledge } from '../types';
 import { validatePayment, type FieldErrors } from '../validate';
 import { h } from './dom';
@@ -32,6 +32,13 @@ export interface PaymentFormOptions {
   computed: Computed;
   /** When `pledges` was loaded (the store's lastLoadedAt()); an old list may be missing a donor who has just pledged with another volunteer. */
   pledgesLoadedAt?: number | null;
+  /**
+   * Read as the form opens and followed until it closes, so its donor line and already-logged note keep up with
+   * saves that settle and reloads that land meanwhile. Above all a pledge from "Save and log a payment" whose save
+   * then fails: the store takes it back out, and the volunteer must see the ⚠ before saving a payment that won't
+   * count. Read on opening too because a Reopen's other options date from the form whose save failed.
+   */
+  store?: Pick<Store, 'state' | 'subscribe' | 'lastLoadedAt'>;
   /** Saves against `existing` as this form holds it (a reopened form may hold a newer version than the first one did), or `{ id }` naming a new payment. */
   onSave(draft: PaymentDraft, row: Payment | NewRow): Promise<void>;
   onDelete?: (existing: Payment) => Promise<void>;
@@ -82,7 +89,10 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   const existing = options.existing;
   // One id per opened form: a Save retried after a lost response must name the same row.
   const newId = options.newId ?? makeId();
-  const resolveDonor = createDonorResolver(options.pledges);
+  let pledges = options.pledges;
+  let computed = options.computed;
+  let pledgesLoadedAt = options.pledgesLoadedAt ?? null;
+  let resolveDonor = createDonorResolver(pledges);
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
     dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : options.carried?.dateReceived ?? todayIso(), help: PAYMENT_HELP.dateReceived }),
@@ -100,7 +110,8 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     fields.phone.input.focus();
   };
   // The pledge may just be newer than this list, and a second pledge would count the donor's payments twice.
-  const mayBeNewPledge = (donor: string) => donor === WARN_NOT_IN_PLEDGES && staleListAge(options.pledgesLoadedAt ?? null) !== null;
+  const mayBeNewPledge = (donor: string) => donor === WARN_NOT_IN_PLEDGES && staleListAge(pledgesLoadedAt) !== null;
+  let nearAsked = '[]';
   // Shows, before saving, exactly what the Donor Name column will say, so a mistyped phone is caught at the door.
   const updatePreview = () => {
     const phone = fields.phone.input.value;
@@ -114,12 +125,17 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const text =
       blank ? 'Type the phone number to find the donor.'
       : warning ? `${donor} — this payment will not be counted until that is fixed.${mayBeNewPledge(donor) ? ` ${SAVE_ANYWAY}` : ''}${walkIn}`
-      : `Donor: ${donor || '(no name on the pledge)'}${standing(findByPhone(options.computed, phone), !existing)}`;
+      : `Donor: ${donor || '(no name on the pledge)'}${standing(findByPhone(computed, phone), !existing)}`;
     // Every partial number gives the same warning; rewriting it on each digit could have a screen reader repeat it.
     if (preview.textContent !== text) preview.textContent = text;
     // "No amount on Pledges" comes from an exact match, so that donor is already known.
-    const near = donor === WARN_NOT_IN_PLEDGES ? nearMatches(options.pledges, phone) : [];
-    nearMatchList.replaceChildren(...near.map((pledge) => nearMatchQuestion(pledge, useNumber)));
+    const near = donor === WARN_NOT_IN_PLEDGES ? nearMatches(pledges, phone) : [];
+    // Rebuilt only when the questions change, so a store publish never takes away the button the volunteer is on.
+    const asked = JSON.stringify(near.map((pledge) => [pledge.name, pledge.phone]));
+    if (asked !== nearAsked) {
+      nearAsked = asked;
+      nearMatchList.replaceChildren(...near.map((pledge) => nearMatchQuestion(pledge, useNumber)));
+    }
     nearMatchList.hidden = near.length === 0;
   };
   fields.phone.input.addEventListener('input', updatePreview);
@@ -135,7 +151,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const logged =
       typed === null
         ? undefined
-        : paymentsForKey(options.computed, key).find((d) => d.payment.id !== existing?.id && duplicatePaymentKey(d.key, d.payment.amountReceived, d.payment.dateReceived) === typed);
+        : paymentsForKey(computed, key).find((d) => d.payment.id !== existing?.id && duplicatePaymentKey(d.key, d.payment.amountReceived, d.payment.dateReceived) === typed);
     const message = logged ? alreadyLoggedMessage(logged, existing !== undefined) : '';
     alreadyLogged.hidden = message === '';
     // Rechecked on every keystroke in three boxes, and a status region may read out every rewrite of its text.
@@ -144,10 +160,24 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   for (const { input } of [fields.phone, fields.dateReceived, fields.amountReceived]) input.addEventListener('input', updateAlreadyLogged);
   updateAlreadyLogged();
 
+  // Only the two notes are redrawn, each only when its text changes: no box, cursor or focus moves under the volunteer.
+  const store = options.store;
+  const follow = (state: State) => {
+    pledges = state.pledges;
+    computed = state.computed;
+    pledgesLoadedAt = store?.lastLoadedAt() ?? pledgesLoadedAt;
+    resolveDonor = createDonorResolver(pledges);
+    updatePreview();
+    updateAlreadyLogged();
+  };
+  const now = store?.state();
+  if (now) follow(now);
+  const stopFollowing = store ? store.subscribe(follow) : () => undefined;
+
   const onDelete = options.onDelete;
   const onAddAnother = options.onAddAnother;
   const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, nearMatchList, fields.dateReceived.wrapper, fields.amountReceived.wrapper, alreadyLogged, fields.method.wrapper, fields.notes.wrapper);
-  runForm<PaymentDraft>({
+  const dialog = runForm<PaymentDraft>({
     title: existing ? 'Edit payment' : 'Log a payment',
     form,
     fields,
@@ -167,7 +197,11 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     },
     validate: (draft) => validatePayment(draft, options.methods),
     describe: (draft) => (draft.phone ? `the payment from ${draft.phone}` : 'the payment'),
-    onSave: (draft) => options.onSave(draft, existing ?? { id: newId }),
+    onSave: (draft) => {
+      // The form closes as its save starts, and that save's own row, published at once, would read as already logged.
+      stopFollowing();
+      return options.onSave(draft, existing ?? { id: newId });
+    },
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     addAnother: onAddAnother && !existing ? (saved) => onAddAnother({ dateReceived: saved.dateReceived, method: saved.method }) : undefined,
     nextEntry: options.carried !== undefined,
@@ -177,6 +211,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     restore,
     busy: () => (existing ? isPending(existing) : false),
   });
+  dialog.element.addEventListener('close', stopFollowing, { once: true });
   // showModal lands on the first box, the phone already filled in for the donor; the amount is what is left to type.
   // A Reopen keeps its own rule: the cursor goes where the fix is needed.
   if (options.phone && !restore) fields.amountReceived.input.focus();
