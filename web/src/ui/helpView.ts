@@ -422,11 +422,12 @@ function howTo(): Child[] {
         ['Make the browser full screen (F11 on most computers).'],
       ),
       p('The screen shows the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
-      p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
+      p('It fetches the latest figures as soon as it opens, then updates itself every few minutes, and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
       p('If a sign-in box appears when you press ', b('Friday display'), ', sign in: your sign-in was about to run out, and signing in now keeps the screen updating for about another hour.'),
       note('Google sign-ins last about an hour. After that the figures stop updating, and after 15 minutes a small note says ', said(SAID.displayStale), '. Tap it and sign in to bring the figures up to date. Press ', b('Exit'), ' in the top corner to go back to the Summary.'),
       bullets(
         [b('Sign in first'), ' — sign in on the projector computer before the khutbah starts, not during it, so the screen has a fresh hour and nothing interrupts the display.'],
+        [b('Check Unmatched payments first'), ' — on ', b('Summary'), ', make sure ', b('Unmatched payments'), ' reads $0.00 before you press ', b('Friday display'), '. If it does not, the amount on the screen is not right yet: some money is not being counted, or is being counted twice. See ', b('Payments logged and Unmatched payments'), ' in Understanding the numbers.'],
         [b('Keep the laptop awake'), ' — turn off sleep and screen-lock (or plug it in and disable auto-sleep) for the computer driving the projector, so the display does not go dark on its own.'],
       ),
     ),

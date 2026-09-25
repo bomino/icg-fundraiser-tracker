@@ -15,9 +15,9 @@ const pledges = [
 const payments = [payment({ id: 'y1', phone: '555-010-0101', dateReceived: TODAY, amountReceived: 250, method: 'Cash' })];
 const settings = { ...SETTINGS, goal: 1000 };
 
-function fakeStore(donors = pledges) {
+function fakeStore(donors = pledges, loadedAgoMs = 0) {
   let state: State = { pledges: donors, payments, settings, me: 'me@example.com', computed: compute(donors, payments, settings, TODAY) };
-  let loadedAt: number | null = Date.now();
+  let loadedAt: number | null = Date.now() - loadedAgoMs;
   const listeners = new Set<(state: State) => void>();
   const store = {
     state: () => state,
@@ -149,6 +149,75 @@ describe('Friday display', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(store.load).toHaveBeenCalledTimes(1);
     expect(root.querySelector('.friday-updated')?.textContent).toBe('Updated 1:08 PM');
+
+    await vi.advanceTimersByTimeAsync(DISPLAY_REFRESH_MS - 1000);
+    expect(store.load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.load).toHaveBeenCalledTimes(2);
+    expect(root.querySelector('.friday-updated')?.textContent).toBe('Updated 1:11 PM');
+    exit();
+  });
+
+  it('loads fresh figures once on entry when the last load is older than the refresh interval', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 25, 13, 5));
+    const { store } = fakeStore(pledges, 10 * 60_000);
+    const exit = mountDisplay(root, { store, auth: fakeAuth(true).auth, reconnect: vi.fn(async () => undefined) });
+    expect(store.load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(root.querySelector('.friday-updated')?.textContent).toBe('Updated 1:05 PM');
+
+    await vi.advanceTimersByTimeAsync(DISPLAY_REFRESH_MS - 1000);
+    expect(store.load).toHaveBeenCalledTimes(1);
+    exit();
+  });
+
+  it('loads on entry only once prompts are held back, so a rejected token still cannot open sign-in', async () => {
+    const { auth, renderButton } = await signedInAuth(3600);
+    vi.useFakeTimers({ now: Date.now() });
+    const { store } = fakeStore(pledges, 10 * 60_000);
+    // What api.ts does when the server answers UNAUTHENTICATED: ask again with forceRefresh.
+    store.load.mockImplementation(async () => {
+      await auth.getToken(true);
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const exit = mountDisplay(root, { store, auth, reconnect: vi.fn(async () => undefined) });
+
+    expect(store.load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(warn).toHaveBeenCalled();
+    expect(renderButton).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    warn.mockRestore();
+    exit();
+  });
+
+  it('loads within 30 seconds of a sign-in finished after entry', async () => {
+    vi.useFakeTimers();
+    const { store } = fakeStore(pledges, 10 * 60_000);
+    const { auth } = fakeAuth(false);
+    const exit = mountDisplay(root, { store, auth, reconnect: vi.fn(async () => undefined) });
+    expect(store.load).not.toHaveBeenCalled();
+
+    auth.hasFreshToken.mockReturnValue(true);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(store.load).toHaveBeenCalledTimes(1);
+    exit();
+  });
+
+  it('retries a failing load every three minutes, not at every 30-second check', async () => {
+    vi.useFakeTimers();
+    const { store } = fakeStore(pledges, 10 * 60_000);
+    store.load.mockRejectedValue(new Error('offline'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const exit = mountDisplay(root, { store, auth: fakeAuth(true).auth, reconnect: vi.fn(async () => undefined) });
+    expect(store.load).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(DISPLAY_REFRESH_MS - 1000);
+    expect(store.load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.load).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
     exit();
   });
 
