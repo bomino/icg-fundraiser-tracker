@@ -1,4 +1,4 @@
-import { todayIso } from '../dates';
+import { todayIso, weekStartIso } from '../dates';
 import { computeMethods, type DerivedPayment } from '../engine';
 import { formatCents, formatDate } from '../format';
 import { newId as makeId } from '../id';
@@ -145,8 +145,9 @@ export function createPaymentsView(deps: ListViewDeps) {
     const dateToInput = h('input', { type: 'date', class: 'input', 'data-focus-key': 'payments-date-to' });
     dateToInput.value = dateTo;
     const today = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Today');
+    const thisWeek = h('button', { type: 'button', class: 'btn btn-ghost' }, 'This week');
     const clearDates = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Clear dates');
-    const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput), today);
+    const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput), today, thisWeek);
     const redrawDateControls = () => {
       clearDates.hidden = !dateFilterActive();
       visibleCount = tablePageSize();
@@ -163,6 +164,14 @@ export function createPaymentsView(deps: ListViewDeps) {
     today.addEventListener('click', () => {
       dateFrom = todayIso();
       dateTo = dateFrom;
+      dateFromInput.value = dateFrom;
+      dateToInput.value = dateTo;
+      redrawDateControls();
+    });
+    // To stops at today, not at Friday: a payment dated later in the week is a typo (see "(future)"), not money in.
+    thisWeek.addEventListener('click', () => {
+      dateTo = todayIso();
+      dateFrom = weekStartIso(dateTo);
       dateFromInput.value = dateFrom;
       dateToInput.value = dateTo;
       redrawDateControls();

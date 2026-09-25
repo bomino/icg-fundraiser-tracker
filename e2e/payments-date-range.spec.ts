@@ -44,3 +44,21 @@ test('Today narrows Payments to today and adds up its money by method', async ({
   await expect(page.getByText(`Showing 1 of ${totalCount} · $200.00 logged`, { exact: true })).toBeVisible();
   await expect(page.getByText('Cash $200.00', { exact: true })).toBeVisible();
 });
+
+test('This week narrows Payments to Saturday through today and adds up its money', async ({ page }) => {
+  // A Friday, pinned like the Today spec: the seeded week of Sat Aug 22 – Fri Aug 28 holds three payments.
+  await page.clock.setFixedTime(new Date('2026-08-28T13:00:00'));
+  await openApp(page, 'payments');
+
+  const rows = page.locator('.data-table tbody tr');
+  const totalCount = await rows.count();
+  expect(totalCount).toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: 'This week', exact: true }).click();
+
+  await expect(page.getByLabel('From')).toHaveValue('2026-08-22');
+  await expect(page.getByLabel('To')).toHaveValue('2026-08-28');
+  await expect(rows).toHaveCount(3);
+  await expect(page.getByText(`Showing 3 of ${totalCount} · $550.00 logged`, { exact: true })).toBeVisible();
+  await expect(page.getByText('Cash $300.00 · No method recorded $250.00', { exact: true })).toBeVisible();
+});

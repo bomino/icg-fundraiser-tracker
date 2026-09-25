@@ -451,6 +451,28 @@ describe('payments view: money in the filtered rows', () => {
     expect(button('Clear dates').hidden).toBe(false);
     expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash\u00A0$150.30 · Card\u00A0$50.00 · No method recorded\u00A0$0.10']);
   });
+
+  it('narrows to Saturday through today with This week, so a Friday announcement reads the week’s money straight off', () => {
+    const weekPayments = [
+      payment({ id: 'w1', phone: '555-010-0103', amountReceived: 40, dateReceived: '2026-07-31', method: 'Cash' }),
+      payment({ id: 'w2', phone: '555-010-0103', amountReceived: 25, dateReceived: '2026-08-01', method: 'Cash' }),
+      payment({ id: 'w3', phone: '555-010-0103', amountReceived: 10, dateReceived: '2026-08-07', method: 'Card' }),
+      payment({ id: 'w4', phone: '555-010-0103', amountReceived: 99, dateReceived: '2026-08-08', method: 'Cash' }),
+    ];
+    const weekState: State = { pledges, payments: weekPayments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, weekPayments, SETTINGS, TODAY) };
+    const view = createPaymentsView({ store, reportError: vi.fn() })(weekState, null, () => undefined);
+    document.body.append(view);
+    const button = (label: string) => Array.from(view.querySelectorAll('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 7, 13, 0));
+    button('This week').click();
+    vi.useRealTimers();
+    expect(dateInput(view, 'payments-date-from').value).toBe('2026-08-01');
+    expect(dateInput(view, 'payments-date-to').value).toBe('2026-08-07');
+    expect(ids(view)).toEqual(['w3', 'w2']);
+    expect(button('Clear dates').hidden).toBe(false);
+    expect(metaLines(view)).toEqual(['Showing 2 of 4 · $35.00 logged', 'Cash\u00A0$25.00 · Card\u00A0$10.00']);
+  });
 });
 
 describe('pledges view: paging at event scale', () => {
