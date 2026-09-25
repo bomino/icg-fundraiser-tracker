@@ -231,7 +231,7 @@ function theScreens(): Child[] {
         [b('The four totals'), ' — Total pledged, Total received, Balance outstanding, and Overpaid / credit. ', b('Understanding the numbers'), ' explains each one.'],
         [b('Donors'), ' — how many donors have pledged, and how many are Fully paid, Partial, Pending or Overpaid.'],
         [b('Reconciliation'), ' — Payments logged (every payment typed in) next to Unmatched payments (money not counted toward any pledge). Unmatched should be $0.00; the card turns amber when it is not.'],
-        [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found.'],
+        [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found. A note under the checks says when the shared sheet has rows that are not counted because they have no id; only the organiser can fix those.'],
         [b('Collected by payment method'), ' — a chart and table of money by Cash, Card and so on. Payments with no method appear as ', b('No method recorded'), '. The last row, ', said(SAID.methodTotal), ', should equal Payments logged.'],
         [b('Download .xlsx'), ' — saves a copy of everything as an Excel file.'],
         [b('Friday display'), ' — a full-screen view of the fundraiser for the projector. See ', b('Show the fundraiser on the projector'), ' in How to….'],
@@ -568,7 +568,14 @@ function forTheOrganiser(): Child[] {
       'Keeping the sheet healthy',
       bullets(
         ['Do not format the Pledges or Payments columns as ', b('Plain text'), '. Leave them on Automatic, or phone numbers and dates get corrupted.'],
-        ['Add pledges and payments through the app. Rows typed directly into the sheet have no id and are ignored.'],
+        [
+          'Add pledges and payments through the app. A row typed or pasted into the sheet with a blank ',
+          b('id'),
+          ' (the first column) is left out of every total and list, so a totals or notes row under the data does no harm. When such rows look like real pledges or payments, the Summary says how many, under Data health.',
+        ],
+        [
+          'To bring those rows in, give each one an id no other row uses. Type a new word and a number in the id column of the first row, such as dinner1, then drag the small square at the corner of that cell down the batch to fill in dinner2, dinner3 and so on. Use a different word for each batch.',
+        ],
         [
           'You can correct a pledge or payment directly in the sheet. The tracker marks the row as changed, filling in ',
           b('updatedAt'),

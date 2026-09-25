@@ -143,8 +143,20 @@ describe('load', () => {
   it('returns rows, settings and the caller', () => {
     expect(server.post('load', {}, token)).toEqual({
       ok: true,
-      data: { pledges: [], payments: [], settings: { goal: 10000, paymentMethods: METHODS }, me: OWNER },
+      data: { pledges: [], payments: [], settings: { goal: 10000, paymentMethods: METHODS }, me: OWNER, rowsWithoutId: { pledges: 0, payments: 0 } },
     });
+  });
+  // Such rows are never loaded, so this count is the app's only sign that pasted entries lack an id.
+  it('counts rows with no id that look like entries, leaving out totals and notes rows', () => {
+    const pledges = server.sheet('Pledges');
+    pledges.appendRow(['', '555-0103', 'Chidi', '2026-09-02', 250, '', '', '']);
+    pledges.appendRow(['', '', 'Total', '', 1250, '', '', '']);
+    pledges.appendRow(['', ' - ', '', '', '', 'Cards from the dinner', '', '']);
+    const payments = server.sheet('Payments');
+    payments.appendRow(['', 5550103, '2026-09-03', 100, 'Cash', '', '', '']);
+    payments.appendRow(['', '555-0104', '', '', '', 'Amount to follow', '', '']);
+    payments.appendRow(['', '', '', 100, '', 'Total', '', '']);
+    expect(server.post('load', {}, token).data).toMatchObject({ pledges: [], payments: [], rowsWithoutId: { pledges: 1, payments: 1 } });
   });
   it('cleans up rows that were edited by hand in the Sheet', () => {
     const sheet = server.sheet('Pledges');

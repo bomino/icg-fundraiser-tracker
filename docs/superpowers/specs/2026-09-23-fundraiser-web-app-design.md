@@ -77,7 +77,7 @@ Every request looks like `{idToken, op, payload}`. Every response is `{ok: true,
 
 | op | payload | behaviour |
 |---|---|---|
-| `load` | — | `{pledges[], payments[], settings, me: email}` |
+| `load` | — | `{pledges[], payments[], settings, me: email, rowsWithoutId: {pledges, payments}}`. Rows with a blank `id` are skipped; `rowsWithoutId` counts the skipped rows that look like entries (a non-blank phone, plus an amount on Payments), so a totals or notes row isn't counted. Ids are never filled in automatically. |
 | `upsertPledge` / `upsertPayment` | row (without `id` for an insert; with `id` and `updatedAt` for an update) | Validates (§7). For an update, if the stored `updatedAt` ≠ the sent `updatedAt`, returns `CONFLICT` with the current row. Otherwise appends the stored row to the history tab (§3), then stamps and writes the row and returns it. |
 | `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then appends the row to the history tab (§3) and deletes it from the sheet. `NOT_FOUND` if the row is gone. A history write that fails fails the edit or delete. |
 | `setSetting` | `{key: "goal", value}` | Goal must be a number ≥ 0. `paymentMethods` can't be changed from the app; edit it in the Sheet. |
@@ -202,7 +202,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 
 **Screens**
 - **Top bar:** app name, the signed-in email, and sign-out. The tabs are Summary, Pledges, Payments and Find donor. The last view used is remembered in `localStorage`.
-- **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links, the method breakdown, and a "Download .xlsx" export.
+- **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links (followed by a neutral note when `load` reports rows with no id, which no health check can see), the method breakdown, and a "Download .xlsx" export.
 - **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
   - Derived columns are read-only and styled differently.
   - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date.

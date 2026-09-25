@@ -1,4 +1,4 @@
-import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
+import type { Payment, PaymentDraft, Pledge, PledgeDraft, RowsWithoutId, Settings } from './types';
 
 export type ApiErrorCode = 'UNAUTHENTICATED' | 'FORBIDDEN' | 'CONFLICT' | 'NOT_FOUND' | 'BAD_REQUEST' | 'BUSY' | 'INTERNAL' | 'NETWORK';
 
@@ -21,6 +21,8 @@ export interface LoadResult {
   payments: Payment[];
   settings: Settings;
   me: string;
+  /** Absent from a Code.gs deployed before it counted them. */
+  rowsWithoutId?: RowsWithoutId;
 }
 
 export interface Versioned {

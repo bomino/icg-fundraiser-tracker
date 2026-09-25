@@ -1,6 +1,7 @@
 import type { HealthCheck, MethodRow } from '../engine';
 import { flooredGoalFraction, formatCents, formatFlooredPercent } from '../format';
 import type { State, Store } from '../store';
+import type { RowsWithoutId } from '../types';
 import { chartSlots } from './chartSlots';
 import { h } from './dom';
 import type { ListFilter } from './filter';
@@ -22,6 +23,20 @@ function healthItem(check: HealthCheck, deps: SummaryDeps): HTMLElement {
   const action = count > 0 ? h('button', { type: 'button', class: 'btn btn-ghost' }, `Show ${count}`) : h('span', { class: 'numeric-lg ink-soft' }, '0');
   if (action instanceof HTMLButtonElement) action.addEventListener('click', () => deps.showList(check.target, { label: check.label, ids: new Set(check.ids) }));
   return h('li', { 'data-health': check.id, class: count > 0 ? 'is-flagged' : undefined }, h('span', {}, check.label), action);
+}
+
+// The server never sends these rows, so no health check can count them. A neutral note rather
+// than a flag, since a row the server took for an entry may only be a note.
+function rowsWithoutIdNote(rows: RowsWithoutId | undefined): HTMLElement | null {
+  const total = rows ? rows.pledges + rows.payments : 0;
+  if (!rows || total === 0) return null;
+  const tabs: Array<[number, string]> = [[rows.pledges, 'Pledges'], [rows.payments, 'Payments']];
+  const where = tabs.filter(([count]) => count > 0).map(([count, tab]) => `${count} ${count === 1 ? 'row' : 'rows'} on the ${tab} tab`).join(' and ');
+  const text =
+    total === 1
+      ? `${where} of the shared sheet has no id, so it is not counted here. If it is a real entry, the organiser needs to give it an id: see For the organiser in Help.`
+      : `${where} of the shared sheet have no id, so they are not counted here. If they are real entries, the organiser needs to give each one an id: see For the organiser in Help.`;
+  return h('p', { class: 'body-md', 'data-role': 'rows-without-id' }, text);
 }
 
 function methodTable(state: State): HTMLElement {
@@ -105,7 +120,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
       h('div', { class: 'stat-row' }, stat('Payments logged', formatCents(totals.loggedCents)), stat('Unmatched payments', formatCents(totals.unmatchedCents))),
       totals.unmatchedCents !== 0 ? h('p', { class: 'body-md' }, 'Some logged money is not counted toward any pledge. The Data Health list below shows where.') : null,
     ),
-    h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Data health'), h('p', { class: 'meta' }, 'Every figure below should read 0. Anything higher needs a look.'), h('ul', { class: 'health-list' }, ...health.map((check) => healthItem(check, deps)))),
+    h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Data health'), h('p', { class: 'meta' }, 'Every figure below should read 0. Anything higher needs a look.'), h('ul', { class: 'health-list' }, ...health.map((check) => healthItem(check, deps))), rowsWithoutIdNote(state.rowsWithoutId)),
     h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Collected by payment method'), h('div', { class: 'method-grid' }, hasPayments ? h('div', { class: 'chart-box' }, canvas) : h('p', { class: 'empty' }, 'No payments yet.'), methodTable(state))),
   );
 }

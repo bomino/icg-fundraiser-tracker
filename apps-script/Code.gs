@@ -62,7 +62,7 @@ function readRequest_(e) {
 function dispatch_(op, payload, email) {
   switch (op) {
     case 'load':
-      return { pledges: readRows_('Pledges'), payments: readRows_('Payments'), settings: readSettings_(), me: email };
+      return load_(email);
     case 'upsertPledge':
       return withLock_(() => upsert_('Pledges', payload, email));
     case 'upsertPayment':
@@ -177,12 +177,34 @@ function withLock_(fn) {
   }
 }
 
+function load_(email) {
+  const pledges = readRows_('Pledges');
+  const payments = readRows_('Payments');
+  return {
+    pledges: pledges.records,
+    payments: payments.records,
+    settings: readSettings_(),
+    me: email,
+    rowsWithoutId: { pledges: pledges.withoutId, payments: payments.withoutId },
+  };
+}
+
 function readRows_(tab) {
   const values = sheet_(tab).getDataRange().getValues();
   assertHeaders_(tab, values[0]);
-  return values.slice(1)
-    .filter((row) => row[0] !== '')
-    .map((row) => toRecord_(tab, row));
+  const rows = values.slice(1);
+  return {
+    records: rows.filter((row) => row[0] !== '').map((row) => toRecord_(tab, row)),
+    withoutId: rows.filter((row) => row[0] === '' && looksLikeEntry_(tab, row)).length,
+  };
+}
+
+// A row with no id is never loaded, so the Summary says how many look like real entries: a phone,
+// and on Payments an amount. Totals and notes rows under the data have neither, and are left out.
+function looksLikeEntry_(tab, row) {
+  const record = toRecord_(tab, row);
+  if (record.phone.replace(PHONE_IGNORED, '') === '') return false;
+  return tab !== 'Payments' || record.amountReceived !== null;
 }
 
 // Rows are read and written by column position, so a column inserted, moved or deleted in the

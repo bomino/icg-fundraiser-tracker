@@ -10,9 +10,9 @@ const pledges = [pledge({ id: 'p1', phone: '1', amountPledged: 100 })];
 const payments = [payment({ id: 'y1', phone: '1', amountReceived: 40, method: 'Cash' }), payment({ id: 'y2', phone: '9', amountReceived: 10, method: 'Card' })];
 const state: State = { pledges, payments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, payments, SETTINGS, TODAY) };
 
-function render() {
+function render(shown: State = state) {
   const deps = { store: {} as Store, reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
-  const view = renderSummary(state, deps);
+  const view = renderSummary(shown, deps);
   document.body.replaceChildren(view);
   return { view, deps };
 }
@@ -57,6 +57,27 @@ describe('summary', () => {
     show.click();
     expect(deps.showList).toHaveBeenCalledWith('payments', { label: 'Payments not matched to a pledge', ids: new Set(['y2']) });
     expect(view.querySelector('[data-health=duplicates] button')).toBeNull();
+  });
+
+  it('says, without flagging it, how many rows of the shared sheet have no id and are left out', () => {
+    const { view } = render({ ...state, rowsWithoutId: { pledges: 2, payments: 1 } });
+    const note = view.querySelector('[data-role=rows-without-id]');
+    expect(note?.textContent).toBe(
+      '2 rows on the Pledges tab and 1 row on the Payments tab of the shared sheet have no id, so they are not counted here. If they are real entries, the organiser needs to give each one an id: see For the organiser in Help.',
+    );
+    expect(note?.closest('.is-flagged')).toBeNull();
+  });
+
+  it('words the note for a single row', () => {
+    const { view } = render({ ...state, rowsWithoutId: { pledges: 0, payments: 1 } });
+    expect(view.querySelector('[data-role=rows-without-id]')?.textContent).toBe(
+      '1 row on the Payments tab of the shared sheet has no id, so it is not counted here. If it is a real entry, the organiser needs to give it an id: see For the organiser in Help.',
+    );
+  });
+
+  it('shows no note when every row has an id, or when the server does not say', () => {
+    expect(render({ ...state, rowsWithoutId: { pledges: 0, payments: 0 } }).view.querySelector('[data-role=rows-without-id]')).toBeNull();
+    expect(render().view.querySelector('[data-role=rows-without-id]')).toBeNull();
   });
 
   it('draws the method chart once the view is on the page', async () => {

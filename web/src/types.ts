@@ -25,5 +25,11 @@ export interface Settings {
   paymentMethods: string[];
 }
 
+/** Rows in each tab that the server skipped for having no id, though they look like entries. */
+export interface RowsWithoutId {
+  pledges: number;
+  payments: number;
+}
+
 export type PledgeDraft = Pick<Pledge, 'phone' | 'name' | 'datePledged' | 'amountPledged' | 'notes'>;
 export type PaymentDraft = Pick<Payment, 'phone' | 'dateReceived' | 'amountReceived' | 'method' | 'notes'>;

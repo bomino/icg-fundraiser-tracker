@@ -1,13 +1,14 @@
 import { ApiError, type Api } from './api';
 import { compute, type Computed } from './engine';
 import { newId as makeId } from './id';
-import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
+import type { Payment, PaymentDraft, Pledge, PledgeDraft, RowsWithoutId, Settings } from './types';
 
 export interface State {
   pledges: Pledge[];
   payments: Payment[];
   settings: Settings;
   me: string;
+  rowsWithoutId?: RowsWithoutId;
   computed: Computed;
 }
 
@@ -49,7 +50,7 @@ interface Collection<T extends Row> {
   with(state: Base, rows: T[]): Base;
 }
 
-const base = (state: State): Base => ({ pledges: state.pledges, payments: state.payments, settings: state.settings, me: state.me });
+const base = (state: State): Base => ({ pledges: state.pledges, payments: state.payments, settings: state.settings, me: state.me, rowsWithoutId: state.rowsWithoutId });
 const pledgeRows: Collection<Pledge> = { get: (s) => s.pledges, with: (s, rows) => ({ ...s, pledges: rows }) };
 const paymentRows: Collection<Payment> = { get: (s) => s.payments, with: (s, rows) => ({ ...s, payments: rows }) };
 
@@ -214,7 +215,7 @@ export function createStore(api: Api, today: () => string): Store {
         if (order < newestPublishedLoad) return;
         newestPublishedLoad = order;
         loadedAt = Date.now();
-        const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me };
+        const fresh: Base = { pledges: result.pledges, payments: result.payments, settings: result.settings, me: result.me, rowsWithoutId: result.rowsWithoutId };
         const replay = [...mutations].filter((m) => !m.committed || m.staleLoads.has(token));
         publish(replay.reduce((onto, m) => m.overlay(fresh, onto), fresh));
       } finally {
