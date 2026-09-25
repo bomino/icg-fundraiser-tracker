@@ -50,7 +50,9 @@ function refocusOpener(opener: Opener) {
 
 export function openDialog(title: string, body: Node, footer: Child[]): DialogHandle {
   const titleId = `dialog-title-${++dialogCount}`;
-  const dialog = h('dialog', { class: 'modal', 'aria-labelledby': titleId }, h('h2', { class: 'modal-title', id: titleId }, title), body, h('div', { class: 'modal-actions' }, ...footer));
+  // Built empty with the dialog: a live region that appears together with its message is often not announced.
+  const status = h('div', { class: 'visually-hidden', role: 'status', 'data-role': 'dialog-status' });
+  const dialog = h('dialog', { class: 'modal', 'aria-labelledby': titleId }, h('h2', { class: 'modal-title', id: titleId }, title), status, body, h('div', { class: 'modal-actions' }, ...footer));
   const opener = openerInMain() ?? openerOfClosingDialog();
   if (opener) openers.set(dialog, opener);
   dialog.addEventListener('close', () => {

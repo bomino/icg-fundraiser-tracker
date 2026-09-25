@@ -93,6 +93,14 @@ export function hasActionToast(): boolean {
   return actionToastsWaiting > 0 || document.querySelector('.toast-with-action') !== null;
 }
 
+// A modal makes the page behind it inert, so a confirmation that lands while one is open, such as the save
+// before Save and add another's next form, is never announced from the toast region. The dialog's own status
+// region still is; each message is a line of its own, so a second "Saved." is heard too.
+function announceInOpenDialog(message: string) {
+  const dialogs = document.querySelectorAll('dialog[open]');
+  dialogs[dialogs.length - 1]?.querySelector('[data-role=dialog-status]')?.append(h('p', {}, message));
+}
+
 export function showToast(message: string, kind: 'info' | 'error' = 'info', action?: ToastAction): void {
   // A failure usually lands while the volunteer is typing the next entry, and the open form makes the
   // toasts inert: one added then is never announced, not even once the form closes. So it waits for
@@ -110,7 +118,10 @@ export function showToast(message: string, kind: 'info' | 'error' = 'info', acti
     region(kind).append(toast);
     // A confirmation shown after the form closes would be stale, so only failures are held.
     if (kind === 'error') expireOutsideDialogs(toast, LIFETIME_MS.error, () => toast.remove());
-    else setTimeout(() => toast.remove(), LIFETIME_MS.info);
+    else {
+      announceInOpenDialog(message);
+      setTimeout(() => toast.remove(), LIFETIME_MS.info);
+    }
     return;
   }
   const run = h('button', { type: 'button', class: 'btn btn-secondary' }, action.label);

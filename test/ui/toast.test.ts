@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { openDialog } from '../../web/src/ui/dialog';
+import { h } from '../../web/src/ui/dom';
 import { mountToasts, showToast } from '../../web/src/ui/toast';
 
 afterEach(() => {
@@ -22,6 +24,21 @@ describe('showToast', () => {
     expect(region.querySelector('.toast')?.textContent).toBe('Saved.');
     vi.advanceTimersByTime(4000);
     expect(toasts()).toHaveLength(0);
+  });
+
+  // Save and add another opens the next form in the same task as the save, and a modal makes the page behind
+  // it inert, so a confirmation added to the toast region then is never announced.
+  it('also announces a confirmation inside an open dialog, where a screen reader still listens', () => {
+    mountToasts();
+    const dialog = openDialog('Add pledge', h('form', {}), []);
+    const status = dialog.element.querySelector('[role=status]') as HTMLElement;
+    expect(status.textContent).toBe('');
+
+    showToast('Saved.');
+    showToast('Saved.');
+
+    expect(Array.from(status.children).map((line) => line.textContent)).toEqual(['Saved.', 'Saved.']);
+    expect(document.getElementById('toasts')?.querySelector('.toast')?.textContent).toBe('Saved.');
   });
 
   it('announces a failure assertively, in its own alert region', () => {
