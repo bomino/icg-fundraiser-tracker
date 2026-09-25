@@ -96,7 +96,7 @@ Four literal values, set only when Amount Pledged is filled in (blank has no sta
 
 ### Client data flow and auth
 
-- **Save and Delete close the dialog at once and finish in the background** (`runForm`). A saving row is `isPending` (a per-id count decremented exactly once in a `finally`) and can't be opened. (details: docs/ARCHITECTURE.md → Optimistic saves and pending rows)
+- **Save and Delete close the dialog at once and finish in the background** (`runForm`). A saving row is `isPending` (a per-id count decremented exactly once in a `finally`) and can't be opened. A view that throws drawing a change before it is sent fails that change, rolled back and logged (`publishBeforeSend`); once the server has it, the throw is only logged (`publishSettled`). (details: docs/ARCHITECTURE.md → Optimistic saves and pending rows)
 - **`load()` replays every in-flight save, delete and goal change** over fresh data (`mutations` in `store.ts`), and a stale overlapping load is ignored. (details: docs/ARCHITECTURE.md → Reloads overlapping changes)
 - **`api.ts` retries transient failures.** An update's `CONFLICT` whose `current` has the row's id and matches the draft counts as saved via `draftMatches`, which walks every draft key, never a hand-kept list; a delete's `NOT_FOUND` counts as success in `store.ts`'s `remove` (keep that); timeouts use `AbortController`, not `AbortSignal.timeout`. (details: docs/ARCHITECTURE.md → Retries and timeouts)
 - **Other volunteers' changes arrive only on a load**: Refresh, Download .xlsx, or tab return once the last load is over 2 minutes old and no `<dialog open>` exists. (details: docs/ARCHITECTURE.md → Reloads and other volunteers' changes)
