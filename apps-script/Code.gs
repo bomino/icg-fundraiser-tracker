@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 6;
+const API_VERSION = 7;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -234,7 +234,7 @@ function assertHeaders_(tab, header) {
       const found = cell === '' ? 'blank' : '"' + cell + '"';
       const problem = 'The ' + ordinal_(i + 1) + ' column of the "' + tab + '" tab should be "' + expected[i] + '" but is ' + found + '.';
       // Volunteers see this too, so it names who can fix it.
-      throw new ApiError('INTERNAL', problem + ' The organiser needs to undo the change with Version history, or move new columns to the right of updatedBy.');
+      throw new ApiError('INTERNAL', problem + ' The organiser needs to put the columns back as they were, or move a new column to the right of updatedBy.');
     }
   }
 }

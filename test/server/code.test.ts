@@ -46,6 +46,7 @@ const CODE_GS_HASHES: readonly string[] = [
   '6929403b81533bd144d9b870737ad418bd2a6175ab52443bb1103c1f5f4a2285',
   '875937965d9f8822f143f71bc1270714d2c4f4102523890c87c1397ffdb7e159',
   '1f6654d9250f990f1f0478c13aa8725746785757b87e42eec817899c0a905fc6',
+  '0f0571ffd3e3c74627f2cb79d5c0bfa53fda1d52ea85fc9af7e4b9a4c661a227',
 ];
 
 describe('API_VERSION', () => {
@@ -528,7 +529,7 @@ describe('edits made directly in the Sheet', () => {
 // Code.gs reads and writes Pledges and Payments by column position, so an organiser's change to
 // row 1 must stop it rather than shift every field.
 describe('sheet layout', () => {
-  const HEADER_FIX = 'The organiser needs to undo the change with Version history, or move new columns to the right of updatedBy.';
+  const HEADER_FIX = 'The organiser needs to put the columns back as they were, or move a new column to the right of updatedBy.';
   const insertColumn = (tab: string, index: number, header: string, value: string) =>
     server.sheet(tab).raw.forEach((row, i) => row.splice(index, 0, i === 0 ? header : value));
 
