@@ -126,7 +126,8 @@ function allowlist_() {
 
 function sheet_(name) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!sheet) throw new ApiError('INTERNAL', 'The "' + name + '" tab is missing. Run setup() in Apps Script.');
+  // setup() only adds tabs, so following it after a rename would leave the records stranded in the renamed tab.
+  if (!sheet) throw new ApiError('INTERNAL', 'The "' + name + '" tab is missing. If it was renamed, rename it back to "' + name + '". Run setup() only when setting up a new Sheet.');
   return sheet;
 }
 
@@ -141,9 +142,38 @@ function withLock_(fn) {
 }
 
 function readRows_(tab) {
-  return sheet_(tab).getDataRange().getValues().slice(1)
+  const values = sheet_(tab).getDataRange().getValues();
+  assertHeaders_(tab, values[0]);
+  return values.slice(1)
     .filter((row) => row[0] !== '')
     .map((row) => toRecord_(tab, row));
+}
+
+// Rows are read and written by column position, so a column inserted, moved or deleted in the
+// Sheet would misread every field after it and let the next edit overwrite the new column.
+// Relabelling ("Amount Pledged") is harmless, and so are extra columns after updatedBy, which
+// are never read or written.
+function assertHeaders_(tab, header) {
+  const cells = header || [];
+  const expected = HEADERS[tab];
+  for (let i = 0; i < expected.length; i++) {
+    const cell = cells[i] === undefined ? '' : String(cells[i]).trim();
+    if (headerKey_(cell) !== headerKey_(expected[i])) {
+      const found = cell === '' ? 'blank' : '"' + cell + '"';
+      const problem = 'The ' + ordinal_(i + 1) + ' column of the "' + tab + '" tab should be "' + expected[i] + '" but is ' + found + '.';
+      // Volunteers see this too, so it names who can fix it.
+      throw new ApiError('INTERNAL', problem + ' The organiser needs to undo the change with Version history, or move new columns to the right of updatedBy.');
+    }
+  }
+}
+
+function headerKey_(label) {
+  return label.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function ordinal_(n) {
+  const suffixes = { 1: 'st', 2: 'nd', 3: 'rd' };
+  return n + (suffixes[n] || 'th');
 }
 
 function toRecord_(tab, row) {
@@ -245,8 +275,10 @@ function validateRow_(tab, payload, methods) {
   return row;
 }
 
+// Every append, update and delete looks its row up here first, so this header check guards every write.
 function findRow_(sheet, tab, id) {
   const values = sheet.getDataRange().getValues();
+  assertHeaders_(tab, values[0]);
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(id)) return { rowNumber: i + 1, record: toRecord_(tab, values[i]) };
   }

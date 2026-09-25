@@ -292,6 +292,89 @@ describe('writes', () => {
   });
 });
 
+// Code.gs reads and writes Pledges and Payments by column position, so an organiser's change to
+// row 1 must stop it rather than shift every field.
+describe('sheet layout', () => {
+  const HEADER_FIX = 'The organiser needs to undo the change with Version history, or move new columns to the right of updatedBy.';
+  const insertColumn = (tab: string, index: number, header: string, value: string) =>
+    server.sheet(tab).raw.forEach((row, i) => row.splice(index, 0, i === 0 ? header : value));
+
+  it('refuses to load a tab with a column inserted among its own, naming the first one out of place', () => {
+    server.post('upsertPledge', newRow(pledgeDraft), token);
+    insertColumn('Pledges', 2, 'Email', 'aisha@example.com');
+    expect(server.post('load', {}, token).error).toEqual({
+      code: 'INTERNAL',
+      message: `The 3rd column of the "Pledges" tab should be "name" but is "Email". ${HEADER_FIX}`,
+    });
+  });
+
+  it('refuses to load a tab whose columns were reordered', () => {
+    const header = server.sheet('Payments').raw[0];
+    [header[2], header[3]] = [header[3], header[2]];
+    expect(server.post('load', {}, token).error).toMatchObject({
+      code: 'INTERNAL',
+      message: `The 3rd column of the "Payments" tab should be "dateReceived" but is "amountReceived". ${HEADER_FIX}`,
+    });
+  });
+
+  it('refuses to load a tab whose header row was deleted', () => {
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
+    server.sheet('Pledges').raw.shift();
+    expect(server.post('load', {}, token).error?.message).toBe(`The 1st column of the "Pledges" tab should be "id" but is "${saved.id}". ${HEADER_FIX}`);
+  });
+
+  it('refuses to save into a cleared tab rather than put the row where the header belongs', () => {
+    server.sheet('Pledges').raw = [];
+    expect(server.post('upsertPledge', newRow(pledgeDraft), token).error).toMatchObject({
+      code: 'INTERNAL',
+      message: `The 1st column of the "Pledges" tab should be "id" but is blank. ${HEADER_FIX}`,
+    });
+    expect(server.sheet('Pledges').raw).toEqual([]);
+  });
+
+  it('allows extra columns to the right of updatedBy and keeps them through an edit', () => {
+    const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
+    insertColumn('Pledges', 8, 'Receipt sent?', 'yes');
+    expect(server.post('load', {}, token).data.pledges).toEqual([saved]);
+    expect(server.post('upsertPledge', { ...pledgeDraft, name: 'Aisha R.', id: saved.id, updatedAt: saved.updatedAt }, token).ok).toBe(true);
+    expect(server.sheet('Pledges').raw[1][8]).toBe('yes');
+  });
+
+  it('accepts headers relabelled with different capitals, spaces or punctuation', () => {
+    const saved = server.post('upsertPayment', newRow(paymentDraft), token).data;
+    server.sheet('Payments').raw[0] = ['ID', ' Phone ', 'Date Received', 'amount_received', 'Method', 'Notes:', 'Updated At', 'updated-by'];
+    expect(server.post('load', {}, token).data.payments).toEqual([saved]);
+  });
+
+  it('refuses an edit after a column was inserted, even one whose version matches the shifted row, and leaves the row alone', () => {
+    const saved = server.post('upsertPledge', newRow({ ...pledgeDraft, notes: 'Pays monthly' }), token).data;
+    insertColumn('Pledges', 2, 'Email', 'aisha@example.com');
+    const before = structuredClone(server.sheet('Pledges').raw);
+    // Read by position, the shifted row's updatedAt is its notes cell, so the version check alone would pass.
+    const response = server.post('upsertPledge', { ...pledgeDraft, name: 'Aisha R.', id: saved.id, updatedAt: 'Pays monthly' }, token);
+    expect(response.error?.code).toBe('INTERNAL');
+    expect(server.sheet('Pledges').raw).toEqual(before);
+  });
+
+  it('refuses creates and deletes after a column was inserted', () => {
+    const saved = server.post('upsertPledge', newRow({ ...pledgeDraft, notes: 'Pays monthly' }), token).data;
+    insertColumn('Pledges', 2, 'Email', 'aisha@example.com');
+    const before = structuredClone(server.sheet('Pledges').raw);
+    expect(server.post('upsertPledge', newRow(pledgeDraft), token).error?.code).toBe('INTERNAL');
+    expect(server.post('deletePledge', { id: saved.id, updatedAt: 'Pays monthly' }, token).error?.code).toBe('INTERNAL');
+    expect(server.sheet('Pledges').raw).toEqual(before);
+  });
+
+  it('asks for a renamed tab to be renamed back rather than recreated by setup()', () => {
+    server.sheets.set('Donor pledges', server.sheet('Pledges'));
+    server.sheets.delete('Pledges');
+    expect(server.post('load', {}, token).error).toEqual({
+      code: 'INTERNAL',
+      message: 'The "Pledges" tab is missing. If it was renamed, rename it back to "Pledges". Run setup() only when setting up a new Sheet.',
+    });
+  });
+});
+
 describe('settings', () => {
   it('changes the goal', () => {
     expect(server.post('setSetting', { key: 'goal', value: 25000 }, token).data).toEqual({ goal: 25000, paymentMethods: METHODS });

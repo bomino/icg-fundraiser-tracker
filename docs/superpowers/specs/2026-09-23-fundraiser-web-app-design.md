@@ -48,7 +48,7 @@ ui/*     Summary · Pledges · Payments · Find donor
 
 ## 3. Google Sheet schema
 
-Row 1 holds the headers and data starts at row 2. There are no formulas anywhere. `setup()` in Apps Script creates the tabs and headers and freezes row 1. Leading zeros in `phone` are kept by apostrophe-prefixing the text at write time (`toSheetRow_`), not by formatting the column as Plain text — a Plain-text cell stores the apostrophe literally instead of hiding it, corrupting ids, phone numbers and dates (see `CLAUDE.md`).
+Row 1 holds the headers and data starts at row 2. There are no formulas anywhere. `setup()` in Apps Script creates the tabs and headers and freezes row 1. Pledges and Payments are read and written by column position, so every read and write first checks their row 1 (ignoring case and anything but letters and digits) and answers `INTERNAL`, naming the first column out of place, if a column was inserted, moved or deleted; extra columns after `updatedBy` are allowed. Leading zeros in `phone` are kept by apostrophe-prefixing the text at write time (`toSheetRow_`), not by formatting the column as Plain text — a Plain-text cell stores the apostrophe literally instead of hiding it, corrupting ids, phone numbers and dates (see `CLAUDE.md`).
 
 | Tab | Columns |
 |---|---|

@@ -21,7 +21,8 @@ const SAID = {
   notSetUp: 'Not set up yet',
   notConfigured: 'The server is not configured',
   unexpectedPage: 'The tracker sent back an unexpected page.',
-  tabMissing: 'tab is missing. Run setup() in Apps Script.',
+  tabMissing: 'tab is missing.',
+  columnChanged: 'The organiser needs to undo the change with Version history, or move new columns to the right of updatedBy.',
   conflict: 'Someone else changed this row since you opened it. Reload to see the latest version, then make your change again.',
   deleted: 'Someone else deleted this row. Reload to see the latest list.',
   notANumber: 'Enter a number, e.g. 250.',
@@ -162,9 +163,14 @@ const PROBLEMS: readonly Problem[] = [
     action: ['Press ', b('Reload'), '. If the row should still exist, add it again.'],
   },
   {
-    message: [b(SAID.notSetUp), ', ', said(`${SAID.notConfigured}…`), ', ', said(SAID.unexpectedPage), ' or ', said(`The "…" ${SAID.tabMissing}`)],
+    message: [b(SAID.notSetUp), ', ', said(`${SAID.notConfigured}…`), ', ', said(SAID.unexpectedPage), ' or ', said(`The "…" ${SAID.tabMissing} …`)],
     meaning: ['The tracker itself is not set up correctly. This is not something you caused.'],
     action: ['Tell the organiser, and include the exact message.'],
+  },
+  {
+    message: [said(`The 3rd column of the "Pledges" tab should be "name" but is "Email". ${SAID.columnChanged}`)],
+    meaning: ['Someone added, moved or deleted a column in the Google Sheet behind the tracker. The tracker stops loading and saving until it is put back, so it never shows wrong totals or saves over the new column. This is not something you caused.'],
+    action: ['Tell the organiser, and include the exact message. Once the sheet is fixed, the tracker works again; redo any save that failed meanwhile.'],
   },
 ];
 
@@ -563,6 +569,13 @@ function forTheOrganiser(): Child[] {
       bullets(
         ['Do not format the Pledges or Payments columns as ', b('Plain text'), '. Leave them on Automatic, or phone numbers and dates get corrupted.'],
         ['Add pledges and payments through the app. Rows typed directly into the sheet have no id and are ignored.'],
+        [
+          'Add your own columns to Pledges or Payments only to the right of the last one, ',
+          b('updatedBy'),
+          '. Do not rename, move or delete the existing columns, and do not rename or delete the tabs. Otherwise the tracker stops loading and saving until the change is undone; ',
+          b('Version history'),
+          ' is the quickest way.',
+        ],
       ),
     ),
     topic(
