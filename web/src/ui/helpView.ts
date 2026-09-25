@@ -36,6 +36,8 @@ const SAID = {
   healthIntro: 'Every figure below should read 0. Anything higher needs a look.',
   methodTotal: 'Total (should match Payments Logged)',
   noDonorFound: 'No donor found.',
+  refreshBeforePledge: 'If they pledged with another volunteer since then, press Refresh before adding a pledge.',
+  saveAnyway: 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.',
   keepTyping: 'keep typing to narrow it down.',
   displayStale: 'Figures may be out of date — tap to reconnect',
   saving: 'Saving…',
@@ -270,6 +272,7 @@ function theScreens(): Child[] {
       p('Type a donor’s phone number, in any format, or part of their name. The whole number takes you straight to the donor. Part of a number, such as the last four digits, or part of a name shows a list of matching donors with their number and status. Several donors can share the same last few digits, so check the name as well before you tap one to open it.'),
       p('When lots of donors match, only the first 20 are listed, under a line such as ', said(`Showing 20 of 312 — ${SAID.keepTyping}`), ' Type a few more letters or digits and the list shrinks.'),
       p('If nobody matches, it says ', said(SAID.noDonorFound), ' and offers ', b('Add a pledge'), '. If you searched by phone number, that number is already filled in on the pledge form. If you only typed part of the number, type the rest before saving.'),
+      p('If your list was last refreshed more than a couple of minutes ago, it also says how long ago, and adds ', said(SAID.refreshBeforePledge), ' Another volunteer may have just added that donor, and two pledges for the same donor count their payments twice.'),
       p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made.'),
     ),
     topic(
@@ -345,6 +348,7 @@ function howTo(): Child[] {
         ['Payment method', PAYMENT_HELP.method],
         ['Notes', PAYMENT_HELP.notes],
       ),
+      note('If the warning is ', said(WARN_NOT_IN_PLEDGES), ' and your list was last refreshed more than a couple of minutes ago, it adds ', said(SAID.saveAnyway), ' The payment finds the donor’s pledge by phone number as soon as your list refreshes.'),
       note('Log each installment as its own payment. Do not edit an old payment to add a new amount to it — the tracker adds up the installments for you.'),
       note(
         'You can also log a payment straight from a donor: open their card on ',
@@ -388,7 +392,7 @@ function howTo(): Child[] {
         ['Correct the phone number. The line under it should now show “Donor:” and the right name.'],
         ['Press ', b('Save'), '. The row turns normal and the money counts again.'],
       ),
-      p('If the phone number was right but the donor has no pledge yet, add a pledge for them with that number instead.'),
+      p('If the phone number was right, press ', b('Refresh'), ' at the top of the page first: another volunteer may have just added the donor’s pledge. Add a pledge for them with that number only if the warning is still there.'),
     ),
     topic(
       'Handle a donor who paid more than they pledged',
@@ -491,7 +495,7 @@ function warningsAndHealth(): Child[] {
       'The two warnings',
       p('A payment that is not being counted shows a warning in its Donor Name, and its row turns red.'),
       terms(
-        [said(WARN_NOT_IN_PLEDGES), 'No pledge has this phone number. Usually the number was mistyped on the payment or the pledge. Correct it — or, if the donor has no pledge yet, add one.'],
+        [said(WARN_NOT_IN_PLEDGES), 'No pledge has this phone number. Usually the number was mistyped on the payment or the pledge, so correct it. If the number is right, press ', b('Refresh'), ' first; add a pledge only if the warning is still there.'],
         [said(WARN_NO_AMOUNT), 'The donor’s pledge has a blank Amount Pledged. Open the pledge and enter the amount, or 0 if it is not known yet.'],
       ),
     ),
@@ -525,6 +529,7 @@ function workingTogether(): Child[] {
       ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
       ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
       ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away.'],
+      ['Until you refresh, the tracker does not know about a pledge another volunteer has just added. Before adding a pledge for a donor it cannot find, press ', b('Refresh'), ': two pledges for the same donor count their payments twice.'],
       ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the tracker quietly retries on its own — you do not need to do anything unless you actually see an error message.'],
     ),
     topic(

@@ -22,6 +22,10 @@ const search = (view: HTMLElement, text: string) => {
   input.value = text;
   input.dispatchEvent(new Event('input'));
 };
+const loadedMinutesAgo = (minutes: number) => {
+  const loadedAt = Date.now() - minutes * 60_000;
+  return () => loadedAt;
+};
 
 describe('find donor', () => {
   it('finds by phone in any format and shows payment history as text', () => {
@@ -70,7 +74,7 @@ describe('find donor', () => {
 
   it('says No donor found and offers Add a pledge with the typed number filled in, naming a new row per open', () => {
     const savePledge = vi.fn(async (_draft: PledgeDraft, _existing?: Pledge, _newId?: string) => undefined);
-    const store = { savePledge } as unknown as Store;
+    const store = { savePledge, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store;
     document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
     search(document.body, '(555) 999-0000');
     expect(document.body.textContent).toContain('No donor found.');
@@ -94,11 +98,25 @@ describe('find donor', () => {
 
   it('leaves the phone blank on Add a pledge after a search with letters in it, digits or not', () => {
     for (const text of ['Zainab', 'Zainab 2']) {
-      document.body.replaceChildren(createLookupView({ store: {} as Store, reportError: vi.fn() })(state));
+      document.body.replaceChildren(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
       search(document.body, text);
       (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
       expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value, text).toBe('');
     }
+  });
+
+  it('asks for a Refresh before adding a pledge when nobody matches on a list loaded over 2 minutes ago', () => {
+    const view = createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(5) } as unknown as Store, reportError: vi.fn() })(state);
+    search(view, '(555) 999-0000');
+    expect(view.textContent).toContain('No donor found.');
+    expect(view.querySelector('.hint-warning')?.textContent).toBe('Your list was last updated 5 minutes ago. If they pledged with another volunteer since then, press Refresh before adding a pledge.');
+  });
+
+  it('says only No donor found on a list loaded in the last 2 minutes', () => {
+    const view = createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(1) } as unknown as Store, reportError: vi.fn() })(state);
+    search(view, '(555) 999-0000');
+    expect(view.textContent).toContain('No donor found.');
+    expect(view.textContent).not.toContain('Refresh');
   });
 
   it('hides the Log a payment button on the donor card when the donor has no phone', () => {
@@ -119,7 +137,7 @@ describe('find donor', () => {
   it('logs a payment from the donor card, calling store.savePayment with the phone', () => {
     // Typed so `.mock.calls[0][0]` below is not indexed into an inferred empty tuple.
     const savePayment = vi.fn(async (_draft: PaymentDraft) => undefined);
-    const store = { savePayment } as unknown as Store;
+    const store = { savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store;
     document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     const logPayment = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
@@ -131,6 +149,14 @@ describe('find donor', () => {
     (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
     expect(savePayment).toHaveBeenCalled();
     expect(savePayment.mock.calls[0][0]).toMatchObject({ phone: '555-010-0101', amountReceived: 25 });
+  });
+
+  it('opens Log a payment from the donor card knowing how old the list is', () => {
+    document.body.append(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(5) } as unknown as Store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 010 0101');
+    (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
+    search(document.querySelector('dialog[open]') as HTMLElement, '555 999 0000');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain('Do not add a second pledge.');
   });
 
   it('labels a payment that is still saving in the donor card history', async () => {

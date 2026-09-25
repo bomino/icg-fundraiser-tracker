@@ -1,5 +1,5 @@
 import { todayIso } from '../dates';
-import { WARNING_MARK, createDonorResolver } from '../engine';
+import { WARNING_MARK, WARN_NOT_IN_PLEDGES, createDonorResolver } from '../engine';
 import { parseAmount } from '../format';
 import { matchKey } from '../matchKey';
 import { isPending } from '../store';
@@ -9,6 +9,10 @@ import { h } from './dom';
 import { field } from './field';
 import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER, PAYMENT_HELP } from './help';
+import { staleListAge } from './staleList';
+
+// Saving is right when the pledge is only newer than this list: payments are matched to pledges afresh on every load.
+const SAVE_ANYWAY = 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.';
 
 export interface PaymentFormOptions {
   existing?: Payment;
@@ -16,6 +20,8 @@ export interface PaymentFormOptions {
   phone?: string;
   methods: readonly string[];
   pledges: readonly Pledge[];
+  /** When `pledges` was loaded (the store's lastLoadedAt()); an old list may be missing a donor who has just pledged with another volunteer. */
+  pledgesLoadedAt?: number | null;
   /** Saves against `existing` as this form holds it; a reopened form may hold a newer version than the first one did. */
   onSave(draft: PaymentDraft, existing: Payment | undefined): Promise<void>;
   onDelete?: (existing: Payment) => Promise<void>;
@@ -35,6 +41,8 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     notes: field({ name: 'notes', label: 'Notes', type: 'textarea', value: existing?.notes ?? '', help: PAYMENT_HELP.notes }),
   };
   const preview = h('p', { class: 'hint', role: 'status', 'data-role': 'donor-preview' });
+  // The pledge may just be newer than this list, and a second pledge would count the donor's payments twice.
+  const mayBeNewPledge = (donor: string) => donor === WARN_NOT_IN_PLEDGES && staleListAge(options.pledgesLoadedAt ?? null) !== null;
   // Shows, before saving, exactly what the Donor Name column will say, so a mistyped phone is caught at the door.
   const updatePreview = () => {
     const phone = fields.phone.input.value;
@@ -43,7 +51,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const warning = !blank && donor.startsWith(WARNING_MARK);
     preview.className = warning ? 'hint hint-warning' : 'hint';
     if (blank) preview.textContent = 'Type the phone number to find the donor.';
-    else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.`;
+    else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.${mayBeNewPledge(donor) ? ` ${SAVE_ANYWAY}` : ''}`;
     else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}`;
   };
   fields.phone.input.addEventListener('input', updatePreview);

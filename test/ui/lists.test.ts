@@ -21,11 +21,13 @@ const pledges = [
 ];
 const payments = [payment({ id: 'y1', phone: '555-999-0000', amountReceived: 35, dateReceived: '2099-01-01' })];
 const state: State = { pledges, payments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, payments, SETTINGS, TODAY) };
-const store = { savePledge: vi.fn(async () => undefined), savePayment: vi.fn(async () => undefined), deletePledge: vi.fn(), deletePayment: vi.fn() } as unknown as Store;
+const store = { savePledge: vi.fn(async () => undefined), savePayment: vi.fn(async () => undefined), deletePledge: vi.fn(), deletePayment: vi.fn(), lastLoadedAt: () => Date.now() } as unknown as Store;
 const type = (input: HTMLInputElement, value: string) => {
   input.value = value;
   input.dispatchEvent(new Event('input'));
 };
+const STALE_LOAD_MS = 5 * 60_000;
+const SAVE_ANYWAY = 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.';
 
 describe('pledges view', () => {
   it('marks duplicates red and filters by search without losing the box', () => {
@@ -60,6 +62,15 @@ describe('pledges view', () => {
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Log a payment');
     expect((document.querySelector('input[name=phone]') as HTMLInputElement).value).toBe('555-010-0103');
+  });
+
+  it('opens Log a payment from a pledge knowing how old the list is', () => {
+    const view = createPledgesView({ store: { ...store, lastLoadedAt: () => Date.now() - STALE_LOAD_MS } as Store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    (view.querySelector('tr[data-id="p3"]') as HTMLElement).click();
+    (Array.from(document.querySelectorAll('dialog[open] button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
+    type(document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement, '555 999 0000');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain(SAVE_ANYWAY);
   });
 });
 
@@ -148,6 +159,14 @@ describe('payments view', () => {
     const view = createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined);
     expect(view.querySelector('tr.row-danger')?.textContent).toContain('⚠ phone not in Pledges');
     expect(view.querySelector('td.cell-warning')).not.toBeNull();
+  });
+
+  it('opens Log a payment knowing how old the list is', () => {
+    const view = createPaymentsView({ store: { ...store, lastLoadedAt: () => Date.now() - STALE_LOAD_MS } as Store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    (Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
+    type(document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement, '555 999 0000');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain(SAVE_ANYWAY);
   });
 });
 
@@ -306,6 +325,25 @@ describe('payment form', () => {
     type(document.querySelector('input[name=phone]') as HTMLInputElement, '(--)');
     const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
     expect({ text: preview.textContent, className: preview.className }).toEqual({ text: 'Type the phone number to find the donor.', className: 'hint' });
+  });
+
+  it('says to save anyway, not add a second pledge, when a list loaded over 2 minutes ago cannot find the phone', () => {
+    openPaymentForm({ methods: METHODS, pledges, pledgesLoadedAt: Date.now() - STALE_LOAD_MS, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '123');
+    expect(document.querySelector('[data-role=donor-preview]')?.textContent).toBe(`⚠ phone not in Pledges — this payment will not be counted until that is fixed. ${SAVE_ANYWAY}`);
+  });
+
+  it('keeps the warning short on a list loaded in the last 2 minutes', () => {
+    openPaymentForm({ methods: METHODS, pledges, pledgesLoadedAt: Date.now() - 60_000, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '123');
+    expect(document.querySelector('[data-role=donor-preview]')?.textContent).toBe('⚠ phone not in Pledges — this payment will not be counted until that is fixed.');
+  });
+
+  it('keeps the warning short for a donor whose pledge has no amount, however old the list', () => {
+    const noAmount = pledge({ phone: '555-010-0109', name: 'Amount To Come' });
+    openPaymentForm({ methods: METHODS, pledges: [...pledges, noAmount], pledgesLoadedAt: Date.now() - STALE_LOAD_MS, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '555-010-0109');
+    expect(document.querySelector('[data-role=donor-preview]')?.textContent).toBe('⚠ no amount on Pledges — this payment will not be counted until that is fixed.');
   });
 
   it('turns typed text into a draft', async () => {

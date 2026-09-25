@@ -10,6 +10,7 @@ import { openPaymentForm } from './paymentForm';
 import { openPledgeForm } from './pledgeForm';
 import type { ListViewDeps } from './pledgesView';
 import { matchesQuery } from './search';
+import { staleListAge } from './staleList';
 import { renderTable, type Column } from './table';
 
 // A one-letter search at event scale matches nearly every donor; drawing them all froze a phone
@@ -65,6 +66,7 @@ export function createLookupView(deps: ListViewDeps) {
         phone: donor.pledge.phone,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
+        pledgesLoadedAt: deps.store.lastLoadedAt(),
         onSave: (draft) => deps.store.savePayment(draft, undefined, paymentId),
         reportError: deps.reportError,
       });
@@ -100,7 +102,17 @@ export function createLookupView(deps: ListViewDeps) {
         // At the door, a donor nobody can find is almost always a new pledge.
         const addPledge = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add a pledge');
         addPledge.addEventListener('click', () => openNewPledge(text));
-        results.replaceChildren(h('div', { class: 'empty view' }, h('p', {}, 'No donor found.'), h('div', {}, addPledge)));
+        // Unless another volunteer added them after this list was loaded: a second pledge would count their payments twice.
+        const age = staleListAge(deps.store.lastLoadedAt());
+        results.replaceChildren(
+          h(
+            'div',
+            { class: 'empty view' },
+            h('p', {}, 'No donor found.'),
+            age ? h('p', { class: 'hint hint-warning' }, `Your list was last updated ${age}. If they pledged with another volunteer since then, press Refresh before adding a pledge.`) : null,
+            h('div', {}, addPledge),
+          ),
+        );
         return;
       }
       results.replaceChildren(

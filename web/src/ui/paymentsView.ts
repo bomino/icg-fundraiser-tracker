@@ -48,6 +48,7 @@ export function createPaymentsView(deps: ListViewDeps) {
         existing,
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
+        pledgesLoadedAt: deps.store.lastLoadedAt(),
         onSave: (draft, current) => deps.store.savePayment(draft, current, newId),
         onDelete: (current) => deps.store.deletePayment(current),
         latest: () => deps.store.state()?.payments.find((p) => p.id === existing?.id),
