@@ -709,6 +709,7 @@ describe('Save and add another', () => {
   const boxes = (...names: string[]) => Object.fromEntries(names.map((name) => [name, box(name).value]));
   const press = (label: string) => (Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement).click();
   const offered = () => Array.from(document.querySelectorAll('dialog[open] button')).some((b) => b.textContent === 'Save and add another');
+  const pressInOpenForm = (label: string) => (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] .modal-actions button')).find((b) => b.textContent === label) as HTMLButtonElement).click();
 
   it('saves a new pledge, then opens a fresh one under a new id that keeps only the date pledged', () => {
     // #given
@@ -827,5 +828,35 @@ describe('Save and add another', () => {
     expect(document.querySelector('dialog[open]')).toBeNull();
     press('Log a payment');
     expect(boxes('dateReceived', 'method')).toEqual({ dateReceived: TODAY_LOCAL(), method: '' });
+  });
+
+  it('never saves a blank pledge from the empty form it opened: a double tap is ignored, and Save just closes it', () => {
+    // #given
+    const savePledge = vi.fn<Store['savePledge']>(async () => undefined);
+    document.body.append(createPledgesView({ store: { ...store, savePledge } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    press('Add pledge');
+    fill({ phone: '555 777 0001', name: 'Zara', datePledged: '2026-09-18' });
+    // #when a double tap's second press lands on the next form's own button
+    pressInOpenForm('Save and add another');
+    pressInOpenForm('Save and add another');
+    // #then
+    expect(savePledge).toHaveBeenCalledTimes(1);
+    expect(openModalTitles()).toEqual(['Add pledge']);
+    // #when the stack is done and Save is pressed on the empty form
+    pressInOpenForm('Save');
+    // #then
+    expect(openModalTitles()).toEqual([]);
+    expect(savePledge).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the empty payment form it opened on Save, rather than asking for a phone and amount', () => {
+    const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
+    document.body.append(createPaymentsView({ store: { ...store, savePayment } as Store, reportError: vi.fn() })(state, null, () => undefined));
+    press('Log a payment');
+    fill({ phone: '555-010-0103', amountReceived: '20', method: 'Cash' });
+    pressInOpenForm('Save and add another');
+    pressInOpenForm('Save');
+    expect(openModalTitles()).toEqual([]);
+    expect(savePayment).toHaveBeenCalledTimes(1);
   });
 });

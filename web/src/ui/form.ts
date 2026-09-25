@@ -34,6 +34,12 @@ export interface FormSpec<D> {
    * then, once the dialog has closed, calls this with what was saved to open the next form.
    */
   addAnother?: (saved: D) => void;
+  /**
+   * Set on the empty form "Save and add another" opens. Until something is typed in it, it holds
+   * nothing to save: Save closes it, and "Save and add another" is ignored. A double tap's second
+   * press lands on this form's own button, and a pledge with every box empty would otherwise save.
+   */
+  nextEntry?: boolean;
   /** `context` names the interrupted change, e.g. "Couldn't save Aisha", because the form has already closed by then. */
   reportError(err: unknown, context: string): void;
   /**
@@ -154,6 +160,10 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   spec.form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (save.disabled) return;
+    if (spec.nextEntry && !typedSinceOpen()) {
+      if (!addingAnother) dialog.close();
+      return;
+    }
     showFormError(null);
     const { draft, errors: parseErrors } = spec.read();
     const errors = { ...spec.validate(draft), ...parseErrors };

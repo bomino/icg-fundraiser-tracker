@@ -132,6 +132,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     secondary: paymentAction(),
     addAnother: onAddAnother && !existing ? (saved) => onAddAnother({ datePledged: saved.datePledged }) : undefined,
+    nextEntry: options.carried !== undefined,
     deleteMessage: existing ? deleteMessage(existing, options.pledges, options.derived) : '',
     reportError: options.reportError,
     reopen: (again) => openPledgeForm({ ...options, newId, existing: existing && (options.latest?.() ?? existing) }, again),

@@ -16,7 +16,7 @@ type Draft = { name: string };
 
 function setup(
   onSave: (draft: Draft) => Promise<void>,
-  options: { restore?: FormRestore; onDelete?: () => Promise<void>; busy?: () => boolean; secondary?: FormSpec<Draft>['secondary']; addAnother?: FormSpec<Draft>['addAnother'] } = {},
+  options: { restore?: FormRestore; onDelete?: () => Promise<void>; busy?: () => boolean; secondary?: FormSpec<Draft>['secondary']; addAnother?: FormSpec<Draft>['addAnother']; nextEntry?: boolean } = {},
 ) {
   const name = field({ name: 'name', label: 'Name', value: '' });
   const form = h('form', { class: 'form' }, name.wrapper);
@@ -38,6 +38,7 @@ function setup(
     busy: options.busy,
     secondary: options.secondary,
     addAnother: options.addAnother,
+    nextEntry: options.nextEntry,
   });
   const submit = () => form.dispatchEvent(new Event('submit', { cancelable: true }));
   return { name, dialog, submit, reportError, reopen };
@@ -456,6 +457,34 @@ describe('runForm', () => {
       await vi.waitFor(() => expect(errorToast()?.querySelector('.toast-message')?.textContent).toBe(`Couldn't save Aisha. ${error.message}`));
       (toastButton('Reopen') as HTMLButtonElement).click();
       expect(reopen).toHaveBeenCalledWith({ values: { name: 'Aisha' }, error });
+    });
+
+    it('saves nothing from the untouched form it opened: a second press is ignored, and Save closes it', () => {
+      // #given the next entry's form, nothing typed in it yet
+      const onSave = vi.fn(async () => undefined);
+      const addAnother = vi.fn();
+      const { dialog, submit } = setup(onSave, { addAnother, nextEntry: true });
+      // #when a double tap's second press lands on its button
+      buttonIn(dialog.element, 'Save and add another').click();
+      // #then it stays open for the next entry, with no error about boxes never typed in
+      expect(dialog.element.open).toBe(true);
+      expect((document.querySelector('.field-error') as HTMLElement).hidden).toBe(true);
+      // #when Save is pressed at the end of the stack
+      submit();
+      // #then it closes, with nothing to save
+      expect(dialog.element.open).toBe(false);
+      expect(onSave).not.toHaveBeenCalled();
+      expect(addAnother).not.toHaveBeenCalled();
+    });
+
+    it('saves the next entry as usual once something is typed in it', () => {
+      const onSave = vi.fn(async () => undefined);
+      const addAnother = vi.fn();
+      const { name, dialog } = setup(onSave, { addAnother, nextEntry: true });
+      name.input.value = 'Aisha';
+      buttonIn(dialog.element, 'Save and add another').click();
+      expect(onSave).toHaveBeenCalledWith({ name: 'Aisha' });
+      expect(addAnother).toHaveBeenCalledWith({ name: 'Aisha' });
     });
   });
 

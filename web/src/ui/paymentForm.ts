@@ -95,6 +95,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     onSave: (draft) => options.onSave(draft, existing ?? { id: newId }),
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
     addAnother: onAddAnother && !existing ? (saved) => onAddAnother({ dateReceived: saved.dateReceived, method: saved.method }) : undefined,
+    nextEntry: options.carried !== undefined,
     deleteMessage: 'Delete this payment? It will be removed from every total.',
     reportError: options.reportError,
     reopen: (again) => openPaymentForm({ ...options, newId, existing: existing && (options.latest?.() ?? existing) }, again),

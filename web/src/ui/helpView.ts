@@ -339,7 +339,7 @@ function howTo(): Child[] {
       ),
       note('If the phone number is already on another pledge, an amber note appears: ', said(`${SAID.duplicateHint} …`), ' Do not save a second pledge for the same donor — edit the existing one instead.'),
       note('If the donor is also handing over money right now, press ', b('Save and log a payment'), ' instead of Save. See ', b('Someone pledges and pays at once'), '.'),
-      note('Typing up a stack of pledge cards? Press ', b(SAID.saveAndAddAnother), ' instead of Save. The pledge saves and an empty form opens for the next card with the same Date pledged, so check the date on each card.'),
+      note('Typing up a stack of pledge cards? Press ', b(SAID.saveAndAddAnother), ' instead of Save. The pledge saves and an empty form opens for the next card with the same Date pledged, so check the date on each card. Nothing is saved from that empty form until you type in it, so after the last card, press Cancel.'),
     ),
     topic(
       'Log a payment',
@@ -360,7 +360,7 @@ function howTo(): Child[] {
         ['Notes', PAYMENT_HELP.notes],
       ),
       note('Log each installment as its own payment. Do not edit an old payment to add a new amount to it — the tracker adds up the installments for you.'),
-      note('Logging several payments in a row? Press ', b(SAID.saveAndAddAnother), ' instead of Save. The payment saves and an empty form opens for the next one with the same date and payment method, so change them if the next payment differs.'),
+      note('Logging several payments in a row? Press ', b(SAID.saveAndAddAnother), ' instead of Save. The payment saves and an empty form opens for the next one with the same date and payment method, so change them if the next payment differs. After the last one, press Cancel on the empty form.'),
       note(
         'You can also log a payment straight from a donor: open their card on ',
         b('Find donor'),
