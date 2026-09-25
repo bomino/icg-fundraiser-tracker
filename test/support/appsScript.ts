@@ -20,6 +20,8 @@ export class FakeSheet {
   raw: unknown[][] = [];
   // Each cell's number format as Range.getNumberFormats reports it: '' (Automatic) unless set, '@' for Plain text.
   formats: string[][] = [];
+  // Every setValues and setValue, as the range it wrote: each is a call to Google that costs time.
+  rangeWrites: Array<{ row: number; column: number; numRows: number; numColumns: number }> = [];
   constructor(
     private name: string,
     private readonly tabs: Map<string, FakeSheet>,
@@ -89,8 +91,14 @@ export class FakeSheet {
           (this.formats[r] ??= [])[c] = format;
         });
       },
-      setValues: (values: unknown[][]) => values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value))),
-      setValue: (value: unknown) => write(row, column, value),
+      setValues: (values: unknown[][]) => {
+        this.rangeWrites.push({ row, column, numRows, numColumns });
+        values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value)));
+      },
+      setValue: (value: unknown) => {
+        this.rangeWrites.push({ row, column, numRows: 1, numColumns: 1 });
+        write(row, column, value);
+      },
       clearContent: () => {
         this.raw.slice(row - 1, row - 1 + numRows).forEach((cells) => cells.fill('', column - 1, column - 1 + numColumns));
         this.dropTrailingBlankRows();
@@ -110,6 +118,9 @@ export function createServer() {
   const sheets = new Map<string, FakeSheet>();
   const tokens = new Map<string, TokenInfo>();
   const cache = new Map<string, string>();
+  // The lifetime Code.gs asked for on each put, in seconds. The fake never expires an entry itself,
+  // so this is the only way a test can see how long a verified token would be trusted.
+  const cacheSeconds = new Map<string, number | undefined>();
   const state: {
     fetchCount: number;
     // Throws on the *next* fetch call only, then resets itself, mimicking a one-off transient
@@ -222,7 +233,10 @@ export function createServer() {
     CacheService: {
       getScriptCache: () => ({
         get: (key: string) => cache.get(key) ?? null,
-        put: (key: string, value: string) => cache.set(key, value),
+        put: (key: string, value: string, seconds?: number) => {
+          cache.set(key, value);
+          cacheSeconds.set(key, seconds);
+        },
       }),
     },
     LockService: {
@@ -293,5 +307,5 @@ export function createServer() {
     call('onEdit', { range, user: { getEmail: () => email } });
   }
 
-  return { sheets, cache, state, ui, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, select, sheet: (name: string) => sheets.get(name) as FakeSheet };
+  return { sheets, cache, cacheSeconds, state, ui, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, select, sheet: (name: string) => sheets.get(name) as FakeSheet };
 }

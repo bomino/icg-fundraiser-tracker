@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { newId } from '../web/src/id';
+import { createServer } from './support/appsScript';
 
-// The same shape Code.gs's UUID_PATTERN enforces server-side.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Code.gs's own UUID_PATTERN, not a copy: a create whose id fails it is refused, and it is
+// lower-case only, so a copy that ignored case would pass ids the server turns away.
+const UUID_RE = createServer().evaluate<RegExp>('UUID_PATTERN');
 
 describe('newId', () => {
   it('uses crypto.randomUUID when the platform provides it', () => {
@@ -17,7 +19,7 @@ describe('newId', () => {
       const id = newId();
       expect(id).toMatch(UUID_RE);
       expect(id[14]).toBe('4'); // version nibble
-      expect('89ab').toContain(id[19].toLowerCase()); // variant nibble
+      expect('89ab').toContain(id[19]); // variant nibble
     } finally {
       Object.defineProperty(crypto, 'randomUUID', { value: original, configurable: true });
     }

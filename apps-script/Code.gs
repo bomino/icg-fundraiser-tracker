@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 11;
+const API_VERSION = 12;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = [['goal', 10000], ['paymentMethods', 'Cash,Bank Transfe
 // Keep in step with web/src/validate.ts.
 const MAX_TEXT = 500;
 const MAX_AMOUNT = 1000000000;
+const DECIMALS_PROBLEM = 'Use at most 2 decimal places.';
 const WARNING_MARK = '⚠';
 const TOKEN_CACHE_SECONDS = 300;
 const LOCK_WAIT_MS = 10000;
@@ -37,7 +38,9 @@ const US_COUNTRY_CODE = /^1(?=[2-9]\d{9}$)/;
 const MIN_PHONE_DIGITS = 7;
 // What the app's forms trim from what is typed before saving.
 const TRIMMED_FIELDS = ['phone', 'name', 'notes'];
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Lower-case only, as crypto.randomUUID and Utilities.getUuid make them: findRow_ compares ids
+// exactly, so an upper-cased retry of a create would be a new row, not the same one.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ADD_ROWS_ITEM = 'Add selected rows to the tracker…';
 // Longer lists would overflow the Sheet's dialog; the organiser fixes these and runs it again.
 const LISTED_AT_MOST = 10;
@@ -203,9 +206,12 @@ function withLock_(fn) {
   }
 }
 
+// Takes no lock, so a save can land between the two reads. Payments is read first because a pledge
+// is saved before its payment: read the other way, both could land in between and the payment
+// would show without its pledge.
 function load_(email) {
-  const pledges = readRows_('Pledges');
   const payments = readRows_('Payments');
+  const pledges = readRows_('Pledges');
   return {
     pledges: pledges.records,
     payments: payments.records,
@@ -352,9 +358,13 @@ function amountProblem_(value) {
   if (value === null) return '';
   if (!isFinite(value) || value < 0) return 'Enter an amount of 0 or more.';
   if (value > MAX_AMOUNT) return 'That amount is too large.';
-  // Tolerance scales with the amount, as in web/src/validate.ts.
-  if (Math.abs(Math.round(value * 100) / 100 - value) > 4 * Number.EPSILON * Math.max(1, Math.abs(value))) return 'Use at most 2 decimal places.';
+  if (!hasAtMostTwoDecimals_(value)) return DECIMALS_PROBLEM;
   return '';
+}
+
+// Tolerance scales with the amount, as in web/src/validate.ts.
+function hasAtMostTwoDecimals_(value) {
+  return Math.abs(Math.round(value * 100) / 100 - value) <= 4 * Number.EPSILON * Math.max(1, Math.abs(value));
 }
 
 function validateRow_(tab, payload, methods) {
@@ -477,11 +487,22 @@ function onEdit(e) {
   if (count < 1) return;
   // After a column is moved, updatedAt's place holds some other field, which a stamp would overwrite.
   assertHeaders_(tab, sheet.getRange(1, 1, 1, HEADERS[tab].length).getValues()[0]);
-  const stamp = [[toCell_(new Date().toISOString()), toCell_((e.user && e.user.getEmail()) || 'edited in Sheet')]];
+  const stamp = [toCell_(new Date().toISOString()), toCell_((e.user && e.user.getEmail()) || 'edited in Sheet')];
   const versionColumn = HEADERS[tab].indexOf('updatedAt') + 1;
-  sheet.getRange(first, 1, count, 1).getValues().forEach((row, i) => {
-    if (row[0] !== '') sheet.getRange(first + i, versionColumn, 1, 2).setValues(stamp);
-  });
+  const hasId = sheet.getRange(first, 1, count, 1).getValues().map((row) => row[0] !== '');
+  // One write per run of rows with an id, never one per row: Sheets stops a simple trigger after
+  // 30 s, and a whole-tab paste stamped row by row could leave the rows it never reached unstamped.
+  let start = 0;
+  while (start < count) {
+    if (!hasId[start]) {
+      start++;
+      continue;
+    }
+    let end = start;
+    while (end < count && hasId[end]) end++;
+    sheet.getRange(first + start, versionColumn, end - start, 2).setValues(Array.from({ length: end - start }, () => stamp));
+    start = end;
+  }
 }
 
 function readSettings_() {
@@ -501,6 +522,8 @@ function setSetting_(payload) {
   if (payload.key !== 'goal') throw invalid_('key', 'Only the goal can be changed from the app.');
   const value = payload.value;
   if (typeof value !== 'number' || !isFinite(value) || value < 0 || value > MAX_AMOUNT) throw invalid_('goal', 'Enter a goal of 0 or more.');
+  // Refused like an amount, not rounded: rounding would save a goal nobody typed.
+  if (!hasAtMostTwoDecimals_(value)) throw invalid_('goal', DECIMALS_PROBLEM);
   const goal = Math.round(value * 100) / 100;
   const sheet = sheet_('Settings');
   const values = sheet.getDataRange().getValues();
