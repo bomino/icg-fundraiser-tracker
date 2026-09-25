@@ -363,7 +363,7 @@ describe('pledge form', () => {
     expect(onLogPayment).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the pledge dialog open and does not log a payment when discard is declined', () => {
+  it('keeps the pledge dialog open and does not log a payment when discard is declined', async () => {
     const onLogPayment = vi.fn();
     openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), onLogPayment, reportError: vi.fn() });
     type(document.querySelector('input[name=name]') as HTMLInputElement, 'Chen Wei Jr.');
@@ -371,6 +371,9 @@ describe('pledge form', () => {
     button.click();
     const confirmModal = Array.from(document.querySelectorAll('dialog')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm') as HTMLDialogElement;
     (Array.from(confirmModal.querySelectorAll('button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
+    // The answer only arrives with the confirm's close event, a task later; checked before it, a
+    // decline that went ahead anyway would still pass.
+    await vi.waitFor(() => expect(confirmModal.isConnected).toBe(false));
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit pledge');
     expect(onLogPayment).not.toHaveBeenCalled();
