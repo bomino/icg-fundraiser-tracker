@@ -91,7 +91,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     const other = otherPledgeWithPhone(options.pledges, fields.phone.input.value, existing?.id);
     duplicateHint.hidden = !other;
     duplicateHint.textContent = other
-      ? `This phone number is already on the pledge for ${other.name || 'a donor with no name'}. Each donor should appear only once, or their payments are counted twice.`
+      ? `This phone number is already on the pledge for ${other.name || 'a donor with no name'}. Each donor should appear only once, or their payments are counted twice. If this is someone else in the same household, add their amount to that pledge (note each person's share), or use their own number.`
       : '';
   };
   fields.phone.input.addEventListener('input', updateHint);

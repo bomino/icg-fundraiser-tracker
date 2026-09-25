@@ -111,7 +111,15 @@ const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
   },
   pledgeNoPhone: {
     meaning: 'A pledge has an amount but no phone number, so no payment can ever be matched to it.',
-    fix: ['Open the pledge and add the donor’s phone number.'],
+    fix: [
+      'Open the pledge and add the donor’s phone number. If the donor won’t give a number, use a made-up one such as ',
+      b('000-0001'),
+      ' (then ',
+      b('000-0002'),
+      '…), use it on every payment too, and say so in Notes. See ',
+      b('Record a donor who won’t give a phone number'),
+      ' in How to….',
+    ],
   },
   paymentIncomplete: {
     meaning: 'A payment has a phone number but no date, or no amount. A payment without an amount adds nothing to any total.',
@@ -119,11 +127,11 @@ const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
   },
   futureDated: {
     meaning: 'A payment is dated after today. It is still counted, but it is usually a typo, such as the wrong year.',
-    fix: ['Open the payment and correct the Date received.'],
+    fix: ['Open the payment and correct the Date received. If it is a real post-dated check, see ', b('A donor gives post-dated checks'), ' in How to….'],
   },
   predatesPledge: {
     meaning: 'A donor’s most recent payment is dated before their Date Pledged. One of the dates is probably wrong.',
-    fix: ['Check the Date Pledged on the pledge and the dates on the donor’s payments, and correct whichever is wrong.'],
+    fix: ['Check the Date Pledged on the pledge and the dates on the donor’s payments, and correct whichever is wrong. If the donor raised their pledge, set Date Pledged back to the date of their first promise.'],
   },
   possibleDuplicatePayments: {
     meaning: 'Two or more payments share the same phone number, amount and date. That is often the same payment typed in twice, but two real installments of the same amount on the same day are possible — check, it may be fine.',
@@ -404,7 +412,7 @@ function howTo(): Child[] {
         ['Amount pledged ($)', PLEDGE_HELP.amountPledged],
         ['Notes', PLEDGE_HELP.notes],
       ),
-      note('If the phone number is already on another pledge, an amber note appears: ', said(`${SAID.duplicateHint} …`), ' Do not save a second pledge for the same donor — edit the existing one instead.'),
+      note('If the phone number is already on another pledge, an amber note appears: ', said(`${SAID.duplicateHint} …`), ' Do not save a second pledge for the same donor — edit the existing one instead. If it is someone else in the same household, either add their amount to that pledge and write each person’s share in Notes, or use their own phone number.'),
       note('If the donor is also handing over money right now, press ', b('Save and log a payment'), ' instead of Save. See ', b('Someone pledges and pays at once'), '.'),
       note('Typing up a stack of pledge cards? Press ', b(SAID.saveAndAddAnother), ' instead of Save. The pledge saves and an empty form opens for the next card with the same Date pledged, so check the date on each card. Nothing is saved from that empty form until you type in it, so after the last card, press Cancel.'),
     ),
@@ -451,6 +459,7 @@ function howTo(): Child[] {
       ),
       note('Log each installment as its own payment. Do not edit an old payment to add a new amount to it — the tracker adds up the installments for you.'),
       note('Logging several payments in a row? Press ', b(SAID.saveAndAddAnother), ' instead of Save. The payment saves and an empty form opens for the next one with the same date and payment method, so change them if the next payment differs. After the last one, press Cancel on the empty form.'),
+      note('For a gift made online, type the amount the donor gave, as shown on their receipt — not the smaller amount the giving website sends the masjid after taking its fee, or the donor will show as still owing the fee. You can put the website’s reference number in Notes.'),
       note(
         'You can also log a payment straight from a donor: open their card on ',
         b('Find donor'),
@@ -493,9 +502,39 @@ function howTo(): Child[] {
       p('When you learn the amount, edit the pledge and replace the 0.'),
     ),
     topic(
+      'Record a donor who won’t give a phone number',
+      p(
+        'The phone number is how the tracker links a donor’s payments to their pledge, so without one no payment can be logged for them. If a donor won’t give theirs, give them a made-up number instead. For a one-off gift from someone who has not pledged, see ',
+        b('Record money with no phone number (collection box, walk-in)'),
+        ' in How to….',
+      ),
+      steps(
+        ['Add their pledge, or open it if it is already on ', b('Pledges'), ', and type ', b('000-0001'), ' as the phone number. If an amber note says it is already on another pledge, try ', b('000-0002'), ', then ', b('000-0003'), ', and so on, until no note appears.'],
+        ['In Notes, write that the number is made up, for example “No phone given — made-up number”.'],
+        ['Use the same made-up number every time you log a payment from this donor.'],
+      ),
+      note('The made-up number shows wherever a phone number does, including Needs follow-up and the downloaded copy. The note tells anyone who sees it not to call it.'),
+    ),
+    topic(
+      'Record money with no phone number (collection box, walk-in)',
+      p('Some money has no donor to link it to: cash from the collection box, or a gift from someone who has not pledged and leaves no number. Log all of it under one shared pledge named General donations, so it still counts toward the goal.'),
+      steps(
+        ['The first time only: on ', b('Pledges'), ', press ', b('Add pledge'), '. Type ', b('000-000-0000'), ' as the phone number and ', b('General donations'), ' as the donor name, enter ', b('0'), ' in Amount pledged, and clear the Date pledged box so it is empty. Save. Do this only when you have a gift to log, because until it has one it shows under ', b('Needs follow-up'), '.'],
+        ['Log the money as a payment with ', b('000-000-0000'), ' as the phone number. The line under it should show “Donor: General donations”. For the collection box, one payment for each count is enough; say where the money came from in Notes, for example “Collection box, Jumu’ah”.'],
+        ['If you already logged such money under another number, open that payment and change its phone number to ', b('000-000-0000'), '.'],
+      ),
+      p('This money counts toward Total received, the goal and the Friday display, and Unmatched payments stays at $0.00. Two things look odd but are expected:'),
+      bullets(
+        ['General donations shows as ', b(STATUS.overpaid), ' and counts as one Overpaid donor, and all its money is added to ', b('Overpaid / credit'), ' on the Summary, because its pledge amount is 0. Leave it at 0: raising it would add to Total pledged and to the count of donors who pledged.'],
+        ['Two gifts of the same amount on the same day, such as two $20 gifts on a Friday, appear under ', b(HEALTH_LABELS.possibleDuplicatePayments), '. That is a false alarm: keep both.'],
+      ),
+      note('Date pledged stays empty so that no gift, however old, is flagged as coming before the pledge. Someone who has pledged, or will pay over time, needs their own made-up number instead: see ', b('Record a donor who won’t give a phone number'), ' in How to….'),
+    ),
+    topic(
       'Edit a pledge or payment',
       steps(['Find the row on Pledges or Payments (use the search box).'], ['Tap the row. The form opens with its current values.'], ['Change what you need and press ', b('Save'), '.']),
       note('You can also start from a donor’s card on ', b('Find donor'), ': press ', b('Edit pledge'), ', or tap one of their payments.'),
+      note('When a donor raises their pledge, change the Amount pledged but keep the original Date pledged, and write the increase and its date in Notes. Changing Date pledged to today makes their earlier payments look as if they came before the pledge.'),
     ),
     topic(
       'Close a form without saving',
@@ -563,9 +602,30 @@ function howTo(): Child[] {
       p('Their status shows ', b(STATUS.overpaid), ' and their Balance Due is shown in brackets, for example ($50.00).'),
       steps(
         ['First check their payments for a typo, such as 500 typed instead of 50. Fix it if so.'],
-        ['If the donor really did give more, you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
+        ['If the donor really did give more (for example, their employer matched the gift), you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
       ),
       p('The extra money is shown under ', b('Overpaid / credit'), ' on the Summary. It never hides what other donors still owe.'),
+      note('General donations is the exception: it always shows Overpaid, and its Amount pledged stays 0. See ', b('Record money with no phone number (collection box, walk-in)'), ' in How to….'),
+    ),
+    topic(
+      'A check bounced or money was given back',
+      p('The money has to come off the donor’s total. The tracker has no minus amounts, so you delete the payment — but write down what happened first.'),
+      steps(
+        ['On ', b('Pledges'), ', open the donor’s pledge and add a line to Notes, for example “Check #1042 for $500 dated 2026-09-10 bounced 2026-10-01”. Save.'],
+        ['On ', b('Payments'), ', open that payment and delete it.'],
+      ),
+      p('If only part of the money was given back, do not delete the payment. Edit its amount down to what the masjid kept, and add the same kind of note to the pledge.'),
+      note('The donor’s balance goes back up, and they show on ', b('Needs follow-up'), ' in the usual way, so someone can call them. A deleted payment no longer shows on Payments or in the downloaded copy, so the note on the pledge is the record of what happened.'),
+    ),
+    topic(
+      'A donor gives post-dated checks',
+      p('A post-dated check cannot be paid into the bank before its date. Log each one on the day it is deposited, not the day it is handed over, so the totals only count money the masjid can bank.'),
+      steps(
+        ['When the donor hands the checks over, open their pledge and add a line to Notes, for example “3 post-dated checks held: Nov, Dec, Jan”. Save. Anyone who sees them on ', b('Needs follow-up'), ' then knows not to call them for money already given.'],
+        ['On the day each check is deposited, log it as a payment dated that day, and update the note.'],
+      ),
+      p('If one was already logged with its future date, it shows as an amber date on Payments and under ', b(HEALTH_LABELS.futureDated), ' in Data health. Delete it, add it to the note, and log it again on the day it is deposited.'),
+      note('This is the suggested way. If the organiser prefers another, such as counting the checks as soon as they are handed over, follow theirs.'),
     ),
     topic(
       'Fix a donor entered twice',
@@ -656,7 +716,12 @@ function theNumbers(): Child[] {
         [b('Total pledged'), 'Every Amount Pledged added together.'],
         [b('Total received'), 'Money matched to a pledge. Payments with a ⚠ warning are not included.'],
         [b('Balance outstanding'), 'Only the money donors still owe. A donor’s credit is never subtracted from another donor’s debt.'],
-        [b('Overpaid / credit'), 'All the extra money from donors who gave more than they pledged, shown separately.'],
+        [
+          b('Overpaid / credit'),
+          'All the extra money from donors who gave more than they pledged, shown separately. Money logged under General donations is counted here too; see ',
+          b('Record money with no phone number (collection box, walk-in)'),
+          ' in How to….',
+        ],
         [b('Donors: Pledged'), 'Donors with an Amount Pledged above 0.'],
       ),
     ),
@@ -675,7 +740,8 @@ function theNumbers(): Child[] {
     topic(
       'Phone numbers',
       p('The phone number is how a payment finds its donor. Dashes, spaces, brackets, dots and the + sign are ignored, so 555-010-0101, (555) 010 0101 and 5550100101 are the same donor.'),
-      p('Digits are never ignored. ', b('0551234'), ' and ', b('551234'), ' are different numbers, and so are ', b('+1 555 010 0101'), ' and ', b('555 010 0101'), '. Type a donor’s number the same way every time.'),
+      p('A US number with or without +1 is the same donor, so ', b('+1 555 010 0101'), ' and ', b('555 010 0101'), ' match. A leading 0 still matters: ', b('0551234'), ' and ', b('551234'), ' are different numbers.'),
+      p('A number copied from a contact card or a message matches too: the invisible marks some phones and computers add when you copy a number are ignored. Arabic and Urdu digits count the same as 0–9, so ', b('٥٥٥٠١٠٠١٠١'), ' and ', b('5550100101'), ' are the same donor.'),
     ),
   ];
 }
@@ -694,7 +760,9 @@ function warningsAndHealth(): Child[] {
           b(SAID.useTheirNumber),
           '. Otherwise, type the last 4 digits of the number into the search box on ',
           b('Pledges'),
-          ' to find the donor, and correct the number — or, if the donor has no pledge yet, add one.',
+          ' to find the donor, and correct the number — or, if the donor has no pledge yet, add one. For money with no donor, such as collection-box cash, see ',
+          b('Record money with no phone number (collection box, walk-in)'),
+          ' in How to….',
         ],
         [said(WARN_NO_AMOUNT), 'The donor’s pledge has a blank Amount Pledged. Open the pledge and enter the amount, or 0 if it is not known yet.'],
       ),
@@ -784,6 +852,7 @@ function forTheOrganiser(): Child[] {
         ' is the title of the Friday display, such as Masjid Expansion 2026. Left blank, the display says Fundraiser. If the tab has no campaignName row, add one: campaignName in the first column and the name in the second.',
       ),
       p('Volunteers see changes to Settings after pressing Refresh. Payments that use a method you removed are grouped as “Other / unlisted” on the Summary, and must be given a listed method the next time someone edits them.'),
+      p('Volunteers log each online gift at the amount the donor gave, because logging what the giving website pays out would leave every online donor owing its fee. So the Online row under ', b('Collected by payment method'), ' on the Summary will be higher than what the website pays into the bank, by the amount of its fees.'),
     ),
     topic(
       'Keeping the sheet healthy',

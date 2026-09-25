@@ -99,6 +99,10 @@ This is a pure module with no DOM and no network access. Money is handled intern
 
 Deliberate deviation: keys are compared for exact string equality. Excel treats `*`, `?` and `~` inside a phone number as wildcards in `COUNTIF`/`SUMIF`; the app doesn't. Phones never legitimately contain those characters.
 
+Deliberate deviation: after stripping, a key that is exactly `1` plus a North American number (`/^1[2-9]\d{9}$/`) drops the `1`, so `+1 336 555 0123` and `336-555-0123` are the same donor. The workbook kept the country code, which let a donor re-entered with `+1` slip past the duplicate-donor check. Area codes never start with 0 or 1, so `10551234567` is unchanged, and a leading `0` still counts.
+
+Deliberate deviation: before stripping, the phone is NFKC-normalized (full-width digits and punctuation become ASCII) and Arabic-Indic and Persian/Urdu digits are read as `0`–`9`, and the stripped set also covers the invisible direction and zero-width marks U+200B–U+200F, U+202A–U+202E, U+2060–U+2064 and U+2066–U+2069. Mac Contacts and right-to-left-aware apps wrap copied numbers in these marks, so without this a pasted number that looks identical to the pledge's matches nothing, and a phone of only marks counts as present. The server's blank-phone check (`PHONE_IGNORED` in `Code.gs`) applies the same NFKC step and marks.
+
 ### 5.2 Pledge derived fields
 Let `k` be the row's key and `M` the payments whose key equals `k`.
 

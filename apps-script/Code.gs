@@ -27,8 +27,9 @@ const WARNING_MARK = '⚠';
 const TOKEN_CACHE_SECONDS = 300;
 const LOCK_WAIT_MS = 10000;
 const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
-// Keep in step with IGNORED_CHARACTERS in web/src/matchKey.ts: a phone of only these is blank.
-const PHONE_IGNORED = /[\s\-().+\u2010-\u2015\u2212]/g;
+// Keep in step with IGNORED_CHARACTERS and its NFKC step in web/src/matchKey.ts: a phone of only
+// these is blank.
+const PHONE_IGNORED = /[\s\-().+\u2010-\u2015\u2212\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069]/g;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class ApiError extends Error {
@@ -341,7 +342,7 @@ function validateRow_(tab, payload, methods) {
   });
   if (tab === 'Pledges' && row.name.indexOf(WARNING_MARK) === 0) throw invalid_('name', 'A name cannot start with ' + WARNING_MARK + '.');
   if (tab === 'Payments') {
-    if (row.phone.replace(PHONE_IGNORED, '') === '') throw invalid_('phone', "Enter the donor's phone number.");
+    if (row.phone.normalize('NFKC').replace(PHONE_IGNORED, '') === '') throw invalid_('phone', "Enter the donor's phone number.");
     if (row.amountReceived === null) throw invalid_('amountReceived', 'Enter the amount received.');
     if (row.method !== '' && methods.indexOf(row.method) < 0) throw invalid_('method', 'Pick a method from the list.');
   }

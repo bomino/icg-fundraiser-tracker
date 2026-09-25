@@ -20,11 +20,13 @@ Three logical tables: Pledges (donor dimension), Payments (transaction fact), Su
 
 ### The match key
 
-`web/src/matchKey.ts` strips `-`, `(`, `)`, `.`, `+`, any whitespace (tabs and non-breaking spaces included) and Unicode dashes (`‐`–`―`, `−`), lower-cases, and prefixes the result with `#`. Three details are deliberate:
+`web/src/matchKey.ts` applies NFKC (full-width digits and punctuation become ASCII), reads Arabic-Indic and Persian/Urdu digits as `0`–`9`, strips `-`, `(`, `)`, `.`, `+`, any whitespace (tabs and non-breaking spaces included), Unicode dashes (`‐`–`―`, `−`) and invisible direction and zero-width marks (U+200B–U+200F, U+202A–U+202E, U+2060–U+2064, U+2066–U+2069), drops a US `+1` country code, lower-cases, and prefixes the result with `#`. Five details are deliberate:
 
 - **The `#` prefix is required.** Without it, a key like `0551234` could be coerced to a number and collide with `551234`. Keep any new key logic text-prefixed.
 - **A blank phone gets a blank key, and every join must guard on that**, not just match on `""` — otherwise a pledge with no phone would match every payment that also lacks one.
 - **A phone with nothing left after stripping (`--`, `()`, `" "`) is blank too**, never a bare `#`, or every such placeholder would join every other one. Anything deciding "has a phone" must test `matchKey(phone) === ''`, not the raw text: the missing-phone health check, the Payments blank-phone validation (and its copy, `PHONE_IGNORED` in `Code.gs`), and the "Log a payment" and "Save and log a payment" buttons all do.
+- **A US number keys the same with or without its `+1`.** When what's left is exactly `1` plus a North American number (`/^1[2-9]\d{9}$/`), the `1` is dropped, so `+1 336 555 0123`, `1-336-555-0123` and `(336) 555-0123` are one donor: phones and contact cards add the `+1` on their own, and a donor re-entered that way would otherwise dodge the duplicate hint and "Donors listed more than once". Area codes never start with 0 or 1, so `10551234567` keeps its `1`; every other digit counts, so `0551234` and `551234` stay different. `Code.gs` needs no copy of this: it only asks whether a phone is blank.
+- **A copied number's invisible marks are ignored.** Mac Contacts wraps a copied number in U+202D…U+202C and right-to-left-aware apps add the same kind of direction marks; kept in the key, a number that looks identical on screen would match nothing, and a phone of only marks would pass the blank-phone check. The marks are explicit ranges, not `\p{Cf}`, so the character class copies unchanged into `PHONE_IGNORED`, which `Code.gs` applies after the same NFKC step. The Arabic-digit mapping is client-only because a digit is never blank. The saved phone keeps whatever was typed; only the key ignores the marks.
 
 ### Statuses
 
@@ -46,6 +48,12 @@ The outstanding total sums only positive per-donor balances, not `pledged - rece
 ### Duplicate donors double-count, by design
 
 A donor entered on two Pledges rows has their payments counted once per row — both rows show the full received amount, inflating totals and usually producing a phantom `Overpaid` credit. This is inherent to the one-row-per-donor model, not a bug; it's flagged by the "Donors listed more than once" health check, which also drives the unmatched-payments figure negative and can produce a spurious credit.
+
+### When a phone number isn't one donor
+
+The phone number is the donor's ID, so the guidance for the cases where it isn't lives in wording, not code. A donor who won't give a number gets a made-up one such as `000-0001` (then `000-0002`…), used on every payment and noted in Notes (Help's How-to topic and the "Pledges missing a phone number" fix). This relies on the phone being checked for length only, so don't add a format check that rejects it. Two people sharing a household phone either keep one pledge with each share in Notes or use their own numbers (the pledge form's duplicate hint). A raised pledge keeps its original Date Pledged, or it trips "Donors whose payments predate their pledge" (Help's Edit topic and that check's fix).
+
+Money with no donor at all (collection-box cash, a walk-in gift from someone who hasn't pledged) goes on one `General donations` pledge with the placeholder phone `000-000-0000`, Amount Pledged `0` and a blank Date Pledged (Help's "Record money with no phone number" How-to, pointed at from the `⚠ phone not in Pledges` entry, the Overpaid / credit definition and the overpaid-donor How-to). It counts toward Total received, the goal and the Friday display and keeps Unmatched at $0, but under the ordinary rules it reads `Overpaid`, adds all its money to the credit figure, and equal same-day gifts trip "Possible duplicate payments"; the blank date keeps it out of the predates-pledge check, but also puts it on Needs follow-up until its first gift, so Help says to add it only with a gift to log. Its amount must stay `0`: raising it to match would add it to Total pledged and the pledged-donor count shown on the Friday display. Help says all of this, and `test/ui/help.test.ts` pins those effects so a rule change can't make the How-to wrong silently. A reserved general-gift key that avoids the side effects (its own total, skipped by the duplicate check, a payment-form checkbox) is deliberately not built until the organiser confirms box money belongs in this app; existing `General donations` payments would then have to move to it, or they'd count twice.
 
 ### Health checks
 

@@ -909,6 +909,14 @@ describe('pledge form', () => {
     expect(hint.textContent).toContain('Aisha Rahman');
   });
 
+  it('tells a volunteer what to do when the phone is shared by someone in the same household', () => {
+    openPledgeForm({ pledges, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '555 010 0103');
+    const hint = document.querySelector('.hint-warning') as HTMLElement;
+    expect(hint.textContent).toMatch(/^This phone number is already on the pledge for Chen Wei\. /);
+    expect(hint.textContent).toContain("If this is someone else in the same household, add their amount to that pledge (note each person's share), or use their own number.");
+  });
+
   describe('changing the phone of a pledge with payments', () => {
     const oldNumberHint = () => document.querySelector('dialog[open] [data-role=old-number-hint]') as HTMLElement;
     const phoneBox = () => document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement;
