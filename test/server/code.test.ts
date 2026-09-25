@@ -973,6 +973,8 @@ describe('adding selected rows to the tracker', () => {
     ['a date the sheet keeps as a plain number', 'Payments', [['555-010-0101', 46289, 20, 'Cash', '']], 'Row 4, dateReceived (column C): the sheet holds the number 46289 here, not a date. Choose Format → Number → Date for the cell, or type the date as 2026-09-24.'],
     ['an amount written with a currency sign', 'Pledges', [['555-010-0102', 'Eman Saleh', '', '$1,250', '']], 'Row 4, amountPledged (column E): "$1,250" is not a plain number. Type a plain number such as 1250 or 1250.50.'],
     ['a name the sheet turned into a date', 'Pledges', [['555-010-0102', new Date(Date.UTC(2026, 4, 5)), '', 100, '']], 'Row 4, name (column C): the sheet turned it into a date. Retype it starting with an apostrophe.'],
+    // Typed as =Aisha or +Aisha, which the sheet tried to work out as a formula.
+    ['a name the sheet shows as an error', 'Pledges', [['555-010-0102', '#NAME?', '', 100, '']], 'Row 4, name (column C): it shows #NAME?. Retype it starting with an apostrophe.'],
     ['a name that starts with the warning mark', 'Pledges', [['555-010-0102', '⚠ Eman', '', 100, '']], 'Row 4, name (column C): A name cannot start with ⚠.'],
     ['an amount with more than 2 decimal places', 'Pledges', [['555-010-0102', 'Eman Saleh', '', 10.125, '']], 'Row 4, amountPledged (column E): Use at most 2 decimal places.'],
     ['a negative amount', 'Payments', [['555-010-0101', '2026-09-03', -20, 'Cash', '']], 'Row 4, amountReceived (column D): Enter an amount of 0 or more.'],
