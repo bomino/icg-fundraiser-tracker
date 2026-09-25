@@ -8,7 +8,7 @@ A web app for masjid fundraiser volunteers to record pledges and payments from a
 
 - **Setup:** `docs/SETUP.md`.
 - **Design spec:** `docs/superpowers/specs/2026-09-23-fundraiser-web-app-design.md`. Visual system: `DESIGN.md`.
-- **Volunteer guide:** built into the app (the **Help** tab, `web/src/ui/helpView.ts`), not a separate document.
+- **Volunteer guide:** built into the app (the **Help** tab, `web/src/ui/helpView.ts`), not a separate document. Its prose is literal, so `test/ui/help.test.ts` fails when a message it quotes, or a figure it gives (the follow-up days, the rows per page, the auto-refresh and display-stale minutes), no longer matches the code. Change the guide in the same commit as the code.
 
 The engine's business rules were originally modelled on a volunteer-maintained Excel spreadsheet; that spreadsheet is a separate project and not part of this repo. The rules below are this app's own, and are checked against a frozen test fixture (`test/fixtures/`), not against any external file.
 

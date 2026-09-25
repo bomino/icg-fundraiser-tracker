@@ -26,7 +26,7 @@ const VIEWS: ReadonlyArray<{ name: ViewName; label: string }> = [
   { name: 'help', label: 'Help' },
 ];
 const LAST_VIEW_KEY = 'icg-last-view';
-const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
+export const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
 
 export function parseRoute(hash: string): Route {
   const name = hash.replace(/^#\/?/, '');

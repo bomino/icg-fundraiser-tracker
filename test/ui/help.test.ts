@@ -3,11 +3,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '../../web/src/auth';
-import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
+import { FOLLOW_UP_AFTER_DAYS, HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
-import { mountApp, parseRoute } from '../../web/src/ui/app';
+import { AUTO_REFRESH_AFTER_MS, mountApp, parseRoute } from '../../web/src/ui/app';
+import { DISPLAY_STALE_AFTER_MS } from '../../web/src/ui/displayView';
 import { PAYMENT_HELP, PLEDGE_HELP } from '../../web/src/ui/help';
 import { HELP_SECTIONS, QUOTED_MESSAGES, createHelpView } from '../../web/src/ui/helpView';
+import { TABLE_PAGE_SIZE } from '../../web/src/ui/table';
 import { SETTINGS, TODAY, pledge } from '../support/factories';
 
 const SECTION_TITLES = [
@@ -135,6 +137,15 @@ describe('createHelpView', () => {
     for (const status of Object.values(STATUS)) expect(text).toContain(status);
     expect(text).toContain(WARN_NOT_IN_PLEDGES);
     expect(text).toContain(WARN_NO_AMOUNT);
+  });
+
+  // The guide writes these figures as plain prose, so nothing else fails when the code's value changes.
+  it('gives the same day, row and minute figures the app uses', () => {
+    const text = createHelpView().textContent ?? '';
+    expect(text).toContain(`last ${FOLLOW_UP_AFTER_DAYS} days`);
+    expect(text).toContain(`first ${TABLE_PAGE_SIZE} rows`);
+    expect(text).toContain(`after ${DISPLAY_STALE_AFTER_MS / 60_000} minutes`);
+    expect(text).toContain(`after ${AUTO_REFRESH_AFTER_MS / 60_000} minutes`);
   });
 
   it('describes the form fields with the same help the forms show', () => {
