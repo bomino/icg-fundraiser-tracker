@@ -4,7 +4,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import { ApiError, createApi, type Api } from './api';
-import { createAuth, isSignedOutUrl, signInAgainUrl, signedOutUrl, type Auth } from './auth';
+import { SignInLoadError, createAuth, isSignedOutUrl, signInAgainUrl, signedOutUrl, type Auth } from './auth';
 import { todayIso } from './dates';
 import { createStore } from './store';
 import { mountApp } from './ui/app';
@@ -32,7 +32,10 @@ async function boot(root: HTMLElement, api: Api, auth: Auth) {
       });
       return;
     }
-    renderMessageScreen(root, { title: 'Could not load the tracker', body: messageOf(err), action: { label: 'Try again', run: () => window.location.reload() } });
+    // In place, so the sign-in this page already holds is reused; only a sign-in script that
+    // never arrived needs the reload that fetches it again.
+    const tryAgain = err instanceof SignInLoadError ? () => window.location.reload() : () => void boot(root, api, auth);
+    renderMessageScreen(root, { title: 'Could not load the tracker', body: messageOf(err), action: { label: 'Try again', run: tryAgain } });
   } finally {
     stopLoading();
   }

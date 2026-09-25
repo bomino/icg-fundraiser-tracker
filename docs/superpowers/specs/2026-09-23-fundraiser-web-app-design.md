@@ -226,6 +226,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - While a save, delete or goal change is still in flight, Sign out asks "A change is still saving. Signing out now could lose it. Sign out anyway?", and closing or reloading the tab triggers the browser's own leave-page question, because a page that has gone can't show the failure. Phones mostly don't ask (iOS ignores the leave-page question), so the Help guide tells volunteers there to wait until "Saving…" clears.
 - `CONFLICT` shows a dialog, "Someone else changed this row since you opened it", with a Reload option. A reload always re-runs `load`.
 - `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.
+- The Google ID token is kept in the tab's `sessionStorage` while it is fresh, so reloading the same tab within the token's hour loads without the sign-in dialog. A new tab signs in again, and Sign out removes the kept token before it leaves the page. "Could not load the tracker" offers Try again, which loads again in place rather than reloading the page, unless Google's sign-in script never arrived. Pull-to-refresh is turned off (`overscroll-behavior-y: contain`); the Refresh button reloads the data.
 - `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser."
 - A network failure or `navigator.onLine === false` shows a banner. The app makes no attempt to work offline.
 

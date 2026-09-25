@@ -95,6 +95,8 @@ describe('Friday display', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    // A real auth keeps each sign-in for the tab, which would sign the next test's auth straight in.
+    sessionStorage.clear();
     document.body.replaceChildren();
     Reflect.deleteProperty(document, 'visibilityState');
   });

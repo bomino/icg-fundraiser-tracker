@@ -1,5 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+/* No pull-to-refresh: a stray pull-down while scrolling reloaded the page, which can drop a save in flight; Refresh reloads the data. */
+html, body { overscroll-behavior-y: contain; }
 body {
   margin: 0;
   background: var(--color-bg);

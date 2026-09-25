@@ -84,6 +84,7 @@ describe('the signed-out page', () => {
 describe('createAuth', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    sessionStorage.clear();
   });
 
   it('signs out onto the signed-out page, replacing this one so Back does not return to it, and forgets the token', async () => {
@@ -134,6 +135,55 @@ describe('createAuth', () => {
 
   const nowSeconds = () => Math.floor(Date.now() / 1000);
   const signInDialog = (host: HTMLElement) => host.querySelector('dialog') as HTMLDialogElement;
+
+  async function signIn({ renderButton, emitCredential }: ReturnType<typeof stubGoogleAccounts>) {
+    const auth = createAuth('client-id', document.createElement('div'));
+    const pending = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalled());
+    const credential = encode({ exp: nowSeconds() + 3600 });
+    emitCredential(credential);
+    await pending;
+    return { auth, credential };
+  }
+
+  it('keeps a sign-in for a reload of the same tab, so the reloaded page loads without asking again', async () => {
+    const google = stubGoogleAccounts();
+    const { credential } = await signIn(google);
+
+    const reloaded = createAuth('client-id', document.createElement('div'));
+
+    expect(reloaded.hasFreshToken()).toBe(true);
+    await expect(reloaded.getToken(false)).resolves.toBe(credential);
+    expect(google.renderButton).toHaveBeenCalledTimes(1);
+    expect(google.prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a kept sign-in that has run out or cannot be read, and asks again', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { renderButton } = stubGoogleAccounts();
+
+    for (const kept of [encode({ exp: nowSeconds() + 30 }), 'not-a-token']) {
+      sessionStorage.setItem('icg-id-token', kept);
+      const auth = createAuth('client-id', document.createElement('div'));
+      expect(auth.hasFreshToken()).toBe(false);
+      void auth.getToken(false);
+    }
+
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    warn.mockRestore();
+  });
+
+  it.each([
+    ['Sign out', undefined],
+    ['Use a different account', { switchAccount: true }],
+  ])('forgets the kept sign-in on %s, so the next page cannot come straight back as this account', async (_action, options) => {
+    const { auth } = await signIn(stubGoogleAccounts());
+    stubLocation('https://example.org/tracker/');
+
+    auth.signOut(options);
+
+    expect(createAuth('client-id', document.createElement('div')).hasFreshToken()).toBe(false);
+  });
 
   it('shows the sign-in panel in its own modal dialog so it stacks above an open form', async () => {
     const { renderButton } = stubGoogleAccounts();
