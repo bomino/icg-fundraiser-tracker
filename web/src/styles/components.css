@@ -1,5 +1,7 @@
 /* Nav */
 .nav-bar { position: sticky; top: 0; z-index: 10; background: var(--color-bg); }
+/* Without this a focused control or a jumped-to Help section is scrolled only to the page edge, under the sticky nav (72px; about 122px on phones). */
+html { scroll-padding-top: 88px; }
 .nav-inner { max-width: var(--container-wide); margin: 0 auto; padding: var(--space-md) var(--space-lg); display: flex; align-items: center; gap: var(--space-lg); flex-wrap: wrap; }
 .wordmark {
   font: 600 1.125rem/1.2 var(--font-display);
@@ -17,6 +19,7 @@
 .nav-actions { display: flex; align-items: center; gap: var(--space-sm); }
 /* On phones the header must stay short (it is sticky): brand and actions share one row, tabs take the full second row. */
 @media (max-width: 720px) {
+  html { scroll-padding-top: 136px; }
   .nav-inner { padding: var(--space-sm) var(--space-md) 0; gap: 0 var(--space-sm); }
   .nav-actions { margin-left: auto; gap: 0; }
   .nav-actions .meta { display: none; }
@@ -148,13 +151,15 @@ textarea.input { resize: vertical; }
 }
 
 /* Modal */
-.modal { border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); padding: 32px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-shadow: var(--shadow-lift); }
+.modal { border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); padding: 32px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); box-shadow: var(--shadow-lift); }
 .modal::backdrop { background: var(--color-scrim); }
 .modal-title { font: 500 2rem/1.2 var(--font-display); margin-bottom: var(--space-lg); }
-/* Long forms scroll inside the dialog on short screens; the actions stay pinned so Save is always reachable. */
-.modal { scrollbar-width: thin; scrollbar-color: var(--color-rule-strong) transparent; }
+/* Long forms scroll inside the dialog on short screens; the actions stay pinned so Save is always reachable,
+   and the bottom scroll padding keeps a field reached with Tab from stopping underneath them.
+   On a phone an open pledge's four actions wrap to two rows (about 137px), hence the larger value there. */
+.modal { scrollbar-width: thin; scrollbar-color: var(--color-rule-strong) transparent; scroll-padding-bottom: 104px; }
 .modal-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-lg); flex-wrap: wrap; position: sticky; bottom: -32px; margin-bottom: -32px; padding: var(--space-md) 0 32px; background: var(--color-surface); border-top: 1px solid var(--color-rule); }
-@media (max-width: 720px) { .modal { padding: var(--space-lg); } .modal-actions { bottom: calc(-1 * var(--space-lg)); margin-bottom: calc(-1 * var(--space-lg)); padding-bottom: var(--space-lg); } }
+@media (max-width: 720px) { .modal { padding: var(--space-lg); scroll-padding-bottom: 152px; } .modal-actions { bottom: calc(-1 * var(--space-lg)); margin-bottom: calc(-1 * var(--space-lg)); padding-bottom: var(--space-lg); } }
 
 /* Toasts, banners, chips */
 .toasts { position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%); display: grid; gap: var(--space-sm); z-index: 50; width: min(480px, calc(100vw - 32px)); }
@@ -218,8 +223,8 @@ textarea.input { resize: vertical; }
 .help-toc li::marker { color: var(--color-gold); font-feature-settings: 'tnum'; }
 .help-toc a { text-decoration: none; }
 .help-toc a:hover { text-decoration: underline; }
-/* The nav bar is sticky; without this a jumped-to section lands underneath it. */
-.help-section { border-bottom: 1px solid var(--color-rule); scroll-margin-top: 120px; }
+/* No scroll-margin-top here: it would add to html's scroll-padding-top and land a jumped-to section far below the nav. */
+.help-section { border-bottom: 1px solid var(--color-rule); }
 .help-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); min-height: 56px; padding: var(--space-sm) 0; cursor: pointer; list-style: none; }
 .help-summary::-webkit-details-marker { display: none; }
 .help-summary::after { content: '+'; flex-shrink: 0; width: 1.5rem; text-align: center; font: 400 1.5rem/1 var(--font-ui); color: var(--color-gold); }

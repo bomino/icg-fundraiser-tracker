@@ -458,9 +458,9 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 
 **Progress bars** (`progress-track` + `progress-fill`): 6px tall, `full` radius, `surface-sunken` track, fill colored per-project. The current 2px hair-thin bar is too timid; 6px reads as confident.
 
-**Modals**: `surface`, `md` radius, second-tier shadow, scrim is `rgba(26, 46, 31, 0.20)` (deep forest at 20% opacity) — *not* black. The forest scrim keeps the warm ivory atmosphere even when a modal is open.
+**Modals**: `surface`, `md` radius, second-tier shadow, scrim is `rgba(26, 46, 31, 0.20)` (deep forest at 20% opacity) — *not* black. The forest scrim keeps the warm ivory atmosphere even when a modal is open. A long form scrolls inside the modal under its pinned Save/Cancel row, so the modal carries a bottom `scroll-padding` a little taller than that row (104px; 152px on phones, where an open pledge's four buttons wrap to two rows): a field reached with Tab scrolls clear of the buttons instead of stopping underneath them (WCAG 2.4.11, focus not obscured). Its height is capped with `100dvh` as well as `100vh`, so it fits above a phone browser's toolbar.
 
-**Nav bar**: `bg` (transparent over the page), no separator below — just generous padding. The nav lifts off the page only when scrolled (a `1px solid rule` appears via JS once `scrollY > 4`).
+**Nav bar**: `bg` (transparent over the page), no separator below — just generous padding. The nav lifts off the page only when scrolled (a `1px solid rule` appears via JS once `scrollY > 4`). It is sticky, so the page carries a top `scroll-padding` a little taller than it (88px; 136px on phones, where the tabs take a second row): a control reached with Tab or Shift+Tab, or a Help section jumped to from its contents, stops below the nav instead of underneath it. Nothing else adds its own offset, because a `scroll-margin` would stack on top of this one.
 
 **Project cards** (homepage grid): `surface`, `md` radius, hairline `rule` border, hovers lift to second-tier shadow + a `1px solid rule-strong` border. Project color is shown as a 4px tall bar across the top (not a dot anywhere on the card) — this is a major visual signature for the redesign.
 
