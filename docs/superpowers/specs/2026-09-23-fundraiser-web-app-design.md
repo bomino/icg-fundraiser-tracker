@@ -220,7 +220,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - Spreadsheet-formula injection: any value starting with `=`, `+`, `-` or `@` is written to the Sheet with a leading `'`. Phones starting with `+` are stored with the `'` prefix and read back without it.
 
 **Errors and state**
-- A first-load skeleton.
+- A first-load skeleton. After 5 s its line changes to "Still loading — the shared sheet can take up to 20 seconds. Please keep this page open.", so a slow first load isn't mistaken for a hang and reloaded.
 - Saves are optimistic: the table updates at once, is rolled back on failure, and a toast shows the error.
 - `CONFLICT` shows a dialog, "Someone else changed this row since you opened it", with a Reload option. A reload always re-runs `load`.
 - `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.

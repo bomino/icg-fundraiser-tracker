@@ -19,7 +19,7 @@ function requireElement(id: string): HTMLElement {
 
 async function boot(root: HTMLElement, api: Api, auth: Auth) {
   const store = createStore(api, () => todayIso());
-  renderLoading(root);
+  const stopLoading = renderLoading(root);
   try {
     await store.load();
     mountApp(root, { store, auth });
@@ -33,6 +33,8 @@ async function boot(root: HTMLElement, api: Api, auth: Auth) {
       return;
     }
     renderMessageScreen(root, { title: 'Could not load the tracker', body: messageOf(err), action: { label: 'Try again', run: () => window.location.reload() } });
+  } finally {
+    stopLoading();
   }
 }
 

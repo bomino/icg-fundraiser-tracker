@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OFFLINE_WAIT_MS } from '../../web/src/api';
 import type { Auth } from '../../web/src/auth';
 import { FOLLOW_UP_AFTER_DAYS, HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
@@ -140,13 +141,14 @@ describe('createHelpView', () => {
   });
 
   // The guide writes these figures as plain prose, so nothing else fails when the code's value changes.
-  it('gives the same day, row and minute figures the app uses', () => {
+  it('gives the same day, row, minute and second figures the app uses', () => {
     const text = createHelpView().textContent ?? '';
     expect(text).toContain(`last ${FOLLOW_UP_AFTER_DAYS} days`);
     expect(text).toContain(`first ${TABLE_PAGE_SIZE} rows`);
     // Each minutes figure is tied to its own sentence, or one constant changing to the other's value would still pass.
     expect(text).toContain(`after ${DISPLAY_STALE_AFTER_MS / 60_000} minutes a small note says`);
     expect(text).toContain(`come back to it after ${AUTO_REFRESH_AFTER_MS / 60_000} minutes`);
+    expect(text).toContain(`a save waits up to ${OFFLINE_WAIT_MS / 1000} seconds for it`);
   });
 
   it('describes the form fields with the same help the forms show', () => {

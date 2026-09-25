@@ -55,6 +55,11 @@ function networkMessage(): string {
   return online ? `${NETWORK_MESSAGE} If this keeps happening, the Apps Script deployment may not allow access to "Anyone".` : NETWORK_MESSAGE;
 }
 
+// Strictly false: a runtime without onLine (Node's navigator) must not count as offline.
+function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
 export type Sleep = (ms: number) => Promise<void>;
 
 const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -64,10 +69,42 @@ const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms
 // the exact same request is safe: creates are idempotent by id, deletes treat NOT_FOUND as success
 // (store.ts), setSetting overwrites the same key, and an update that now sees CONFLICT because the
 // first attempt already landed is recovered by the current-record check in savePledge/savePayment.
+// The same argument covers a request abandoned by the timeout below that the server finished anyway.
 const RETRY_DELAYS_MS = [600, 1500];
+
+// Moving between access points in a hall takes longer than the short pauses above. Offline, the
+// next try can only fail the same way, so it waits for the connection instead — but not forever.
+export const OFFLINE_WAIT_MS = 20_000;
+
+// BUSY is thrown before the server writes anything, so a retry is always safe. The random pause
+// keeps volunteers whose saves collided on the lock from colliding again on the retry.
+const BUSY_RETRIES = 2;
+const busyPauseMs = () => 1000 + Math.round(Math.random() * 2000);
+
+// Well above the server's 10 s lock wait plus the slowest normal 16 s round trip, so only a stalled
+// connection trips it. One retry keeps the worst case near 90 s; without a timeout, a stalled
+// request left a row stuck on "Saving…" and Refresh stuck on "Refreshing…" for minutes.
+const ATTEMPT_TIMEOUT_MS = 45_000;
+const TIMEOUT_RETRIES = 1;
 
 function isTransientStatus(status: number): boolean {
   return status === 404 || status === 502 || status === 503 || status === 504;
+}
+
+type Attempt<T> = { kind: 'answered'; body: ApiResponse<T> } | { kind: 'httpError'; status: number } | { kind: 'unreachable' | 'timedOut' | 'unexpectedPage' };
+
+function failureOf(result: Exclude<Attempt<unknown>, { kind: 'answered' }>): ApiError {
+  switch (result.kind) {
+    case 'unreachable':
+      return new ApiError('NETWORK', networkMessage());
+    // A misconfigured deployment fails at once rather than stalling, so the "Anyone" hint would mislead.
+    case 'timedOut':
+      return new ApiError('NETWORK', NETWORK_MESSAGE);
+    case 'httpError':
+      return new ApiError('NETWORK', `The tracker answered with an error (${result.status}). Try again.`);
+    case 'unexpectedPage':
+      return new ApiError('INTERNAL', 'The tracker sent back an unexpected page. The Apps Script deployment must allow access to "Anyone".');
+  }
 }
 
 // Same rounding the server applies (validateRow_ in Code.gs) before comparing amounts.
@@ -105,10 +142,36 @@ export function createApi(
   fetchImpl: typeof fetch = (input, init) => fetch(input, init),
   sleep: Sleep = realSleep,
 ): Api {
-  async function send<T>(op: string, payload: unknown, idToken: string): Promise<T> {
-    const body = JSON.stringify({ idToken, op, payload });
-    let response: Response | undefined;
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+  // The connection returning or the cap running out ends the wait, and the listener goes either
+  // way so saves that fail while offline don't pile up listeners.
+  function waitForOnline(): Promise<void> {
+    return new Promise((resolve) => {
+      const done = () => {
+        window.removeEventListener('online', done);
+        resolve();
+      };
+      window.addEventListener('online', done);
+      void sleep(OFFLINE_WAIT_MS).then(done);
+    });
+  }
+
+  /** False when the device is still offline after waiting, so there is no point trying again. */
+  async function pauseBeforeRetry(retry: number): Promise<boolean> {
+    if (!isOffline()) {
+      await sleep(RETRY_DELAYS_MS[retry]);
+      return true;
+    }
+    await waitForOnline();
+    return !isOffline();
+  }
+
+  async function attempt<T>(body: string): Promise<Attempt<T>> {
+    const controller = new AbortController();
+    // A timer rather than AbortSignal.timeout(), which iOS 15 lacks. It stays armed until the
+    // body has been read, because a connection can stall mid-answer too.
+    const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+    try {
+      let response: Response;
       try {
         // text/plain keeps this a "simple" request; Apps Script cannot answer a CORS preflight.
         response = await fetchImpl(scriptUrl, {
@@ -116,24 +179,46 @@ export function createApi(
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body,
           redirect: 'follow',
+          signal: controller.signal,
         });
       } catch {
-        response = undefined;
+        return { kind: controller.signal.aborted ? 'timedOut' : 'unreachable' };
       }
-      const transient = response === undefined || isTransientStatus(response.status);
-      if (!transient || attempt === RETRY_DELAYS_MS.length) break;
-      await sleep(RETRY_DELAYS_MS[attempt]);
+      if (!response.ok) return { kind: 'httpError', status: response.status };
+      try {
+        return { kind: 'answered', body: (await response.json()) as ApiResponse<T> };
+      } catch {
+        // An answer cut off by the timeout must not be blamed on the deployment's access setting.
+        return { kind: controller.signal.aborted ? 'timedOut' : 'unexpectedPage' };
+      }
+    } finally {
+      clearTimeout(timer);
     }
-    if (response === undefined) throw new ApiError('NETWORK', networkMessage());
-    if (!response.ok) throw new ApiError('NETWORK', `The tracker answered with an error (${response.status}). Try again.`);
-    let parsed: ApiResponse<T>;
-    try {
-      parsed = (await response.json()) as ApiResponse<T>;
-    } catch {
-      throw new ApiError('INTERNAL', 'The tracker sent back an unexpected page. The Apps Script deployment must allow access to "Anyone".');
+  }
+
+  async function send<T>(op: string, payload: unknown, idToken: string): Promise<T> {
+    const body = JSON.stringify({ idToken, op, payload });
+    let transientRetries = 0;
+    let busyRetries = 0;
+    let timeoutRetries = 0;
+    for (;;) {
+      const result = await attempt<T>(body);
+      if (result.kind === 'answered') {
+        const answer = result.body;
+        if (answer.ok) return answer.data;
+        if (answer.error.code !== 'BUSY' || busyRetries === BUSY_RETRIES) throw new ApiError(answer.error.code, answer.error.message, answer.error.field, answer.error.current);
+        busyRetries++;
+        await sleep(busyPauseMs());
+      } else if (result.kind === 'timedOut') {
+        if (timeoutRetries === TIMEOUT_RETRIES) throw failureOf(result);
+        timeoutRetries++;
+      } else if (result.kind === 'unreachable' || (result.kind === 'httpError' && isTransientStatus(result.status))) {
+        if (transientRetries === RETRY_DELAYS_MS.length || !(await pauseBeforeRetry(transientRetries))) throw failureOf(result);
+        transientRetries++;
+      } else {
+        throw failureOf(result);
+      }
     }
-    if (parsed.ok) return parsed.data;
-    throw new ApiError(parsed.error.code, parsed.error.message, parsed.error.field, parsed.error.current);
   }
 
   async function call<T>(op: string, payload: unknown): Promise<T> {

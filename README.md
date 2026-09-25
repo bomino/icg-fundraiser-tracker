@@ -14,7 +14,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **A possible-duplicate-payments check** (app-only, on top of the six core data-health checks) flags payments that share a phone number, amount and date.
 - **Friday display**: a full-screen, name-free projector view of progress toward the goal that never interrupts an announcement with a sign-in prompt.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
-- **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
+- **Resilient saves**: a save is retried automatically if Google's servers hiccup, the sheet is busy with other saves, or the connection drops for a moment; a stalled request times out instead of hanging; and a retry that actually landed is recognised rather than resurfaced as an error.
 - **Paging at scale**: long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.
 
 ```bash

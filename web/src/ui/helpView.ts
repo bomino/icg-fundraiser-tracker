@@ -18,6 +18,7 @@ const SAID = {
   notOnListTitle: 'Not on the volunteer list',
   differentAccount: 'Use a different account',
   couldNotLoad: 'Could not load the tracker',
+  stillLoading: 'Still loading — the shared sheet can take up to 20 seconds. Please keep this page open.',
   notSetUp: 'Not set up yet',
   notConfigured: 'The server is not configured',
   unexpectedPage: 'The tracker sent back an unexpected page.',
@@ -104,11 +105,11 @@ const PROBLEMS: readonly Problem[] = [
   {
     message: [said(SAID.offline)],
     meaning: ['Your phone or computer has lost its internet connection. This shows as a strip under the top bar.'],
-    action: ['Wait for the connection to come back. If a save failed meanwhile, press ', b('Reopen'), ' on its message and ', b('Save'), ' again. You can still read the screens.'],
+    action: ['Wait for the connection to come back — a save waits up to 20 seconds for it by itself. If a save failed meanwhile, press ', b('Reopen'), ' on its message and ', b('Save'), ' again. You can still read the screens.'],
   },
   {
     message: [said(SAID.network)],
-    meaning: ['The save did not reach the shared sheet, usually because the connection dropped.'],
+    meaning: ['The save did not reach the shared sheet, usually because the connection dropped or was too slow. The tracker had already tried again by itself.'],
     action: ['Check your connection, then press ', b('Reopen'), ' on the message. The form comes back with everything you typed; press ', b('Save'), ' again.'],
   },
   {
@@ -118,8 +119,8 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.busy)],
-    meaning: ['Several volunteers saved at the same moment, and the tracker handles one save at a time.'],
-    action: ['Wait a few seconds, press ', b('Reopen'), ' on the message, then ', b('Save'), ' again. Nothing was lost.'],
+    meaning: ['Many volunteers saved at the same moment, and the tracker handles one save at a time. It had already tried again by itself before showing this.'],
+    action: ['Wait a few seconds, press ', b('Reopen'), ' on the message, then ', b('Save'), ' again. Nothing was lost. If it keeps happening, tell the organiser.'],
   },
   {
     message: [said(SAID.serverError)],
@@ -192,7 +193,7 @@ function gettingStarted(): Child[] {
       steps(
         ['Open the tracker’s web address.'],
         ['Press the ', b('Sign in with Google'), ' button and choose your Google account.'],
-        ['The Summary opens. Your email address shows at the top of the page on a computer.'],
+        ['The Summary opens. If that takes more than a few seconds, you see ', said(SAID.stillLoading), ' Your email address shows at the top of the page on a computer.'],
       ),
       p('Only people on the organiser’s volunteer list can open the tracker. If you see ', b(SAID.notOnListTitle), ', see ', b('When something goes wrong'), '.'),
     ),
@@ -499,7 +500,7 @@ function workingTogether(): Child[] {
       ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
       ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
       ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away.'],
-      ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the tracker quietly retries on its own — you do not need to do anything unless you actually see an error message.'],
+      ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the sheet is busy with other volunteers’ saves, or the connection drops for a moment, the tracker quietly tries again on its own — you do not need to do anything unless you actually see an error message.'],
     ),
     topic(
       'When two people change the same row',
