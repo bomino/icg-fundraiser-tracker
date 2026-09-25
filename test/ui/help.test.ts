@@ -202,6 +202,21 @@ describe('createHelpView', () => {
     expect(view.querySelector('dt[data-health="futureDated"] + dd')?.textContent).toContain('A donor gives post-dated checks in How to…');
   });
 
+  // The note that records a bounce is a saved change, and a saved change restarts the follow-up clock.
+  it('has a bounced check chased at once, since the note recording it keeps the donor off Needs follow-up', () => {
+    const text = topicOf(createHelpView(), 'A check bounced or money was given back').textContent ?? '';
+    expect(text).not.toContain('in the usual way');
+    expect(text).toContain(`saving the note takes them off Needs follow-up for ${FOLLOW_UP_AFTER_DAYS} days`);
+    expect(text).toContain('call them now');
+
+    const pledged = pledge({ phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 1000, datePledged: '2026-07-01', updatedAt: '2026-07-01T12:00:00.000Z' });
+    const noted = { ...pledged, notes: 'Check #1042 for $500 dated 2026-08-01 bounced 2026-09-23', updatedAt: new Date(2026, 8, 23, 12, 0).toISOString() };
+    const afterBounce = (donor: typeof pledged, today: string) => needsFollowUp(compute([donor], [], SETTINGS, today).pledges[0], today);
+    expect(afterBounce(pledged, TODAY)).toBe(true);
+    expect(afterBounce(noted, TODAY)).toBe(false);
+    expect(afterBounce(noted, '2026-10-24')).toBe(true);
+  });
+
   it('gives money with no donor a How-to topic, pointed at from the not-in-Pledges warning', () => {
     const view = createHelpView();
     const howTo = Array.from(view.querySelectorAll('#help-how-to .help-topic')).find((topic) => topic.querySelector('h3')?.textContent === NO_PHONE_MONEY_TOPIC);

@@ -649,7 +649,12 @@ function howTo(): Child[] {
         ['On ', b('Payments'), ', open that payment and delete it.'],
       ),
       p('If only part of the money was given back, do not delete the payment. Edit its amount down to what the masjid kept, and add the same kind of note to the pledge.'),
-      note('The donor’s balance goes back up, and they show on ', b('Needs follow-up'), ' in the usual way, so someone can call them. A deleted payment no longer shows on Payments or in the downloaded copy, so the note on the pledge is what tells volunteers what happened. The organiser can still find the deleted payment in the sheet’s ', b('Payments history'), ' tab.'),
+      note(
+        'The donor’s balance goes back up, but saving the note takes them off ',
+        b('Needs follow-up'),
+        ' for 30 days, like any change saved to a pledge. So do not wait for them to show up there: call them now about what they still owe, or tell the organiser so someone does.',
+      ),
+      note('A deleted payment no longer shows on Payments or in the downloaded copy, so the note on the pledge is what tells volunteers what happened. The organiser can still find the deleted payment in the sheet’s ', b('Payments history'), ' tab.'),
     ),
     topic(
       'A donor gives post-dated checks',
