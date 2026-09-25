@@ -434,6 +434,19 @@ describe('payments view: date range', () => {
     expect(dateInput(view, 'payments-date-from').value).toBe('');
   });
 
+  it('hands keyboard focus to This week when Clear dates hides itself', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    type(dateInput(view, 'payments-date-from'), '2026-06-01');
+    const clearDates = Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Clear dates') as HTMLButtonElement;
+    clearDates.focus();
+
+    clearDates.click();
+
+    expect(clearDates.hidden).toBe(true);
+    expect(document.activeElement?.textContent).toBe('This week');
+  });
+
   it('combines the date range with search', () => {
     const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
     document.body.append(view);

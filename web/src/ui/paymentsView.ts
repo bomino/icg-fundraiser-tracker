@@ -211,11 +211,15 @@ export function createPaymentsView(deps: ListViewDeps) {
     });
     clearDates.hidden = !dateFilterActive();
     clearDates.addEventListener('click', () => {
+      const hadFocus = document.activeElement === clearDates;
       dateFrom = '';
       dateTo = '';
       dateFromInput.value = '';
       dateToInput.value = '';
       redrawDateControls();
+      // Clear dates hides itself, which would drop focus to the top of the page. This week, just before it,
+      // keeps the keyboard among the date controls, and is a button, so no phone keyboard or date picker opens.
+      if (hadFocus) thisWeek.focus();
     });
     const add = h('button', { type: 'button', class: 'btn btn-primary', 'data-focus-key': 'payments-add' }, 'Log a payment');
     add.addEventListener('click', () => logPayment());

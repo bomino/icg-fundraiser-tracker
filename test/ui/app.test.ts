@@ -803,6 +803,21 @@ describe('mountApp', () => {
       expect(document.activeElement).toBe(root.querySelector('.table-wrap'));
     });
 
+    it('moves focus to the list’s heading when the Showing filter chip clears itself away', async () => {
+      history.replaceState(null, '', '#summary');
+      const { store } = fakeStore({ payments: [payment({ id: 'y2', phone: '555-999-0000', amountReceived: 35 })] });
+      mountApp(root, { store, auth: fakeAuth() });
+      (root.querySelector('[data-health=notMatched] button') as HTMLButtonElement).click();
+      await vi.waitFor(() => expect(root.querySelector('main .chip')).not.toBeNull());
+      const chip = root.querySelector('main .chip') as HTMLButtonElement;
+      chip.focus();
+
+      chip.click();
+
+      expect(root.querySelector('main .chip')).toBeNull();
+      expect(document.activeElement).toBe(root.querySelector('main h1'));
+    });
+
     it('moves focus to the list’s heading once its last row is deleted', async () => {
       const store = await slowStore();
       mountApp(root, { store, auth: fakeAuth() });

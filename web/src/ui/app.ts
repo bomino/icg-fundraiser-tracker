@@ -278,8 +278,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     // clear their search, so rebuilding it here would wipe a search on every store publish.
     const filter = listFilter && listFilter.view === view ? listFilter.filter : null;
     const clearFilter = () => {
+      const chipHadFocus = document.activeElement instanceof HTMLElement && document.activeElement.dataset.focusKey === 'list-filter';
       listFilter = null;
       render();
+      // The chip goes with its filter. The heading is where Show left focus, and names the list now shown in full.
+      if (chipHadFocus) focusHeading(main);
     };
     const content =
       view === 'pledges' ? pledgesView(state, filter, clearFilter)
