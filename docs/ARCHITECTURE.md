@@ -255,6 +255,8 @@ There is deliberately no "wait, then sign out" option: a save that failed while 
 
 Sign-in is its own modal `<dialog>` (`web/src/auth.ts`). A form dialog makes the rest of the page inert, so a sign-in requested while one is open must open *after* it in the top layer. (Saves now finish in the background, so a mid-save sign-in usually opens with no form dialog at all.) Dismissing it rejects every waiting `getToken` with `UNAUTHENTICATED` "Sign-in was cancelled." (the API does not retry that), and `refreshIfStale()` renews a token within 5 minutes of expiry on any click in `main` and when the tab becomes visible.
 
+A token the client cannot decode counts as expired: `isFresh` returns false rather than throwing, so `getToken` asks for a new sign-in, and `hasFreshToken()` and `refreshIfStale()` never throw. Google always issues a JWT, so this guards a credential garbled on the way; without it every later call failed with a bare "Malformed sign-in token." until a reload.
+
 ### Token persistence
 
 The ID token survives a reload of the same tab (`web/src/auth.ts`). `createAuth` reads `icg-id-token` from `sessionStorage` once and keeps it only if `isFresh` passes and its `aud` is the site's client ID (a stale, unreadable or other-audience value is ignored), and the GIS callback writes each new credential there. A reload within the token's hour (the browser's reload button, a phone restoring a tab it discarded, the projector page) then loads at once instead of reopening the sign-in dialog and a FedCM round trip, which Google lets through silently only once per 10 minutes and only with one Google account signed in.
