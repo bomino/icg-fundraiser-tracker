@@ -41,6 +41,7 @@ const pairs: [foreground: string, background: string, minimum: number, where: st
   ['ink', 'warning-tint', TEXT, 'a future-dated payment date and its label on phones'],
   ['field-border', 'surface', NON_TEXT, 'an input edge in a card or dialog'],
   ['field-border', 'bg', NON_TEXT, 'an input edge on the page'],
+  ['ink-soft', 'bg', NON_TEXT, 'the ring that shows where the Friday progress bar ends'],
 ];
 
 describe('colour tokens', () => {
@@ -82,5 +83,30 @@ describe('component colours', () => {
 
   it('writes the Friday stale note in ink, keeping the warning colour on its border', () => {
     expect(componentsCss).toMatch(/\.friday-stale \{[^}]*border: 1px solid var\(--color-warning\);[^}]*color: var\(--color-ink\);/);
+  });
+
+  it('rings both progress bars inside their own edge, since neither track stands out from what is behind it', () => {
+    expect(componentsCss).toMatch(/\.progress-track \{[^}]*outline: 1px solid var\(--color-ink-muted\); outline-offset: -1px;/);
+    expect(componentsCss).toMatch(/\.friday \.friday-track \{[^}]*outline: 2px solid var\(--color-ink-soft\); outline-offset: -2px;/);
+  });
+});
+
+describe('high-contrast themes', () => {
+  const forcedColors = componentsCss.match(/@media \(forced-colors: active\) \{([\s\S]*?)\r?\n\}/)?.[1] ?? '';
+
+  it('has a forced-colors block to read', () => {
+    expect(forcedColors).not.toBe('');
+  });
+
+  it.each([
+    ['fills the progress bar in the highlight colour', /\.progress-fill \{ forced-color-adjust: none; background: Highlight; \}/],
+    [
+      'fills the pressed status chip rather than outlining it, so its focus ring still shows',
+      /\.chip-toggle\[aria-pressed='true'\] \{ forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; \}/,
+    ],
+    ['underlines only the current tab', /\.tab \{ border-bottom-color: Canvas; \}\s*\.tab\[aria-current='page'\] \{ border-bottom-color: Highlight; \}/],
+    ['keeps the chart key in the colours of its slices', /\.swatch \{ forced-color-adjust: none; \}/],
+  ])('%s', (_what, rule) => {
+    expect(forcedColors).toMatch(rule);
   });
 });
