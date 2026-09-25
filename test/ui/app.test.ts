@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../web/src/api';
 import { createAuth, type Auth } from '../../web/src/auth';
 import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
@@ -127,6 +128,7 @@ describe('mountApp', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     document.body.replaceChildren();
     delete document.body.dataset.display;
     untrackWindow();
@@ -163,6 +165,55 @@ describe('mountApp', () => {
     refresh.click();
     await vi.waitFor(() => expect(document.querySelector('.toast-error')?.textContent).toBe('Could not reach the tracker.'));
     expect(refresh.disabled).toBe(false);
+  });
+
+  // Removing someone from the Allowlist reaches a tab already open only through a refresh; until then
+  // the old rows stay on screen and in Download .xlsx, which is built from memory.
+  it('clears the page to "Not on the volunteer list" when Refresh finds this account removed, and Try again reloads it', async () => {
+    const { store, publish } = fakeStore();
+    let refuse: (err: unknown) => void = () => undefined;
+    store.load.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { refuse = reject; }));
+    const auth = fakeAuth();
+    mountApp(root, { store, auth });
+    navButton(root, 'Refresh').click();
+    // A refresh takes seconds, so a donor's form may be open by the time the answer lands.
+    (root.querySelector('.row-open') as HTMLButtonElement).click();
+    expect(document.querySelector('dialog[open]')).not.toBeNull();
+
+    refuse(new ApiError('FORBIDDEN', 'me@example.com is not on the volunteer list.'));
+
+    await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
+    expect(root.querySelector('h1')?.textContent).toBe('Not on the volunteer list');
+    expect(document.querySelector('.toast-error')).toBeNull();
+    publish();
+    history.replaceState(null, '', '#display');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    history.replaceState(null, '', '#pledges');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    store.lastLoadedAt.mockReturnValue(Date.now() - 10 * 60_000);
+    setVisibility('visible');
+    expect(root.querySelector('h1')?.textContent).toBe('Not on the volunteer list');
+    expect(document.body.textContent).not.toContain('Aisha Rahman');
+    expect(store.load).toHaveBeenCalledTimes(1);
+    expect(auth.refreshIfStale).toHaveBeenCalledTimes(1);
+
+    const location = { reload: vi.fn() };
+    vi.stubGlobal('location', location);
+    (Array.from(root.querySelectorAll('button')).find((button) => button.textContent === 'Try again') as HTMLButtonElement).click();
+    expect(location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  // One mistaken Allowlist edit must not put an error screen on the projector.
+  it('keeps the Friday display’s figures when its reconnect finds this account removed', async () => {
+    history.replaceState(null, '', '#display');
+    const { store } = fakeStore();
+    store.load.mockRejectedValueOnce(new ApiError('FORBIDDEN', 'me@example.com is not on the volunteer list.'));
+    mountApp(root, { store, auth: fakeAuth() });
+    const reconnect = root.querySelector('.friday-stale') as HTMLButtonElement;
+    reconnect.click();
+    await vi.waitFor(() => expect(reconnect.disabled).toBe(false));
+    expect(store.load).toHaveBeenCalledTimes(1);
+    expect(root.querySelector('.friday')).not.toBeNull();
   });
 
   it('signs out at once when nothing is still saving', () => {

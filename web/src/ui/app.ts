@@ -1,3 +1,4 @@
+import { ApiError } from '../api';
 import type { Auth } from '../auth';
 import type { Store } from '../store';
 import { currentTheme, toggleTheme } from '../theme';
@@ -12,6 +13,7 @@ import { createLookupView } from './lookupView';
 import { destroyMethodChart, drawMethodChart } from './methodChart';
 import { createPaymentsView } from './paymentsView';
 import { createPledgesView } from './pledgesView';
+import { renderMessageScreen } from './screens';
 import { renderSummary } from './summaryView';
 import { mountToasts } from './toast';
 
@@ -104,13 +106,28 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   });
   const main = h('main', { class: 'container', id: 'main' });
   const refresh = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Refresh');
+  // Set once a refresh finds this account taken off the Allowlist. A failed load keeps every row in
+  // memory and Download .xlsx is built from them, so from then on nothing may draw the lists again.
+  let removed = false;
+  const showRemoved = (err: ApiError) => {
+    removed = true;
+    document.querySelectorAll<HTMLDialogElement>('dialog[open]').forEach((dialog) => dialog.close());
+    renderMessageScreen(root, {
+      title: 'Not on the volunteer list',
+      body: `${err.message} If you still help with the fundraiser, ask the organiser to add your Google account back, then press Try again.`,
+      action: { label: 'Try again', run: () => window.location.reload() },
+    });
+  };
   const reload = async () => {
     refresh.disabled = true;
     refresh.textContent = 'Refreshing…';
     try {
       await deps.store.load();
     } catch (err) {
-      reportError(err);
+      // Only a refresh, and never on the projector: a save refused this way keeps its Reopen, so one
+      // mistaken Allowlist edit cannot throw away every volunteer's unsaved entry or blank the display.
+      if (err instanceof ApiError && err.code === 'FORBIDDEN' && !exitDisplay) showRemoved(err);
+      else reportError(err);
     } finally {
       refresh.disabled = false;
       refresh.textContent = 'Refresh';
@@ -146,7 +163,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   main.addEventListener('click', () => deps.auth.refreshIfStale(), { capture: true });
   document.addEventListener('visibilitychange', () => {
     // The display runs its own non-prompting refresh; refreshIfStale here could open sign-in on the projector.
-    if (exitDisplay || document.visibilityState !== 'visible') return;
+    if (removed || exitDisplay || document.visibilityState !== 'visible') return;
     deps.auth.refreshIfStale();
     const loadedAt = deps.store.lastLoadedAt();
     const stale = loadedAt === null || Date.now() - loadedAt > AUTO_REFRESH_AFTER_MS;
@@ -175,7 +192,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
 
   function render() {
     const state = deps.store.state();
-    if (!state) return;
+    if (!state || removed) return;
     const view = parseRoute(location.hash);
     if (view === 'display') {
       if (lastView === 'summary') destroyMethodChart();

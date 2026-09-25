@@ -227,7 +227,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - `CONFLICT` shows a dialog, "Someone else changed this row since you opened it", with a Reload option. A reload always re-runs `load`.
 - `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.
 - The Google ID token is kept in the tab's `sessionStorage` while it is fresh, so reloading the same tab within the token's hour loads without the sign-in dialog. A new tab signs in again, and Sign out removes the kept token before it leaves the page. "Could not load the tracker" offers Try again, which loads again in place rather than reloading the page, unless Google's sign-in script never arrived. Pull-to-refresh is turned off (`overscroll-behavior-y: contain`); the Refresh button reloads the data.
-- `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser."
+- `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser." At startup it offers Use a different account. A `FORBIDDEN` from Refresh or the auto-refresh on return (someone taken off the Allowlist while their page was open) closes any open form and replaces the page with the same screen, offering Try again, which reloads the page. A `FORBIDDEN` on a save stays an error toast with Reopen, and the Friday display keeps its figures, so a mistaken Allowlist edit neither discards unsaved entries nor reaches the projector.
 - A network failure or `navigator.onLine === false` shows a banner. The app makes no attempt to work offline.
 
 **Wording** follows the workbook's column names and the guide's plain language.

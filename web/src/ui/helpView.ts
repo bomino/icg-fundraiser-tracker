@@ -148,8 +148,14 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [b(SAID.notOnListTitle), ' — ', said(`your-email@example.com ${SAID.notOnList}`)],
-    meaning: ['You signed in with a Google account that the organiser has not added to the volunteer list.'],
-    action: ['Ask the organiser to add that email address, or press ', b(SAID.differentAccount), ' and sign in with the account they did add.'],
+    meaning: ['You signed in with a Google account that is not on the organiser’s volunteer list: it was never added, or it has been taken off.'],
+    action: [
+      'Ask the organiser to add that email address, or press ',
+      b(SAID.differentAccount),
+      ' and sign in with the account they did add. If this replaced the tracker while you were using it, ask the organiser to add you back, then press ',
+      b('Try again'),
+      '.',
+    ],
   },
   {
     message: [b(SAID.couldNotLoad)],
@@ -550,7 +556,18 @@ function forTheOrganiser(): Child[] {
     p('These tasks happen in the Google Sheet behind the tracker, not in the app.'),
     topic(
       'Volunteers',
-      p('Add each volunteer’s Google email address to the ', b('Allowlist'), ' tab, one per row. To remove someone, delete their row. The change takes effect the next time they do anything in the tracker.'),
+      p(
+        'Add each volunteer’s Google email address to the ',
+        b('Allowlist'),
+        ' tab, one per row. To remove someone, delete their row. The tracker then turns them away the next time their page refreshes or saves, and a refresh clears the page to ',
+        b(SAID.notOnListTitle),
+        '. A page they already have open keeps showing what it last loaded, ',
+        b('Download .xlsx'),
+        ' included, until it refreshes, is reloaded or is closed. Nothing can take back a copy they downloaded before. If you remove someone by mistake, add their row back and ask them to press ',
+        b('Try again'),
+        '.',
+      ),
+      p('If a volunteer’s phone is lost, remove them from the Allowlist and also sign their Google account out of that phone: in their Google Account, go to ', b('Security → Your devices'), ', choose the phone and sign out.'),
     ),
     topic(
       'Payment methods and the goal',
