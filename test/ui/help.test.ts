@@ -275,7 +275,7 @@ describe('createHelpView', () => {
   it('walks the organiser through bringing in an outside list with the Sheet menu item that checks it', () => {
     const view = createHelpView();
     const bringIn = topicOf(view, 'Bring in a list kept outside the tracker').textContent ?? '';
-    for (const step of ['File → Make a copy', 'Edit → Paste special → Values only', 'Leave column A (id) empty', 'Fundraiser tracker → Add selected rows to the tracker…', 'right-click and choose Delete rows']) expect(bringIn).toContain(step);
+    for (const step of ['File → Make a copy', 'Edit → Paste special → Values only', 'Leave column A (id) empty', 'paste again from column B', 'Fundraiser tracker → Add selected rows to the tracker…', 'right-click and choose Delete rows']) expect(bringIn).toContain(step);
     expect(topicOf(view, 'Keeping the sheet healthy').textContent).toContain('See Bring in a list kept outside the tracker');
   });
 

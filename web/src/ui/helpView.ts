@@ -1060,7 +1060,7 @@ function forTheOrganiser(): Child[] {
           b('Pledges first.'),
           ' Put the list’s columns in this order: phone, name, date pledged, amount pledged, notes. Copy the rows. On the Pledges tab, click column B a few rows below the last row, and choose ',
           b('Edit → Paste special → Values only'),
-          '. Leave column A (id) empty.',
+          '. Leave column A (id) empty. Rows pasted into it by mistake count in the tracker straight away, so delete them at once and paste again from column B.',
         ],
         [
           'Select the pasted rows (click the first row’s number at the left, then hold Shift and click the last one’s), then choose ',

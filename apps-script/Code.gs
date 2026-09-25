@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 9;
+const API_VERSION = 10;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -713,7 +713,10 @@ function columnLetter_(index) {
 function checkRow_(tab, row, formats, methods, timeZone) {
   const refuse = (field, text) => ({ problems: [{ field: field, text: text }] });
   // A row with an id is live: rewriting it here would skip the version check and history a save gets.
-  if (row[0] !== '') return refuse('', 'it already has an id in column A, so it is already in the tracker. Select only the new rows.');
+  // A list pasted one column too far left is live too, with its phone as the id, so it must go.
+  if (row[0] !== '') {
+    return refuse('', 'column A (id) is not empty, so the tracker already counts this row. Select only the new rows. If you pasted this row into column A by mistake, delete the row and paste it again from column B.');
+  }
   // A Plain text cell would show the apostrophe toCell_ writes as part of the value.
   const plainText = formats.map((format, i) => (format === '@' ? columnLetter_(i) : '')).filter(Boolean);
   if (plainText.length > 0) {

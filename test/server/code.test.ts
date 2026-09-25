@@ -49,6 +49,7 @@ const CODE_GS_HASHES: readonly string[] = [
   '0f0571ffd3e3c74627f2cb79d5c0bfa53fda1d52ea85fc9af7e4b9a4c661a227',
   'a98140747f76c94a3c124e2eb7f390a538c5792a357a7e02efe8d8f29aadeb1a',
   '7b01b77c5dcbb079b862fbf2db88a47176d24bc3f938c7172b14be895454f70d',
+  'd4f8cbd947c3b59e64906315a59bb1d354d7da68e96fad7b7a07615507d7027b',
 ];
 
 describe('API_VERSION', () => {
@@ -887,11 +888,23 @@ describe('adding selected rows to the tracker', () => {
     expect(snapshot()).toEqual(before);
   });
 
+  const ALREADY_COUNTED = 'column A (id) is not empty, so the tracker already counts this row. Select only the new rows. If you pasted this row into column A by mistake, delete the row and paste it again from column B.';
+
   it('never rewrites a row that already has an id', () => {
     paste('Pledges', 3, [PLEDGE_LIST[0]]);
     const before = snapshot();
     addSelectedRows('Pledges', 2, 2);
-    expect(server.ui.alerts).toEqual([`${NOTHING_CHANGED}• Row 2: it already has an id in column A, so it is already in the tracker. Select only the new rows.`]);
+    expect(server.ui.alerts).toEqual([`${NOTHING_CHANGED}• Row 2: ${ALREADY_COUNTED}`]);
+    expect(snapshot()).toEqual(before);
+  });
+
+  // Pasted one column too far left, the phone becomes the id and the app loads the row at once, so
+  // "select only the new rows" alone would leave the organiser thinking it was already brought in.
+  it('tells the organiser how to undo a list pasted into column A by mistake', () => {
+    server.editInSheet('Pledges', 4, 1, [PLEDGE_LIST[1]]);
+    const before = snapshot();
+    addSelectedRows('Pledges', 4, 1);
+    expect(server.ui.alerts).toEqual([`${NOTHING_CHANGED}• Row 4: ${ALREADY_COUNTED}`]);
     expect(snapshot()).toEqual(before);
   });
 
