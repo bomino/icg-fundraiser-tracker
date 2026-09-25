@@ -12,7 +12,6 @@ export interface SummaryDeps {
   reportError(err: unknown, context?: string): void;
   showList(view: 'pledges' | 'payments', filter: ListFilter): void;
   exportWorkbook(): Promise<void>;
-  drawChart(canvas: HTMLCanvasElement, rows: readonly MethodRow[]): void;
 }
 
 // Printed too, so a handout says which moment its figures come from; only the prompt to tap
@@ -58,6 +57,22 @@ function rowsWithoutIdNote(rows: RowsWithoutId | undefined): HTMLElement | null 
   return h('p', { class: 'body-md', 'data-role': 'rows-without-id' }, text);
 }
 
+// The stops name the chart variables rather than their values, so a theme switch recolours the ring with no redraw.
+function methodRing(rows: readonly MethodRow[]): HTMLElement {
+  const slots = chartSlots(rows);
+  const slices = rows.filter((row) => slots.has(row.label));
+  const totalCents = slices.reduce((sum, row) => sum + row.cents, 0);
+  const at = (cents: number) => `${Math.round((cents / totalCents) * 10000) / 100}%`;
+  // Each edge is placed from the running total, so rounding can never open a gap or an overlap between neighbours.
+  let doneCents = 0;
+  const stops = slices.map((row) => {
+    const from = at(doneCents);
+    doneCents += row.cents;
+    return `var(--chart-${slots.get(row.label)}) ${from} ${at(doneCents)}`;
+  });
+  return h('div', { class: 'method-ring', role: 'img', 'aria-label': 'Share of money collected by payment method', style: `background: conic-gradient(${stops.join(', ')})` });
+}
+
 function methodTable(state: State): HTMLElement {
   const slots = chartSlots(state.computed.methods);
   const { methodTotalCents } = state.computed;
@@ -98,13 +113,6 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   });
 
   const hasPayments = methods.some((row) => row.cents > 0);
-  const canvas = h('canvas', { width: 240, height: 240, role: 'img', 'aria-label': 'Share of money collected by payment method' });
-  if (hasPayments) {
-    // Runs after the caller has attached the view, which Chart.js needs for sizing.
-    queueMicrotask(() => {
-      if (canvas.isConnected) deps.drawChart(canvas, methods);
-    });
-  }
 
   return h(
     'section',
@@ -140,6 +148,6 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
       totals.unmatchedCents !== 0 ? h('p', { class: 'body-md' }, unmatchedNote(totals.unmatchedCents)) : null,
     ),
     h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Data health'), h('p', { class: 'meta' }, 'Every figure below should read 0. Anything higher needs a look.'), h('ul', { class: 'health-list' }, ...health.map((check) => healthItem(check, deps))), rowsWithoutIdNote(state.rowsWithoutId)),
-    h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Collected by payment method'), h('div', { class: 'method-grid' }, hasPayments ? h('div', { class: 'chart-box' }, canvas) : h('p', { class: 'empty' }, 'No payments yet.'), methodTable(state))),
+    h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Collected by payment method'), h('div', { class: 'method-grid' }, hasPayments ? methodRing(methods) : h('p', { class: 'empty' }, 'No payments yet.'), methodTable(state))),
   );
 }

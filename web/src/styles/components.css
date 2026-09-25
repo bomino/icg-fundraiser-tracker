@@ -1,8 +1,12 @@
 /* Nav */
 .nav-bar { position: sticky; top: 0; z-index: 10; background: var(--color-bg); }
+/* Without this a focused control or a jumped-to Help section is scrolled only to the page edge, under the sticky nav (72px; about 124px on phones). */
+html { scroll-padding-top: 88px; }
 .nav-inner { max-width: var(--container-wide); margin: 0 auto; padding: var(--space-md) var(--space-lg); display: flex; align-items: center; gap: var(--space-lg); flex-wrap: wrap; }
 .wordmark {
   font: 600 1.125rem/1.2 var(--font-display);
+  /* WCAG 2.5.8's 24px target: its line alone is 21.6px, and below about 352px the nav's buttons wrap in under it too close to excuse that. */
+  min-height: 24px;
   text-decoration: none;
   background: linear-gradient(to right, var(--color-gold), var(--color-emerald));
   -webkit-background-clip: text;
@@ -15,8 +19,11 @@
 /* A real border, not an inset shadow: the shadow anti-aliased into faint side lines around the rounded tab. */
 .tab[aria-current='page'] { color: var(--color-ink); border-bottom-color: var(--color-gold); }
 .nav-actions { display: flex; align-items: center; gap: var(--space-sm); }
+/* The 88px scroll padding assumes one row. Just above the phone layout a long signed-in email would push the actions onto a second (about 132px), so it is cut short there. */
+@media (max-width: 900px) { .nav-actions .meta { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 /* On phones the header must stay short (it is sticky): brand and actions share one row, tabs take the full second row. */
 @media (max-width: 720px) {
+  html { scroll-padding-top: 136px; }
   .nav-inner { padding: var(--space-sm) var(--space-md) 0; gap: 0 var(--space-sm); }
   .nav-actions { margin-left: auto; gap: 0; }
   .nav-actions .meta { display: none; }
@@ -25,6 +32,9 @@
   .tabs { order: 3; flex-basis: 100%; justify-content: space-between; gap: 0; margin-top: var(--space-xs); scrollbar-width: none; }
   .tab { padding: var(--space-sm) var(--space-xs); }
 }
+/* At 320px (a small phone, or Display Zoom) the tabs would need about 306px of the 288px left, cutting Help in half with no scrollbar to show it.
+   Each tab stays over 24px wide, the minimum touch target. */
+@media (max-width: 340px) { .tab { padding-inline: 2px; font-size: 0.75rem; } }
 
 /* Buttons */
 .btn { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 10px 20px; font: 500 0.8125rem/1.4 var(--font-ui); letter-spacing: 0.01em; cursor: pointer; min-height: 40px; transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
@@ -40,7 +50,7 @@ a.btn { text-decoration: none; }
 
 /* Inputs */
 .field { display: grid; gap: var(--space-xs); }
-.input { width: 100%; background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-sm); padding: 10px 14px; min-height: 44px; transition: border-color 150ms ease, outline-color 150ms ease; }
+.input { width: 100%; background: var(--color-surface); border: 1px solid var(--color-field-border); border-radius: var(--radius-sm); padding: 10px 14px; min-height: 44px; transition: border-color 150ms ease, outline-color 150ms ease; }
 .input:focus { outline: 3px solid var(--color-emerald-tint); border-color: var(--color-emerald); }
 .input[aria-invalid='true'] { border-color: var(--color-danger); }
 textarea.input { resize: vertical; }
@@ -69,7 +79,10 @@ textarea.input { resize: vertical; }
   .stat-card { padding: var(--space-md); }
   .stat-card .numeric-xl { font-size: 1.375rem; }
 }
-.progress-track { height: 6px; border-radius: var(--radius-full); background: var(--color-surface-sunken); overflow: hidden; }
+/* Side by side at 320px a card has about 100px for its total, and $14,450.00 would spill over its edge. */
+@media (max-width: 340px) { .grid-stats { grid-template-columns: 1fr; } }
+/* The sunken track barely differs from the card (1.04:1 in dark), so a ring marks where the bar ends. */
+.progress-track { height: 6px; border-radius: var(--radius-full); background: var(--color-surface-sunken); overflow: hidden; outline: 1px solid var(--color-ink-muted); outline-offset: -1px; }
 .progress-fill { height: 100%; border-radius: var(--radius-full); background: var(--color-emerald); transition: width 200ms ease; }
 .is-flagged { background: var(--color-warning-tint); border-color: var(--color-warning); }
 
@@ -122,6 +135,8 @@ textarea.input { resize: vertical; }
 /* Money treatment, usable inside a data-table cell or standalone (stat cards, lookup summaries). */
 .num { text-align: right; white-space: nowrap; font-feature-settings: 'tnum'; }
 .derived { color: var(--color-ink-soft); }
+/* In the light theme, soft and muted text both drop below 4.5:1 on the danger tint. */
+.row-danger .derived { color: var(--color-ink); }
 
 @media (max-width: 720px) {
   .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -134,6 +149,9 @@ textarea.input { resize: vertical; }
   .data-table tr.row-danger > td { background: none; box-shadow: none; }
   .data-table td.cell-wrap { min-width: 0; }
   .data-table td::before { flex-shrink: 0; content: attr(data-label); font: 600 0.6875rem/1.8 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-muted); text-align: left; }
+  .data-table tr.row-danger > td::before { color: var(--color-ink); }
+  /* Muted text drops below 4.5:1 on the warning tint in both themes. */
+  .data-table td.cell-warning::before { color: var(--color-ink); }
   .table-pager .show-more { align-self: stretch; }
 }
 
@@ -147,13 +165,15 @@ textarea.input { resize: vertical; }
 }
 
 /* Modal */
-.modal { border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); padding: 32px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-shadow: var(--shadow-lift); }
+.modal { border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); padding: 32px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); box-shadow: var(--shadow-lift); }
 .modal::backdrop { background: var(--color-scrim); }
 .modal-title { font: 500 2rem/1.2 var(--font-display); margin-bottom: var(--space-lg); }
-/* Long forms scroll inside the dialog on short screens; the actions stay pinned so Save is always reachable. */
-.modal { scrollbar-width: thin; scrollbar-color: var(--color-rule-strong) transparent; }
+/* Long forms scroll inside the dialog on short screens; the actions stay pinned so Save is always reachable,
+   and the bottom scroll padding keeps a field reached with Tab from stopping underneath them.
+   On a phone an open pledge's four actions wrap to two rows (about 137px), hence the larger value there. */
+.modal { scrollbar-width: thin; scrollbar-color: var(--color-rule-strong) transparent; scroll-padding-bottom: 104px; }
 .modal-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-lg); flex-wrap: wrap; position: sticky; bottom: -32px; margin-bottom: -32px; padding: var(--space-md) 0 32px; background: var(--color-surface); border-top: 1px solid var(--color-rule); }
-@media (max-width: 720px) { .modal { padding: var(--space-lg); } .modal-actions { bottom: calc(-1 * var(--space-lg)); margin-bottom: calc(-1 * var(--space-lg)); padding-bottom: var(--space-lg); } }
+@media (max-width: 720px) { .modal { padding: var(--space-lg); scroll-padding-bottom: 152px; } .modal-actions { bottom: calc(-1 * var(--space-lg)); margin-bottom: calc(-1 * var(--space-lg)); padding-bottom: var(--space-lg); } }
 
 /* Toasts, banners, chips */
 /* A failed save's toast stays until it is dealt with, so an outage can stack several; past half the screen they scroll rather than cover the list. */
@@ -182,7 +202,9 @@ textarea.input { resize: vertical; }
 /* A tinted block per row merged into one heavy slab when several checks fire; a warning rule per row keeps it calm. */
 .health-list li.is-flagged { background: none; box-shadow: inset 3px 0 0 var(--color-warning); }
 .health-count { display: flex; align-items: center; gap: var(--space-sm); }
-.chart-box { position: relative; width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; }
+/* The hole is masked out rather than painted in the card colour, so it stays see-through in every theme.
+   A mask reads only opacity, so currentColor stands in for any solid colour. Browsers leave backgrounds off paper unless told. */
+.method-ring { width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; border-radius: var(--radius-full); mask: radial-gradient(closest-side, transparent 61.5%, currentColor 62%); print-color-adjust: exact; }
 .method-grid { display: grid; gap: var(--space-lg); grid-template-columns: minmax(180px, 240px) 1fr; align-items: center; }
 @media (max-width: 720px) {
   .method-grid { grid-template-columns: 1fr; }
@@ -194,7 +216,7 @@ textarea.input { resize: vertical; }
   .method-grid .data-table td:first-child { text-align: left; }
   .method-grid .data-table td::before { content: none; }
 }
-.swatch { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); margin-right: var(--space-sm); background: var(--color-rule-strong); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); margin-right: var(--space-sm); background: var(--color-rule-strong); print-color-adjust: exact; }
 .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-xl); }
 @media (max-width: 720px) { .stat-row { gap: var(--space-md) var(--space-lg); } }
 
@@ -220,8 +242,8 @@ textarea.input { resize: vertical; }
 .help-toc li::marker { color: var(--color-gold); font-feature-settings: 'tnum'; }
 .help-toc a { text-decoration: none; }
 .help-toc a:hover { text-decoration: underline; }
-/* The nav bar is sticky; without this a jumped-to section lands underneath it. */
-.help-section { border-bottom: 1px solid var(--color-rule); scroll-margin-top: 120px; }
+/* No scroll-margin-top here: it would add to html's scroll-padding-top and land a jumped-to section far below the nav. */
+.help-section { border-bottom: 1px solid var(--color-rule); }
 .help-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); min-height: 56px; padding: var(--space-sm) 0; cursor: pointer; list-style: none; }
 .help-summary::-webkit-details-marker { display: none; }
 .help-summary::after { content: '+'; flex-shrink: 0; width: 1.5rem; text-align: center; font: 400 1.5rem/1 var(--font-ui); color: var(--color-gold); }
@@ -272,8 +294,9 @@ textarea.input { resize: vertical; }
 .friday .friday-eyebrow { font-size: clamp(0.8125rem, 0.5rem + 1vw, 1.75rem); letter-spacing: 0.18em; }
 .friday-title { font: 500 clamp(3rem, 1rem + 7vw, 9rem)/1.05 var(--font-display); letter-spacing: -0.01em; }
 .friday-title::after { content: ''; display: block; width: clamp(64px, 8vw, 160px); height: 2px; margin: clamp(var(--space-sm), 2vh, var(--space-lg)) auto 0; background: var(--color-gold); }
-/* Rule, not the sunken track colour: in dark mode sunken sits too close to the page for the unfilled part to show on a projector. */
-.friday .friday-track { width: 100%; height: clamp(12px, 1.6vw, 28px); margin-top: clamp(var(--space-sm), 2vh, var(--space-lg)); background: var(--color-rule); }
+/* Even the rule colour is only 1.25:1 against the page (1.5:1 in dark), too faint for the unfilled part to show on a projector,
+   so a heavier ink-soft ring marks where the bar ends. */
+.friday .friday-track { width: 100%; height: clamp(12px, 1.6vw, 28px); margin-top: clamp(var(--space-sm), 2vh, var(--space-lg)); background: var(--color-rule); outline: 2px solid var(--color-ink-soft); outline-offset: -2px; }
 .friday-raised { font: 600 clamp(1.5rem, 0.75rem + 3.2vw, 4.25rem)/1.2 var(--font-ui); letter-spacing: -0.01em; font-feature-settings: 'tnum'; }
 .friday-raised .gold { font-size: 1.35em; }
 .friday-percent { font: 600 clamp(2.5rem, 1rem + 6vw, 8rem)/1 var(--font-ui); letter-spacing: -0.02em; color: var(--color-emerald); font-feature-settings: 'tnum'; }
@@ -282,8 +305,22 @@ textarea.input { resize: vertical; }
 .friday-exit:hover { background: var(--color-surface-soft); color: var(--color-ink); }
 .friday-status { display: flex; justify-content: center; align-items: center; gap: var(--space-md); flex-wrap: wrap; min-height: 40px; }
 .friday-status .meta { font-size: clamp(0.75rem, 0.5rem + 0.5vw, 1rem); }
-.friday-stale { background: transparent; border: 1px solid var(--color-rule-strong); border-radius: var(--radius-full); padding: var(--space-xs) var(--space-md); font-size: clamp(0.75rem, 0.5rem + 0.5vw, 1rem); color: var(--color-warning); cursor: pointer; }
+/* Warning-coloured text falls just short of 4.5:1 on the light page, so the warning colour marks the outline instead. */
+.friday-stale { background: transparent; border: 1px solid var(--color-warning); border-radius: var(--radius-full); padding: var(--space-xs) var(--space-md); font-size: clamp(0.75rem, 0.5rem + 0.5vw, 1rem); color: var(--color-ink); cursor: pointer; }
 .friday-stale:hover:not(:disabled) { background: var(--color-warning-tint); }
 .friday-stale:disabled { opacity: 0.6; cursor: progress; }
 /* Nothing may pop up over the projector; the stale note is the display's only call for attention. */
 body[data-display] .toasts { display: none; }
+
+/* Windows high-contrast themes replace every background with the page colour, so what shows only as a fill takes a system colour instead.
+   The pressed chip is filled, not outlined, so its focus ring still shows; opting it out would keep that ring brand gold, which a custom theme's page colour can hide.
+   Every tab's transparent border would turn visible, leaving the current one told apart by colour alone.
+   The payment-method ring's gradient would be dropped outright, so the ring and its key keep the chart colours and still match each other. */
+@media (forced-colors: active) {
+  .progress-fill { forced-color-adjust: none; background: Highlight; }
+  .chip-toggle[aria-pressed='true'] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+  .chip-toggle[aria-pressed='true']:focus-visible { outline-color: Highlight; }
+  .tab { border-bottom-color: Canvas; }
+  .tab[aria-current='page'] { border-bottom-color: Highlight; }
+  .method-ring, .swatch { forced-color-adjust: none; }
+}

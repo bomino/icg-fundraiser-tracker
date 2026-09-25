@@ -13,14 +13,15 @@ colors:
   # --- Ink (text) ---
   ink: "#1a2e1f"              # Primary text + headings — deep forest, almost black
   ink-soft: "#5a6b5f"         # Body copy, secondary labels
-  ink-muted: "#8a9690"        # Metadata, captions, disabled
+  ink-muted: "#65716a"        # Metadata, captions, field hints — 4.5:1 on bg, surface and surface-soft
 
   # --- Rules and dividers ---
   rule: "#e8e0cc"             # Hairline borders, table dividers — soft sand
+  field-border: "#948a6e"     # Input borders only — a field's only visible edge, 3:1 on surface
   rule-strong: "#d4c79e"      # Emphasized borders, focused inputs
 
   # --- Brand accents ---
-  gold: "#a87c0a"             # Antique gold — primary accent, stat values, hairline rules
+  gold: "#926c09"             # Antique gold — primary accent, stat values, hairline rules — 4.5:1 on bg and surface
   gold-soft: "#c69b2a"        # Hover state for gold elements
   gold-tint: "#f7eecf"        # Backgrounds for gold-themed badges (high contrast text)
 
@@ -40,13 +41,15 @@ colors:
   payment-card: "#6b4d8c"     # Muted aubergine — replaces neon purple
   payment-online: "#a8651f"   # Burnt orange — replaces neon orange
 
-  # --- Chart palette (used by Chart.js) ---
+  # --- Chart palette (the Summary's payment-method ring) ---
   chart-1: "#2d5e3e"          # emerald
-  chart-2: "#a87c0a"          # gold
+  chart-2: "#a87c0a"          # gold — the original, brighter shade; a slice needs 3:1, not the 4.5:1 that darkened gold for text
   chart-3: "#3a5a8c"          # indigo
   chart-4: "#8b2e2e"          # claret
   chart-5: "#6b4d8c"          # aubergine
   chart-6: "#a8651f"          # burnt orange
+  chart-7: "#8a9690"          # neutral grey — "No method recorded"; its own value, not ink-muted
+  chart-8: "#4a4640"          # dark neutral — "Other / unlisted"; darker than chart-7 so the two neutrals differ by lightness
 
 # Dark-mode token overrides. Same semantic names; different values.
 # Each entry below is the dark-mode value of the matching token in `colors`
@@ -62,10 +65,11 @@ colors-dark:
   # --- Ink (text) ---
   ink: "#f1ebd8"              # Warm off-white. Never pure white.
   ink-soft: "#c5bda3"          # Body, secondary labels
-  ink-muted: "#8a8270"         # Metadata, captions, disabled
+  ink-muted: "#958c79"         # Metadata, captions, field hints
 
   # --- Rules and dividers ---
   rule: "#3a3320"             # Warm dim brown-gold, low contrast
+  field-border: "#7a6d4b"      # Input borders only, 3:1 on surface
   rule-strong: "#5a4f30"       # Emphasized borders, focused state outlines
 
   # --- Brand accents (lifted slightly for dark backgrounds) ---
@@ -80,7 +84,7 @@ colors-dark:
   # --- Functional ---
   warning: "#d4a04a"
   warning-tint: "#3d2e12"
-  danger: "#c65656"
+  danger: "#d67070"            # Lifted so errors and the Delete label reach 4.5:1
   danger-tint: "#3a1818"
 
   # --- Payment method palette (lifted versions) ---
@@ -89,13 +93,15 @@ colors-dark:
   payment-card: "#9b7ec4"
   payment-online: "#d4914a"
 
-  # --- Chart palette (used by Chart.js — lifted for dark) ---
+  # --- Chart palette (lifted for dark) ---
   chart-1: "#5a9b6f"
   chart-2: "#d4af37"
   chart-3: "#7591c4"
   chart-4: "#c65656"
   chart-5: "#9b7ec4"
   chart-6: "#d4914a"
+  chart-7: "#8a8270"
+  chart-8: "#c9c1ad"            # lighter than chart-7 here, again further from the page
 
 typography:
   display-xl:
@@ -359,15 +365,16 @@ The palette is rooted in three pillars: **ivory** (the institutional surface), *
 - **`surface` (#ffffff) — clean white.** Cards and modals. Lifts content off the ivory background through brightness, not heavy shadows.
 - **`surface-soft` (#f5f1e8) and `surface-sunken` (#efe9d9) — recessed creams.** Inputs and recessed wells (toolbars, table-row hovers). Always darker than the page, never lighter.
 - **`ink` (#1a2e1f) — deep forest.** Primary text and headings. *Not pure black* — black on warm ivory is harsh. Forest pairs with the ICG dome and softens the contrast to something paper-like.
-- **`ink-soft` (#5a6b5f) and `ink-muted` (#8a9690) — body and metadata.** A two-step text hierarchy below ink. All three pass WCAG AA on the ivory background.
+- **`ink-soft` (#5a6b5f) and `ink-muted` (#65716a) — body and metadata.** A two-step text hierarchy below ink. All three reach WCAG AA (4.5:1) on `bg`, `surface` and `surface-soft` in both themes; `test/styles/contrast.test.ts` checks the faintest of them, `ink-muted`, on each. `ink-muted` carries text volunteers need — field hints, the only column labels on phones, "Showing N of M" — so it is the lightest shade of its grey-green that still reaches 4.5:1 on `surface-soft` (the hover and focus fill behind a phone number in Find donor's matches). That keeps it a half-step lighter than `ink-soft` rather than merged into it, but the two are close: size (12px metadata against 15px body) now carries most of the hierarchy. The earlier `#8a9690` measured only 2.9:1.
 - **`rule` (#e8e0cc) — soft sand.** Hairline dividers. The single most-used non-ink color in the system. Replaces the dark theme's rgba-white borders entirely.
-- **`gold` (#a87c0a) — antique gold.** *Used sparingly.* Section underlines, KPI numbers, the brand wordmark gradient, focus rings. Never a button background. Antique (not bright) so it reads "civic emblem," not "Web3 token."
+- **`field-border` (#948a6e) — input edges.** A field's white fill matches the card or dialog it sits on, so its border is the only thing that shows where to type. `rule` there measured 1.3:1; this reaches the 3:1 WCAG asks of a control's edge. Used only by inputs; `rule` stays for hairlines.
+- **`gold` (#926c09) — antique gold.** *Used sparingly.* Section underlines, KPI numbers, the brand wordmark gradient, focus rings. Never a button background. Antique (not bright) so it reads "civic emblem," not "Web3 token." It is also ordinary-sized text in two places, the Summary totals (22px on phones, below WCAG's 24px "large text") and the numbers in the Help guide's contents and steps, so it is the lightest shade of its gold that reaches 4.5:1 on `bg` (4.8:1 on `surface`); `test/styles/contrast.test.ts` checks both. The original `#a87c0a` measured 3.6:1 and survives only as the ring's gold slice (`chart-2`), which is not text and needs 3:1.
 - **`emerald` (#2d5e3e) — forest green.** Primary CTA color, success states, progress fills. Echoes the ICG logo's dome. Calm and assertive.
 - **`warning` (#9c6b1f) and `danger` (#8b2e2e) — burnt amber and subdued claret.** Functional colors held back from saturation so they don't dominate. A delete button should look serious, not panicked.
 
 The **payment method palette** replaces the previous neon set with institutional muted tones: emerald, indigo, aubergine, burnt orange. They harmonize with each other and with the brand greens/golds, so the donut chart in the report doesn't look like a clown.
 
-The **chart palette** is reusable across visualizations. Drawn from the same six muted hues; no two adjacent slices clash.
+The **chart palette** is reusable across visualizations. Drawn from the same six muted hues; no two adjacent slices clash. Each listed payment method takes the colour of its place in the Settings list (the first `chart-1`, the second `chart-2`, and so on, starting over after six), so a method keeps its colour while a method listed before it has no money yet. A seventh, neutral grey (`chart-7`) marks payments with no method recorded. It keeps its own value rather than borrowing `ink-muted`, which is now dark enough for text and would sit too close to the emerald Cash slice. An eighth, darker neutral (`chart-8`) marks "Other / unlisted" money, recorded under a method since removed from Settings; it never borrows a real method's colour, and it differs from `chart-7` by lightness because the two can sit side by side. The list badges keep their own `payment-*` colours by method name, so a badge and its ring slice need not match.
 
 ### Dark mode — the same logic, recalibrated
 
@@ -376,13 +383,15 @@ Dark mode isn't a 1:1 inversion. Every token was chosen for its specific semanti
 - **`bg` (#15110a) — warm near-black.** Slight gold cast. Same reasoning as light's warm ivory: the page should feel like a material object (paper or vellum scroll), not a screen. Pure black would read "tech product."
 - **`surface` (#1f1a10) — cards/modals.** One step lighter than `bg`. Cards lift via brightness, not heavy shadows — same approach as light, just inverted.
 - **`ink` (#f1ebd8) — warm off-white.** *Never pure white.* Pure white on dark is harsh, overconfident, and reads "Twitter at 3am." A warm cream pairs with the `bg` and feels like ink on a dark page.
-- **`gold` (#d4af37) — brighter antique gold.** The light-mode `#a87c0a` would read as a dim brown on dark. Lifted to retain readability while still antique-not-neon.
+- **`gold` (#d4af37) — brighter antique gold.** The light-mode `#926c09` would read as a dim brown on dark. Lifted to retain readability while still antique-not-neon.
 - **`emerald` (#5a9b6f) — lifted forest green.** A deep #2d5e3e on a dark surface reads as a hole. The dark-mode emerald is more saturated and lighter so it still says "go button" without screaming.
-- **`rule` (#3a3320) — dim warm brown-gold.** Hairlines on dark are a balance: too bright reads "wireframe," too dim disappears. This walks that line.
+- **`rule` (#3a3320) — dim warm brown-gold.** Hairlines on dark are a balance: too bright reads "wireframe," too dim disappears. This walks that line. Inputs use `field-border` (#7a6d4b) instead, for the same 3:1 edge as in light.
+- **`ink-muted` (#958c79) — metadata.** Lifted from the first dark value (#8a8270), which fell to 4.1:1 on `surface-soft`.
+- **`danger` (#d67070) — lifted claret.** Field errors, error toasts, the Delete button's label and a not-counted donor's name all need 4.5:1 against the dark surface or the danger tint. The first dark claret (#c65656) reached only 4.0:1 and 3.7:1.
 
 The brand wordmark gradient (`gold → emerald`) uses the dark-mode token values, so it stays readable on the dark background.
 
-The **chart palette** is lifted across the board — Chart.js charts running on dark mode use the dark `chart-*` values automatically (the JS reads CSS variables on render).
+The **chart palette** is lifted across the board — the payment-method ring uses the dark `chart-*` values automatically, because its gradient names the CSS variables rather than their values, so a theme switch recolours it without a redraw.
 
 **Print mode forces light theme.** A printed report on paper should always look like the light theme regardless of what the screen showed; the print stylesheet overrides `--bg`, `--surface`, `--ink`, etc., to their light values.
 
@@ -443,27 +452,27 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 
 **Danger button** (`button-danger`): claret background, white text. Used for irreversible actions. Confirms via the themed `ICGUtil.confirmDialog` modal before firing — for the most destructive actions (project delete) the dialog requires the operator to type the project's ID before the Delete button is enabled. Native browser `confirm()` is never used; it renders as a full-screen prompt on mobile.
 
-**Inputs** (`input`): white surface, `1px solid rule` border, focused state replaces border with `1px solid emerald` and adds a 3px `emerald-tint` outline ring. No fake "filled" backgrounds — inputs read as paper fields.
+**Inputs** (`input`): white surface, `1px solid field-border` border, focused state replaces border with `1px solid emerald` and adds a 3px `emerald-tint` outline ring. No fake "filled" backgrounds — inputs read as paper fields.
 
 **Cards** (`card`): white surface, `1px solid rule` border, two-tier resting shadow, `md` radius, 24px padding. The fundamental container.
 
-**Stat cards** (`stat-card`): same as card but with `eyebrow`-styled label above and `numeric-xl` value below in `gold`. The KPI row on the report page uses this five times across.
+**Stat cards** (`stat-card`): same as card but with `eyebrow`-styled label above and `numeric-xl` value below in `gold`. The KPI row on the report page uses this five times across. On phones the cards pair up two to a row and the value drops to 22px so a five-figure total fits beside its neighbour; at 340px and below they stack in one column, because side by side at 320px a card has only about 100px for a total like $14,450.00 and it would spill over the card's edge.
 
-**Progress bars** (`progress-track` + `progress-fill`): 6px tall, `full` radius, `surface-sunken` track, fill colored per-project. The current 2px hair-thin bar is too timid; 6px reads as confident.
+**Progress bars** (`progress-track` + `progress-fill`): 6px tall, `full` radius, `surface-sunken` track inside a 1px inset `ink-muted` ring, fill colored per-project. The current 2px hair-thin bar is too timid; 6px reads as confident. The sunken track alone barely differs from the card (1.21:1 in light, 1.04:1 in dark), so without the ring the unfilled part vanishes and the bar has no visible end.
 
-**Modals**: `surface`, `md` radius, second-tier shadow, scrim is `rgba(26, 46, 31, 0.20)` (deep forest at 20% opacity) — *not* black. The forest scrim keeps the warm ivory atmosphere even when a modal is open.
+**Modals**: `surface`, `md` radius, second-tier shadow, scrim is `rgba(26, 46, 31, 0.20)` (deep forest at 20% opacity) — *not* black. The forest scrim keeps the warm ivory atmosphere even when a modal is open. A long form scrolls inside the modal under its pinned Save/Cancel row, so the modal carries a bottom `scroll-padding` a little taller than that row (104px; 152px on phones, where an open pledge's four buttons wrap to two rows): a field reached with Tab scrolls clear of the buttons instead of stopping underneath them (WCAG 2.4.11, focus not obscured). Its height is capped with `100dvh` as well as `100vh`, so it fits above a phone browser's toolbar.
 
-**Nav bar**: `bg` (transparent over the page), no separator below — just generous padding. The nav lifts off the page only when scrolled (a `1px solid rule` appears via JS once `scrollY > 4`).
+**Nav bar**: `bg` (transparent over the page), no separator below — just generous padding. The nav lifts off the page only when scrolled (a `1px solid rule` appears via JS once `scrollY > 4`). It is sticky, so the page carries a top `scroll-padding` a little taller than it (88px; 136px on phones, where the tabs take a second row): a control reached with Tab or Shift+Tab, or a Help section jumped to from its contents, stops below the nav instead of underneath it. Nothing else adds its own offset, because a `scroll-margin` would stack on top of this one. The desktop value assumes the nav keeps to one row, so between the phone layout and 900px, where the actions are tightest, the signed-in email is cut short with an ellipsis (8rem) rather than letting a long address push the actions onto a second row. On phones the five tabs share the second row, which scrolls sideways with its scrollbar hidden, so a tab that doesn't fit is cut off with no sign it is there. They fit a 360px phone as they are; at 340px and below (320px is WCAG's reflow width: a small phone, or a larger one with Display Zoom) they tighten to 12px text and 2px side padding, which still leaves every tab over 24px wide and 44px tall. The wordmark link is held to at least 24px tall for the same reason (WCAG 2.5.8): its line is only 21.6px, and below about 352px the action buttons wrap in so close under it that its spacing no longer makes up the difference.
 
 **Project cards** (homepage grid): `surface`, `md` radius, hairline `rule` border, hovers lift to second-tier shadow + a `1px solid rule-strong` border. Project color is shown as a 4px tall bar across the top (not a dot anywhere on the card) — this is a major visual signature for the redesign.
 
-**Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing.
+**Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing. A row tinted `danger-tint` (a duplicate pledge, a payment that isn't counted) switches its `ink-soft` and `ink-muted` text to `ink`, because in the light theme neither reaches 4.5:1 on the tint. A cell tinted `warning-tint` (a payment dated in the future) does the same for its column label on phones, which in `ink-muted` falls below 4.5:1 in both themes.
 
-**Charts** (Chart.js): grid lines drop to `rule` color at 50% opacity; tick labels use `ink-muted`; bars/lines use the `chart-1`..`chart-6` palette. The dark-theme cyan bars are gone.
+**Charts** (no chart library): the Summary's one chart, money collected by payment method, is a ring drawn in CSS: a `conic-gradient` with a hard stop between slices, each slice sized by its method's share and coloured `var(--chart-N)`, and the hole cut out with a `mask` so the card shows through. It is an image to screen readers (`role="img"` with a label), and the table beside it carries every amount, so it has no hover tooltip. Very small slices can look slightly soft at their edges. It and its key print in colour (`print-color-adjust: exact`), since browsers otherwise leave backgrounds off paper. A future chart with axes drops its grid lines to `rule` at 50% opacity, uses `ink-muted` for tick labels, and takes its colours from the `chart-*` palette.
 
 **Dashboard tiles** (`dash-tile`): the four large clickable cards on the admin dashboard (Add or edit donations, Bulk upload donations, Manage projects, Manage categories). Same `card` foundation, but tap-target sized for stubby fingers and arranged on a `md:grid-cols-2 lg:grid-cols-4` grid so they reflow gracefully across phone, tablet, and desktop.
 
-**Friday-prayer display mode** (`body[data-display="friday"]` + `.friday-*` classes): a full-screen presentation mode for projecting one campaign during jumu'ah announcements. Activated via `?display=friday&campaign=<slug>`. Hides nav, project grid, footer, and live-status; renders a centered stack of eyebrow → display title → optional Arabic name → progress bar → raised vs goal → percent. All type sizes use `clamp()` against existing palette tokens — no new design system primitives, just a layout repurposing of what's already there. Inherits the user's saved theme (no force-light) so a hall with controllable lighting can run dark mode if that suits the projector better.
+**Friday-prayer display mode** (`body[data-display="friday"]` + `.friday-*` classes): a full-screen presentation mode for projecting one campaign during jumu'ah announcements. Activated via `?display=friday&campaign=<slug>`. Hides nav, project grid, footer, and live-status; renders a centered stack of eyebrow → display title → optional Arabic name → progress bar → raised vs goal → percent. All type sizes use `clamp()` against existing palette tokens — no new design system primitives, just a layout repurposing of what's already there. Inherits the user's saved theme (no force-light) so a hall with controllable lighting can run dark mode if that suits the projector better. Its progress bar is taller, with a `rule` track inside a 2px inset `ink-soft` ring (5.4:1 on `bg` in light, 10:1 in dark): even `rule` is only 1.25:1 against the page (1.5:1 in dark), too faint for the bar's end to show through a projector in a lit hall.
 
 ## Do's and Don'ts
 
@@ -481,17 +490,19 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 ### Don't
 
 - **Don't use glass morphism, blur backgrounds, or semi-transparent overlays.** They date the design and print poorly.
-- **Don't add gradients except on the wordmark.** The brand wordmark uses a `linear-gradient(to right, gold, emerald)` for the "ICG Fundraising" text only. Nothing else gets a gradient.
+- **Don't add gradients except on the wordmark.** The brand wordmark uses a `linear-gradient(to right, gold, emerald)` for the "ICG Fundraising" text only. Nothing else gets a gradient. (The payment-method ring is drawn with a `conic-gradient`, but its hard stops leave every slice one flat colour; nothing blends.)
 - **Don't use neon or saturated brand colors.** All colors in this system are muted antique versions of their references. If a color looks bright, it's wrong.
 - **Don't decorate.** No icon next to every label. No shimmer animations. No drop shadows on text. No emoji as section dividers (the `🔒` admin banner stays — it carries meaning. Sectional emoji do not.)
 - **Don't use bg-clip text** *except for the wordmark.* It's a brand signature, not a heading style.
 - **Don't add geometric Islamic patterns.** We discussed this — we picked the restrained register, not the decorative one. A pattern background on the hero would tip into "Islamic-themed template." The dignity comes from typography and whitespace.
-- **Don't animate things that don't need to move.** A subtle `fade-in 200ms` on chart load is fine. Anything else (numbers counting up, cards floating in, parallax) breaks the institutional register.
+- **Don't animate things that don't need to move.** The Summary redraws on every save, so its payment-method ring appears without a fade or sweep that would replay each time. Anything else (numbers counting up, cards floating in, parallax) breaks the institutional register.
 - **Don't pure-black anywhere.** All "black" is `ink` (#1a2e1f). A subtle warmth keeps the page feeling printed.
 
 ## Implementation notes
 
 - **CSS variables drive everything.** The full token set is mirrored as `:root` custom properties (`--color-ink`, `--space-lg`, `--radius-md`, etc.). All component CSS references variables; no hex codes outside the variable definitions.
+- **High-contrast themes are honoured, not fought.** Windows high-contrast themes (`forced-colors: active`) swap every colour for the viewer's own and drop backgrounds to the page colour, so anything shown only as a fill would vanish. One `@media (forced-colors: active)` block at the end of `components.css` paints the progress fill and the pressed status chip in the system `Highlight` colour (the chip filled, not outlined, so its focus ring still shows, and that ring set back to `Highlight`: opting the chip out of the theme would otherwise leave it brand gold), underlines only the current tab, and keeps the payment-method ring and its key's dots in the chart's own colours (the theme would drop the ring's gradient outright, and the key must still match it). System colour keywords (`Highlight`, `Canvas`) follow the viewer's theme, so they are the one colour value allowed outside the variables.
+- **Accessibility claims are checked, not just written down.** `test/styles/contrast.test.ts` (inside `npm run check`) holds the token pairs above to their ratios in both themes. The e2e suite runs axe's WCAG 2.0–2.2 A and AA rules on every tab in both themes at 360px, and again at 320px in the light theme, where the tighter layout changes the spacing its target-size rule measures (`e2e/accessibility.spec.ts`), and checks reflow at 360px and 320px: no sideways page scroll, all five tabs inside their strip, and each Summary total inside its card (`e2e/no-overflow.spec.ts`).
 - **Tailwind CDN stays** for utility classes, but a `tailwind.config` block in each HTML extends the theme to map our tokens to Tailwind names (`text-ink`, `bg-surface`, `rounded-md` already aligned to our scale).
-- **Chart.js theme** is configured once in a shared init function that reads the CSS variables, so charts pick up the palette automatically.
+- **Chart colours are CSS variables, not values read by script.** The payment-method ring's gradient names `var(--chart-N)`, so it follows the theme with no listener and no redraw.
 - **No build step, no NPM dependencies.** Same constraint as the rest of the project — the design system is just a CSS variables block and a Tailwind config.

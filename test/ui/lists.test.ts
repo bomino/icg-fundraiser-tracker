@@ -71,14 +71,14 @@ describe('pledges view', () => {
     expect(chip.getAttribute('aria-label')).toBe('Showing: Donors listed more than once, clear filter');
   });
 
-  it('opens the payment form pre-filled after Log a payment closes the pledge dialog, without stacking dialogs', () => {
+  it('opens the payment form pre-filled after Log a payment closes the pledge dialog, without stacking dialogs', async () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);
     (view.querySelector('tr[data-id="p3"]') as HTMLElement).click();
     const logPayment = Array.from(document.querySelectorAll('dialog[open] button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
     logPayment.click();
+    await vi.waitFor(() => expect(document.querySelector('dialog[open] .modal-title')?.textContent).toBe('Log a payment'));
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
-    expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Log a payment');
     expect((document.querySelector('input[name=phone]') as HTMLInputElement).value).toBe('555-010-0103');
     expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Chen Wei · owes $300.00 of $300.00');
   });
@@ -676,7 +676,7 @@ describe('pledge form', () => {
     expect(document.body.textContent).toContain('Enter a number, e.g. 250.');
   });
 
-  it('shows a Log a payment button for an existing pledge with a phone, firing only after the dialog closes', () => {
+  it('shows a Log a payment button for an existing pledge with a phone, firing only after the dialog closes', async () => {
     const onLogPayment = vi.fn();
     openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), onLogPayment, reportError: vi.fn() });
     const button = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
@@ -684,7 +684,7 @@ describe('pledge form', () => {
     expect(onLogPayment).not.toHaveBeenCalled();
     button.click();
     expect(document.querySelector('dialog[open]')).toBeNull();
-    expect(onLogPayment).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(onLogPayment).toHaveBeenCalledTimes(1));
     expect(onLogPayment).toHaveBeenCalledWith('555-010-0103');
   });
 
@@ -702,7 +702,7 @@ describe('pledge form', () => {
     expect(onLogPayment).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the pledge dialog open and does not log a payment when discard is declined', () => {
+  it('keeps the pledge dialog open and does not log a payment when discard is declined', async () => {
     const onLogPayment = vi.fn();
     openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), onLogPayment, reportError: vi.fn() });
     type(document.querySelector('input[name=name]') as HTMLInputElement, 'Chen Wei Jr.');
@@ -710,6 +710,9 @@ describe('pledge form', () => {
     button.click();
     const confirmModal = Array.from(document.querySelectorAll('dialog')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm') as HTMLDialogElement;
     (Array.from(confirmModal.querySelectorAll('button')).find((b) => b.textContent === 'Keep editing') as HTMLButtonElement).click();
+    // The answer only arrives with the confirm's close event, a task later; checked before it, a
+    // decline that went ahead anyway would still pass.
+    await vi.waitFor(() => expect(confirmModal.isConnected).toBe(false));
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit pledge');
     expect(onLogPayment).not.toHaveBeenCalled();

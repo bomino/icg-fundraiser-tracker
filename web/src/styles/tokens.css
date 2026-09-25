@@ -6,10 +6,13 @@
   --color-surface-sunken: #efe9d9;
   --color-ink: #1a2e1f;
   --color-ink-soft: #5a6b5f;
-  --color-ink-muted: #8a9690;
+  --color-ink-muted: #65716a;
   --color-rule: #e8e0cc;
+  /* Not --color-rule: a field's fill matches the card or dialog under it, so its border is its only edge and needs 3:1. */
+  --color-field-border: #948a6e;
   --color-rule-strong: #d4c79e;
-  --color-gold: #a87c0a;
+  /* Also small text (the Summary totals at 22px on phones, Help's step numbers), so the lightest shade of this gold that reaches 4.5:1 on the page. */
+  --color-gold: #926c09;
   --color-gold-soft: #c69b2a;
   --color-gold-tint: #f7eecf;
   --color-emerald: #2d5e3e;
@@ -24,13 +27,18 @@
   --color-payment-card: #6b4d8c;
   --color-payment-online: #a8651f;
   --chart-1: #2d5e3e;
+  /* The original, brighter gold: a slice is not text, so it needs only 3:1 against the card. */
   --chart-2: #a87c0a;
   --chart-3: #3a5a8c;
   --chart-4: #8b2e2e;
   --chart-5: #6b4d8c;
   --chart-6: #a8651f;
-  /* "No method recorded" is not a method; a neutral slice keeps it from sharing a hue with a real one. */
-  --chart-7: var(--color-ink-muted);
+  /* "No method recorded" is not a method; a neutral slice keeps it from sharing a hue with a real one.
+     Its own grey, not ink-muted: the text token is dark enough to read, which puts it too close to the emerald Cash slice. */
+  --chart-7: #8a9690;
+  /* "Other / unlisted" (methods since removed from Settings) is not a listed method either, so it takes a second neutral.
+     Both neutrals can sit side by side in the ring, so this one is set further from the page than chart-7 to differ by lightness. */
+  --chart-8: #4a4640;
   --color-scrim: rgba(26, 46, 31, 0.2);
   --shadow-rest: 0 1px 2px rgba(26, 46, 31, 0.04), 0 4px 16px rgba(26, 46, 31, 0.05);
   --shadow-lift: 0 4px 8px rgba(26, 46, 31, 0.06), 0 16px 40px rgba(26, 46, 31, 0.1);
@@ -65,8 +73,9 @@
     --color-surface-sunken: #1a160e;
     --color-ink: #f1ebd8;
     --color-ink-soft: #c5bda3;
-    --color-ink-muted: #8a8270;
+    --color-ink-muted: #958c79;
     --color-rule: #3a3320;
+    --color-field-border: #7a6d4b;
     --color-rule-strong: #5a4f30;
     --color-gold: #d4af37;
     --color-gold-soft: #e6c463;
@@ -76,7 +85,7 @@
     --color-emerald-tint: #1f3a26;
     --color-warning: #d4a04a;
     --color-warning-tint: #3d2e12;
-    --color-danger: #c65656;
+    --color-danger: #d67070;
     --color-danger-tint: #3a1818;
     --color-payment-cash: #5a9b6f;
     --color-payment-bank: #7591c4;
@@ -88,6 +97,8 @@
     --chart-4: #c65656;
     --chart-5: #9b7ec4;
     --chart-6: #d4914a;
+    --chart-7: #8a8270;
+    --chart-8: #c9c1ad;
     --color-scrim: rgba(10, 8, 4, 0.55);
     --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
     --shadow-lift: 0 4px 8px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45);

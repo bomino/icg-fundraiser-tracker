@@ -41,14 +41,14 @@ To look at every screen without a Google account or a deployed Apps Script backe
 
 ## Browser smoke tests
 
-`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, Escape and Cancel on a half-typed form, filter Pledges/Payments, the Friday display, layout at 360px). They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`.
+`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, including from an open pledge, Escape and Cancel on a half-typed form, filter Pledges/Payments, the Friday display, layout on 360px and 320px phones, keyboard focus kept clear of the sticky header and a dialog's pinned buttons, and an [axe](https://github.com/dequelabs/axe-core) accessibility scan of every tab in both themes). One spec, `e2e/production-bundle.spec.ts`, loads the production build instead, at the same `/icg-fundraiser-tracker/` path GitHub Pages serves it from, with Google sign-in and the Apps Script backend stubbed (the backend stub is `apps-script/Code.gs` itself, run in Node). It checks that the app starts with no console errors, that an account missing from the volunteer list is told so, and that a "someone else changed this row" question waits until the volunteer's next form is closed. They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`. In CI they are their own `e2e` job, which the Pages deploy doesn't wait for: a failure turns the run red and sends GitHub's failed-run email, but the site still deploys.
 
 ```bash
 npx playwright install chromium   # once, downloads a browser
 npm run test:e2e
 ```
 
-`test:e2e` starts its own Vite dev server on a fixed port (5199) and tears it down afterwards, so it's safe to run alongside `npm run dev` on 5173. On failure, open `playwright-report/index.html` for traces and screenshots.
+`test:e2e` starts its own Vite dev server on a fixed port (5199), builds the production bundle into a temp folder and serves it with `vite preview` on 5299, and tears both down afterwards, so it's safe to run alongside `npm run dev` on 5173 and never touches your own `dist/`. Set `E2E_PORT` to move both ports (the preview always uses the port 100 above it). On failure, open `playwright-report/index.html` for traces and screenshots.
 
 ## Previewing a production build
 

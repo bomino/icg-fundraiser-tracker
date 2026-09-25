@@ -12,7 +12,6 @@ import type { ListFilter } from './filter';
 import { findFocusSpot, focusableHeading, focusSpotOf, type FocusSpot } from './focus';
 import { createHelpView } from './helpView';
 import { createLookupView } from './lookupView';
-import { destroyMethodChart, drawMethodChart } from './methodChart';
 import { createPaymentsView } from './paymentsView';
 import { createPledgesView } from './pledgesView';
 import { renderMessageScreen } from './screens';
@@ -87,9 +86,6 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   let focusListHeading = false;
   let exitDisplay: (() => void) | null = null;
   let shellShown = false;
-  // Chart.js and its theme listener would otherwise only get torn down on Summary's *next* draw,
-  // outliving a canvas that navigated away in the meantime (see methodChart.ts's own comment).
-  let lastView: ViewName | null = null;
   const reportError = createErrorReporter(() => deps.store.load());
   const pledgesView = createPledgesView({ store: deps.store, reportError });
   const paymentsView = createPaymentsView({ store: deps.store, reportError });
@@ -259,14 +255,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     showOutOfDate(state.apiVersion);
     const view = parseRoute(location.hash);
     if (view === 'display') {
-      if (lastView === 'summary') destroyMethodChart();
-      lastView = null;
       exitDisplay ??= mountDisplay(root, { store: deps.store, auth: deps.auth, reconnect: reload });
       shellShown = false;
       return;
     }
-    if (lastView === 'summary' && view !== 'summary') destroyMethodChart();
-    lastView = view;
     if (!shellShown) {
       exitDisplay?.();
       exitDisplay = null;
@@ -289,7 +281,6 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
           store: deps.store,
           reportError,
           exportWorkbook,
-          drawChart: drawMethodChart,
           showList: (target, targetFilter) => {
             listFilter = { view: target, filter: targetFilter };
             focusListHeading = true;
