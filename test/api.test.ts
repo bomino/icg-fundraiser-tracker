@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from '../web/src/api';
 
@@ -17,6 +19,17 @@ describe('createApi', () => {
     expect(init.method).toBe('POST');
     expect(init.headers).toEqual({ 'Content-Type': 'text/plain;charset=utf-8' });
     expect(JSON.parse(String(init.body))).toEqual({ idToken: 'tok', op: 'load', payload: {} });
+  });
+
+  it('sends no credentials, so it reuses the connections index.html opens to Apps Script during sign-in', async () => {
+    const fetchImpl = vi.fn(async () => loadOk());
+    await createApi(URL, async () => 'tok', fetchImpl).load();
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(['omit', 'same-origin']).toContain(init.credentials ?? 'same-origin');
+    const html = readFileSync(join(process.cwd(), 'web', 'index.html'), 'utf8');
+    for (const host of ['script.google.com', 'script.googleusercontent.com']) {
+      expect(html).toContain(`<link rel="preconnect" href="https://${host}" crossorigin />`);
+    }
   });
 
   it('sends id and version when editing, and only the client-chosen id when adding', async () => {
