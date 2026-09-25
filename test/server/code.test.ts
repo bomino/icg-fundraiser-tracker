@@ -116,6 +116,19 @@ describe('authentication', () => {
     server.post('load', {}, token);
     expect(server.state.fetchCount).toBe(1);
   });
+  // Tokeninfo is asked only when the cache misses, so an entry that outlived its token would let
+  // an expired sign-in through until the entry ran out.
+  it('trusts a cached token no longer than it has left', () => {
+    server.post('load', {}, server.tokenFor(OWNER, { exp: String(Math.floor(Date.now() / 1000) + 40) }));
+    const [seconds] = [...server.cacheSeconds.values()];
+    // A second can tick over between minting the token and checking it.
+    expect(seconds).toBeGreaterThanOrEqual(39);
+    expect(seconds).toBeLessThanOrEqual(40);
+  });
+  it('trusts a cached token for at most 5 minutes', () => {
+    server.post('load', {}, token);
+    expect([...server.cacheSeconds.values()]).toEqual([300]);
+  });
   it('re-checks the allowlist on every call, even for a cached token', () => {
     server.post('load', {}, token);
     server.sheet('Allowlist').raw.splice(1, 1);

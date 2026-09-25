@@ -110,6 +110,9 @@ export function createServer() {
   const sheets = new Map<string, FakeSheet>();
   const tokens = new Map<string, TokenInfo>();
   const cache = new Map<string, string>();
+  // The lifetime Code.gs asked for on each put, in seconds. The fake never expires an entry itself,
+  // so this is the only way a test can see how long a verified token would be trusted.
+  const cacheSeconds = new Map<string, number | undefined>();
   const state: {
     fetchCount: number;
     // Throws on the *next* fetch call only, then resets itself, mimicking a one-off transient
@@ -222,7 +225,10 @@ export function createServer() {
     CacheService: {
       getScriptCache: () => ({
         get: (key: string) => cache.get(key) ?? null,
-        put: (key: string, value: string) => cache.set(key, value),
+        put: (key: string, value: string, seconds?: number) => {
+          cache.set(key, value);
+          cacheSeconds.set(key, seconds);
+        },
       }),
     },
     LockService: {
@@ -293,5 +299,5 @@ export function createServer() {
     call('onEdit', { range, user: { getEmail: () => email } });
   }
 
-  return { sheets, cache, state, ui, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, select, sheet: (name: string) => sheets.get(name) as FakeSheet };
+  return { sheets, cache, cacheSeconds, state, ui, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, select, sheet: (name: string) => sheets.get(name) as FakeSheet };
 }
