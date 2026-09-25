@@ -463,7 +463,20 @@ Both lists end with **Last changed by** (`updatedBy`) and **Last changed at** (`
 
 It deliberately has no print titles, since a malformed `_xlnm.Print_Titles` name makes Excel offer to repair the file and nothing in CI opens one in Excel, and SheetJS CE cannot freeze panes.
 
-SheetJS CE comes from SheetJS's own CDN (`https://cdn.sheetjs.com/xlsx-<version>/xlsx-<version>.tgz` in `package.json`), not the npm registry. Upgrade it by editing that URL, never with `npm install xlsx`, which fetches the old registry release.
+### SheetJS CE, vendored
+
+SheetJS CE is committed as `vendor/xlsx-<version>.tgz`, SheetJS's own build downloaded unchanged from `https://cdn.sheetjs.com/xlsx-<version>/xlsx-<version>.tgz`, and `package.json` installs it from there (`"xlsx": "file:vendor/xlsx-<version>.tgz"`). It doesn't come from the npm registry, whose `xlsx` stopped at the old 0.18.5. Nor is it fetched from the CDN at install time, where one outage would block `npm ci`, the CI gate and every Pages deploy, an urgent mid-event fix included. The live site never contacts the CDN either way: `export.ts` imports `xlsx` lazily, and Vite builds it into its own chunk of the site.
+
+The lockfile pins the tarball by its sha512 `integrity`, and `npm ci` refuses a file that doesn't match. But npm serves a tarball it has already cached under that hash from its cache without reading the file (a warm `setup-node` cache in CI, or any machine that has installed it before), so a changed file would pass there and fail only on a cold cache. `test/vendoredDependencies.test.ts` therefore hashes the file itself against the lockfile, and checks that `package.json`, the lockfile and the file name agree on the version.
+
+To upgrade it:
+
+1. Download `https://cdn.sheetjs.com/xlsx-<new>/xlsx-<new>.tgz` into `vendor/`, keeping its name.
+2. Check it is the package you meant: `tar -xzOf vendor/xlsx-<new>.tgz package/package.json` must show `"name": "xlsx"` and `"version": "<new>"`.
+3. Run `npm install file:vendor/xlsx-<new>.tgz`, which rewrites `package.json` and the lockfile's `resolved` and `integrity`.
+4. Delete the old tarball, run `npm run check`, and commit the new tarball together with `package.json` and `package-lock.json`.
+
+Never `npm install xlsx`: that fetches the registry's abandoned 0.18.5.
 
 ### Download .xlsx refreshes first
 
