@@ -95,6 +95,16 @@ describe('summary', () => {
     expect(card.querySelector('.body-md')?.textContent).toBe('More money is counted toward pledges than was logged — usually a donor listed twice, so their payments count twice. The Data Health list below shows where.');
   });
 
+  it('gives neither note, and no highlight, when Unmatched is exactly zero', () => {
+    const matched = [payment({ id: 'y1', phone: '1', amountReceived: 40, method: 'Cash' })];
+    const balancedState: State = { pledges, payments: matched, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, matched, SETTINGS, TODAY) };
+    const deps = { store: loadedStore(), reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+    const card = renderSummary(balancedState, deps).querySelector('[data-role=unmatched]') as HTMLElement;
+    expect(card.textContent).toContain('$0.00');
+    expect(card.classList.contains('is-flagged')).toBe(false);
+    expect(card.querySelector('.body-md')).toBeNull();
+  });
+
   it('names each Show button after its check, so a screen reader’s list of buttons tells them apart', () => {
     const { view } = render();
     const show = view.querySelector('[data-health=notMatched] button') as HTMLButtonElement;
