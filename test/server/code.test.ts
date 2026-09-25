@@ -41,7 +41,7 @@ describe('setup', () => {
 // API_VERSION makes the site's banner tell the organiser that it hasn't been.
 const CODE_GS_HASHES: readonly string[] = [
   '1c6e1dfdb6cddfe037685187ab10f2c79672ba514f4795ef48180765ed8a5a6e',
-  '352a0a8d8af1e25039c92c0ced5320d64fdf735840cd2e7af738cd532978b08b',
+  'b434fcfe2d5ad025ed10258a6a5fdaad9edab441d52f2c1c8296e371f84f6404',
 ];
 
 describe('API_VERSION', () => {

@@ -106,7 +106,8 @@ function maskToken_(text, token) {
 function clientId_() {
   // Trimmed, because a space or line break pasted in with the value would make every token look foreign.
   const clientId = (PropertiesService.getScriptProperties().getProperty('CLIENT_ID') || '').trim();
-  // Without it every token looks foreign, which would read to volunteers as an endless "sign-in expired".
+  // Without it every token looks foreign, and the answer would blame two different sign-in IDs
+  // when the organiser has in fact left this one out.
   if (!clientId) throw new ApiError('INTERNAL', 'The server is not configured: set the CLIENT_ID script property (see docs/SETUP.md).');
   return clientId;
 }
