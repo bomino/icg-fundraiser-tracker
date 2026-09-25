@@ -38,6 +38,7 @@ const pairs: [foreground: string, background: string, minimum: number, where: st
   ['surface', 'danger', TEXT, 'the Delete button label'],
   ['danger', 'danger-tint', TEXT, 'a not-counted donor name in a red row'],
   ['ink', 'danger-tint', TEXT, 'the other text and labels in a red row'],
+  ['ink', 'warning-tint', TEXT, 'a future-dated payment date and its label on phones'],
   ['field-border', 'surface', NON_TEXT, 'an input edge in a card or dialog'],
   ['field-border', 'bg', NON_TEXT, 'an input edge on the page'],
 ];
@@ -73,6 +74,10 @@ describe('component colours', () => {
   it('switches soft and muted text to ink inside a red row', () => {
     expect(componentsCss).toMatch(/\.row-danger \.derived \{ color: var\(--color-ink\); \}/);
     expect(componentsCss).toMatch(/\.data-table tr\.row-danger > td::before \{ color: var\(--color-ink\); \}/);
+  });
+
+  it('switches the column label on phones to ink inside a future-dated payment cell', () => {
+    expect(componentsCss).toMatch(/\.data-table td\.cell-warning::before \{ color: var\(--color-ink\); \}/);
   });
 
   it('writes the Friday stale note in ink, keeping the warning colour on its border', () => {

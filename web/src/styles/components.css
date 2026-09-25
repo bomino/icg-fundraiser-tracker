@@ -133,6 +133,8 @@ textarea.input { resize: vertical; }
   .data-table td.cell-wrap { min-width: 0; }
   .data-table td::before { flex-shrink: 0; content: attr(data-label); font: 600 0.6875rem/1.8 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-muted); text-align: left; }
   .data-table tr.row-danger > td::before { color: var(--color-ink); }
+  /* Muted text drops below 4.5:1 on the warning tint in both themes. */
+  .data-table td.cell-warning::before { color: var(--color-ink); }
   .table-pager .show-more { align-self: stretch; }
 }
 
