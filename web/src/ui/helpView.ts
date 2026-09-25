@@ -53,6 +53,8 @@ const SAID = {
   deletePledgeStopsCounting: 'and stop counting toward Total received.',
   deletePledgeKept: 'Delete this pledge? Their payments stay matched to the other pledge for',
   deletePledgeNoPayments: 'Delete this pledge? It has no payments.',
+  listedMoreThanOnce: 'Listed more than once',
+  future: '(future)',
   deletePayment: 'Delete this payment? It will be removed from every total.',
   healthIntro: 'Every figure below should read 0. Anything higher needs a look.',
   methodTotal: 'Total (should match Payments Logged)',
@@ -72,6 +74,9 @@ const SAID = {
   couldNotDelete: "Couldn't delete",
   trackerMenu: 'Fundraiser tracker',
   newDriveMenu: 'Start a new drive…',
+  sortBy: 'Sort by',
+  oldestFirst: 'Oldest first',
+  defaultOrder: 'Default order',
 } as const;
 
 export const QUOTED_MESSAGES: readonly string[] = Object.values(SAID);
@@ -308,7 +313,7 @@ function theScreens(): Child[] {
       p('One row per donor. You type the ', b('Phone Number'), ', ', b('Donor Name'), ', ', b('Date Pledged'), ', ', b('Amount Pledged'), ' and ', b('Notes'), '. The tracker works out the rest from the Payments screen: ', b('Last Payment'), ', ', b('Received'), ', ', b('Balance Due'), ', ', b('# Payments'), ' and ', b('Status'), '.'),
       bullets(
         ['The line above the table shows the running totals: pledged, received, outstanding and number of payments.'],
-        [b('Red rows'), ' are donors listed more than once. Their payments are being counted twice until you fix it.'],
+        ['A phone number followed by ', said(SAID.listedMoreThanOnce), ' is on more than one pledge, and those rows are shaded red. That donor’s payments are being counted twice until you fix it.'],
         ['A faded row marked ', said(SAID.saving), ' is still being saved. It cannot be opened until the save finishes, usually within a few seconds.'],
         ['Tap any row to edit or delete it.'],
         [
@@ -329,10 +334,27 @@ function theScreens(): Child[] {
       'Payments',
       p('One row per payment. You type the ', b('Phone Number'), ', ', b('Date Received'), ', ', b('Amount'), ', ', b('Method'), ' and ', b('Notes'), '. The ', b('Donor Name'), ' is filled in for you by matching the phone number to a pledge.'),
       bullets(
-        [b('Red rows'), ' with a ', b('⚠'), ' in Donor Name are payments that are not being counted. ', b('Warnings and data health'), ' explains why and how to fix them.'],
-        [b('An amber date'), ' is a date in the future, which is usually a typo.'],
+        ['A ', b('⚠'), ' warning in Donor Name means the payment is not being counted, and the row is shaded red. ', b('Warnings and data health'), ' explains why and how to fix them.'],
+        ['A date followed by ', said(SAID.future), ' is later than today, which is usually a typo. The date is also shaded amber.'],
         ['The coloured label in the Method column shows how the money was paid.'],
-        [b('From'), ' and ', b('To'), ' filter to payments received in that range; either can stay blank. Payments with no date drop out once a bound is set. ', b('Clear dates'), ' removes the range.'],
+        [
+          b('From'),
+          ' and ',
+          b('To'),
+          ' filter to payments received in that range; either can stay blank. ',
+          b('Today'),
+          ' sets both to today’s date. ',
+          b('This week'),
+          ' sets From to the last Saturday (today, on a Saturday) and To to today. Payments with no date drop out once a bound is set. ',
+          b('Clear dates'),
+          ' removes the range.',
+        ],
+        [
+          'While the list is narrowed, the line above it adds up the money in the rows shown, for example “Showing 4 of 27 · $300.30 logged”, and the line under that splits it by method, for example “Cash $250.30 · Card $50.00”. It counts every payment shown, even one with a ',
+          b('⚠'),
+          ' warning, because that money still came in.',
+        ],
+        ['To count tonight’s cash, tap ', b('Today'), ' and read the Cash figure. A payment typed with no date, or the wrong one, is left out of it, so if the cash box holds more than the figure, look for one.'],
       ),
     ),
     topic(
@@ -351,16 +373,17 @@ function theScreens(): Child[] {
       'Search and sort',
       bullets(
         ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too. Clear the box to see everything again.'],
-        ['Tap a column heading to sort by it. Tap it again to reverse the order.'],
+        ['Lists start with the most recently added entry, so a pledge or payment you have just added is at the top. Tap a column heading to sort by it. An arrow beside the heading shows which way: ▲ is A to Z, smallest or oldest first, and ▼ is the reverse. Tap it again to reverse the order, and a third time to go back to the order the list started in.'],
+        ['On a phone, use ', b(SAID.sortBy), ' above the list instead. Each choice says which way it sorts, and ', b(SAID.oldestFirst), ' goes by the date on each entry. ', b(SAID.defaultOrder), ' goes back to the order the list started in.'],
         ['The status chips on Pledges and the date range on Payments are explained under ', b('Pledges'), ' and ', b('Payments'), ' above.'],
-        ['Search, the status chips (Pledges) and the date range (Payments) all narrow the list together. A “Showing N of M” line appears whenever any of them is doing something.'],
-        ['A long list only shows the first 100 rows at a time, with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row onto the screen even if you have not pressed Show more.'],
-        ['Tapping ', b('Show'), ' next to a Data-health check on Summary clears any active status chips or date range first, so the flagged rows it found are never hidden behind a filter left over from before.'],
+        ['Search, the status chips (Pledges) and the date range (Payments) all narrow the list together. A “Showing N of M” line appears whenever any of them is doing something. On Payments it also adds up the money in those rows, and how much came by each method.'],
+        ['A long list only shows the first 100 rows at a time (25 on a phone, so the list opens quickly), with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row onto the screen even if you have not pressed Show more.'],
+        ['Tapping ', b('Show'), ' next to a Data-health check on Summary clears any search, status chips or date range first, so the flagged rows it found are never hidden behind a filter left over from before.'],
       ),
     ),
     topic(
       'On a phone',
-      p('On a narrow screen each row becomes a small card, with the column name on the left of every value. Everything works the same way: tap a card to open it.'),
+      p('On a narrow screen each row becomes a small card, with the column name on the left of every value. Tap a card to open it. The column headings are hidden, so to sort, use ', b(SAID.sortBy), ' above the list.'),
     ),
   ];
 }
@@ -546,7 +569,7 @@ function howTo(): Child[] {
     ),
     topic(
       'Fix a donor entered twice',
-      p('Both rows turn red on Pledges, and Data health shows ', said(HEALTH_LABELS.duplicates), '. Until you fix it, that donor’s payments are counted twice.'),
+      p('On Pledges, both rows show ', said(SAID.listedMoreThanOnce), ' after the phone number and are shaded red, and Data health shows ', said(HEALTH_LABELS.duplicates), '. Until you fix it, that donor’s payments are counted twice.'),
       steps(
         ['On ', b('Summary'), ', tap ', b('Show'), ' next to ', b(HEALTH_LABELS.duplicates), ' to see just those rows.'],
         ['Decide which row to keep. Open it and make it complete: the correct amount (add the two together if they really were two separate promises), the name, and any notes from the other row. Save.'],
@@ -576,6 +599,12 @@ function howTo(): Child[] {
         [b('Check Unmatched payments first'), ' — on ', b('Summary'), ', make sure ', b('Unmatched payments'), ' reads $0.00 before you press ', b('Friday display'), '. If it does not, the amount on the screen is not right yet: some money is not being counted, or is being counted twice. See ', b('Payments logged and Unmatched payments'), ' in Understanding the numbers.'],
         [b('Keep the laptop awake'), ' — turn off sleep and screen-lock (or plug it in and disable auto-sleep) for the computer driving the projector, so the display does not go dark on its own.'],
       ),
+    ),
+    topic(
+      'Find out how much came in this week',
+      steps(['Go to ', b('Payments'), ' and tap ', b('This week'), '.'], ['Read the line above the list, for example “Showing 12 of 340 · $1,200.00 logged”. The line under it splits that by method.']),
+      p('The week starts on Saturday, so on a Friday it covers the whole week since the last Jumu’ah. For any other stretch, such as one evening or a month for a board meeting, set ', b('From'), ' and ', b('To'), ' yourself.'),
+      note('The figure counts every payment in those dates, even one with a ', b('⚠'), ' warning, which Total received leaves out. If you announce it next to Total received, fix those rows first. A payment typed with no date, or the wrong one, is left out, so if the figure seems low, look for one.'),
     ),
     topic(
       'Download a copy',
@@ -671,11 +700,11 @@ function warningsAndHealth(): Child[] {
       ),
     ),
     topic(
-      'Colours on the lists',
+      'Marks and colours on the lists',
       terms(
-        [b('Red row on Pledges'), 'The donor is listed more than once.'],
-        [b('Red row on Payments'), 'The payment is not counted (it has a ⚠ warning).'],
-        [b('Amber date on Payments'), 'The payment is dated in the future.'],
+        [said(SAID.listedMoreThanOnce), 'After a phone number on Pledges: that phone number is on more than one pledge, so the donor’s payments are counted twice. The row is shaded red.'],
+        [b('⚠ in Donor Name'), 'On Payments: the payment is not counted. The row is shaded red.'],
+        [said(SAID.future), 'After a date on Payments: the payment is dated in the future. The date is shaded amber.'],
       ),
     ),
     topic(

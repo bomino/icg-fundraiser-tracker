@@ -267,6 +267,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     }
     tabs.forEach((tab, name) => (name === view ? tab.setAttribute('aria-current', 'page') : tab.removeAttribute('aria-current')));
     main.classList.toggle('container-wide', view === 'pledges' || view === 'payments');
+    // The same object on every render until the next Show: the lists treat a new object as a new drill-down and
+    // clear their search, so rebuilding it here would wipe a search on every store publish.
     const filter = listFilter && listFilter.view === view ? listFilter.filter : null;
     const clearFilter = () => {
       listFilter = null;

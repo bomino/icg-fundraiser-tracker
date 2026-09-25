@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isIsoDate, todayIso } from '../web/src/dates';
+import { isIsoDate, todayIso, weekStartIso } from '../web/src/dates';
 import { matchKey } from '../web/src/matchKey';
 import { toCents } from '../web/src/money';
 
@@ -51,5 +51,12 @@ describe('dates', () => {
     expect(isIsoDate('01/10/2025')).toBe(false);
     expect(isIsoDate('')).toBe(false);
     expect(isIsoDate('0099-01-01')).toBe(false);
+  });
+  it('starts a week on the Saturday on or before a date, so a Friday covers the whole week since the last Jumu’ah', () => {
+    expect(weekStartIso('2026-09-25')).toBe('2026-09-19');
+    expect(weekStartIso('2026-09-19')).toBe('2026-09-19');
+    expect(weekStartIso('2026-09-20')).toBe('2026-09-19');
+    expect(weekStartIso('2026-01-01')).toBe('2025-12-27');
+    expect(weekStartIso('2026-03-03')).toBe('2026-02-28');
   });
 });

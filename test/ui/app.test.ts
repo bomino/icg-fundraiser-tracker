@@ -498,6 +498,52 @@ describe('mountApp', () => {
     expect([redrawn.selectionStart, redrawn.selectionEnd]).toEqual([2, 3]);
   });
 
+  it('keeps focus and the choice in the phone Sort by list when the store publishes', () => {
+    const { store, publish } = fakeStore();
+    mountApp(root, { store, auth: fakeAuth() });
+    const sortBy = root.querySelector('.sort-by select') as HTMLSelectElement;
+    sortBy.focus();
+    sortBy.value = ([...sortBy.options].find((option) => option.textContent === 'Name A–Z') as HTMLOptionElement).value;
+    sortBy.dispatchEvent(new Event('change'));
+
+    publish();
+
+    const redrawn = root.querySelector('.sort-by select') as HTMLSelectElement;
+    expect({ replaced: redrawn !== sortBy, focused: document.activeElement === redrawn, shown: redrawn.selectedOptions[0]?.textContent }).toEqual({
+      replaced: true,
+      focused: true,
+      shown: 'Name A–Z',
+    });
+  });
+
+  it('starts each Data-health Show with a clear search, but keeps a search typed there when the store publishes', async () => {
+    history.replaceState(null, '', '#payments');
+    const { store, publish } = fakeStore({ payments: [payment({ id: 'y1', phone: '555-010-0101', amountReceived: 40 }), payment({ id: 'y2', phone: '555-999-0000', amountReceived: 35 })] });
+    mountApp(root, { store, auth: fakeAuth() });
+    const search = () => root.querySelector('input[type=search]') as HTMLInputElement;
+    const rowIds = () => [...root.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+    const showUnmatched = async () => {
+      (root.querySelector('nav.tabs a[href="#summary"]') as HTMLAnchorElement).click();
+      await vi.waitFor(() => expect(root.querySelector('[data-health=notMatched] button')).not.toBeNull());
+      (root.querySelector('[data-health=notMatched] button') as HTMLButtonElement).click();
+      await vi.waitFor(() => expect(search()).not.toBeNull());
+    };
+    search().value = '0101';
+    search().dispatchEvent(new Event('input'));
+
+    await showUnmatched();
+    expect(search().value).toBe('');
+    expect(rowIds()).toEqual(['y2']);
+
+    search().value = '999';
+    search().dispatchEvent(new Event('input'));
+    publish();
+    expect(search().value).toBe('999');
+
+    await showUnmatched();
+    expect(search().value).toBe('');
+  });
+
   it('keeps focus, text and caret in the Find donor search when the store publishes', () => {
     history.replaceState(null, '', '#find');
     const { store, publish } = fakeStore();

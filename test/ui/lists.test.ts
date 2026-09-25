@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ApiError, type Api } from '../../web/src/api';
 import { WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
 import { createStore, type State, type Store } from '../../web/src/store';
@@ -9,7 +9,7 @@ import { openPaymentForm, type PaymentFormOptions } from '../../web/src/ui/payme
 import { openPledgeForm } from '../../web/src/ui/pledgeForm';
 import { createPaymentsView } from '../../web/src/ui/paymentsView';
 import { createPledgesView } from '../../web/src/ui/pledgesView';
-import { TABLE_PAGE_SIZE } from '../../web/src/ui/table';
+import { tablePageSize } from '../../web/src/ui/table';
 import { METHODS, SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 afterEach(() => document.body.replaceChildren());
@@ -39,12 +39,23 @@ const askToDelete = () => {
   (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] .modal-actions button')).find((b) => b.textContent === 'Delete') as HTMLButtonElement).click();
   return Array.from(document.querySelectorAll('dialog[open]')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm')?.querySelector('.body-md')?.textContent;
 };
+const sortBy = (view: HTMLElement) => view.querySelector('.sort-by select') as HTMLSelectElement;
+const sortChoices = (view: HTMLElement) => [...sortBy(view).options].map((option) => option.textContent);
+const sortShown = (view: HTMLElement) => sortBy(view).selectedOptions[0]?.textContent;
+const pickSort = (view: HTMLElement, label: string) => {
+  const select = sortBy(view);
+  select.value = ([...select.options].find((option) => option.textContent === label) as HTMLOptionElement).value;
+  select.dispatchEvent(new Event('change'));
+};
 
 describe('pledges view', () => {
-  it('marks duplicates red and filters by search without losing the box', () => {
+  it('marks duplicates red and in words, and filters by search without losing the box', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);
-    expect([...view.querySelectorAll('tr.row-danger')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p1', 'p2']);
+    expect([...view.querySelectorAll('tr.row-danger')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p2', 'p1']);
+    const openLabel = (id: string) => view.querySelector(`tr[data-id="${id}"] .row-open`)?.getAttribute('aria-label');
+    expect(view.querySelector('tr[data-id="p1"] .warning-text')?.textContent).toBe(' · Listed more than once');
+    expect([openLabel('p1'), openLabel('p2'), openLabel('p3')]).toEqual(['Open 555-010-0101 · Listed more than once', 'Open 5550100101 · Listed more than once', 'Open 555-010-0103']);
     const search = view.querySelector('input[type=search]') as HTMLInputElement;
     vi.useFakeTimers();
     type(search, 'chen');
@@ -104,6 +115,21 @@ describe('pledges view', () => {
     expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Zara · owes $50.00 of $50.00');
     expect(document.activeElement).toBe(document.querySelector('dialog[open] [name=amountReceived]'));
   });
+
+  it('lists the most recently added pledge first until a heading is tapped, and a third tap goes back to that order', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    const ids = () => [...document.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+    const nameHeader = () => Array.from(document.querySelectorAll<HTMLButtonElement>('th button')).find((b) => b.textContent === 'Donor Name') as HTMLButtonElement;
+    expect(ids()).toEqual(['p3', 'p2', 'p1']);
+    nameHeader().click();
+    expect(ids()).toEqual(['p2', 'p1', 'p3']);
+    nameHeader().click();
+    expect(ids()).toEqual(['p3', 'p1', 'p2']);
+    nameHeader().click();
+    expect(ids()).toEqual(['p3', 'p2', 'p1']);
+    expect(document.querySelector('th[aria-sort]')).toBeNull();
+  });
 });
 
 describe('pledges view: status chips and follow-up', () => {
@@ -142,6 +168,40 @@ describe('pledges view: status chips and follow-up', () => {
     document.body.append(view);
     chip(view, 'Needs follow-up').click();
     expect(ids(view)).toEqual(['f4', 'f1']);
+  });
+
+  it('"Needs follow-up" puts the most recently added pledge first among equal balances', () => {
+    const tiedPledges = [...followUpPledges, pledge({ id: 'f5', phone: '555-200-0005', name: 'Tied Pending', amountPledged: 3000, datePledged: '2020-01-01' })];
+    const tiedState: State = { ...followUpState, pledges: tiedPledges, computed: compute(tiedPledges, followUpPayments, SETTINGS, TODAY) };
+    const view = createPledgesView({ store, reportError: vi.fn() })(tiedState, null, () => undefined);
+    document.body.append(view);
+    chip(view, 'Needs follow-up').click();
+    expect(ids(view)).toEqual(['f5', 'f4', 'f1']);
+  });
+
+  it('sorts from the phone Sort by list, whose Default order keeps "Needs follow-up" biggest balance first', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    expect(sortChoices(view)).toEqual(['Default order', 'Oldest first', 'Amount: largest first', 'Balance: largest first', 'Name A–Z']);
+    expect(sortShown(view)).toBe('Default order');
+    pickSort(view, 'Oldest first');
+    expect(ids(view)).toEqual(['f3', 'f4', 'f1', 'f2']);
+    pickSort(view, 'Balance: largest first');
+    expect(ids(view)).toEqual(['f4', 'f1', 'f2', 'f3']);
+    chip(view, 'Needs follow-up').click();
+    pickSort(view, 'Name A–Z');
+    expect(ids(view)).toEqual(['f1', 'f4']);
+    pickSort(view, 'Default order');
+    expect(ids(view)).toEqual(['f4', 'f1']);
+  });
+
+  it('keeps the picked sort when the store re-renders the view', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() });
+    document.body.append(view(followUpState, null, () => undefined));
+    pickSort(document.body, 'Name A–Z');
+    document.body.replaceChildren(view(followUpState, null, () => undefined));
+    expect(sortShown(document.body)).toBe('Name A–Z');
+    expect(ids(document.body)).toEqual(['f1', 'f2', 'f3', 'f4']);
   });
 
   it('lets a column sort override the default balance ordering under "Needs follow-up"', () => {
@@ -199,17 +259,55 @@ describe('pledges view: status chips and follow-up', () => {
     expect(ids(document.body)).toEqual(['f3']);
     const filter: ListFilter = { label: 'Pending pledges', ids: new Set(['f2', 'f4']) };
     document.body.replaceChildren(view(followUpState, filter, () => undefined));
-    expect(ids(document.body)).toEqual(['f2', 'f4']);
+    expect(ids(document.body)).toEqual(['f4', 'f2']);
     expect(chip(document.body, 'All').getAttribute('aria-pressed')).toBe('true');
     expect(chip(document.body, 'Paid').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('arriving with a drill-down filter clears a leftover search, so the filtered rows are not hidden behind it', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() });
+    document.body.append(view(followUpState, null, () => undefined));
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0003');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['f3']);
+    const filter: ListFilter = { label: 'Pending pledges', ids: new Set(['f2', 'f4']) };
+    document.body.replaceChildren(view(followUpState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['f4', 'f2']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+  });
+
+  it('keeps a search and chip across re-renders of one drill-down, and clears them when Show is tapped again on the same check', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() });
+    const filter: ListFilter = { label: 'Pending pledges', ids: new Set(['f2', 'f4']) };
+    document.body.append(view(followUpState, filter, () => undefined));
+    chip(document.body, 'Needs follow-up').click();
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0004');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['f4']);
+    document.body.replaceChildren(view(followUpState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['f4']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('0004');
+    expect(chip(document.body, 'Needs follow-up').getAttribute('aria-pressed')).toBe('true');
+    document.body.replaceChildren(view(followUpState, { label: 'Pending pledges', ids: new Set(['f2', 'f4']) }, () => undefined));
+    expect(ids(document.body)).toEqual(['f4', 'f2']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+    expect(chip(document.body, 'All').getAttribute('aria-pressed')).toBe('true');
   });
 });
 
 describe('payments view', () => {
-  it('flags a payment that will not be counted and a future date', () => {
-    const view = createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined);
+  it('flags a payment that will not be counted and a future date, in words as well as colour', () => {
+    const withPastPayment = [...payments, payment({ id: 'y2', phone: '555-010-0103', amountReceived: 20, dateReceived: '2026-01-01' })];
+    const view = createPaymentsView({ store, reportError: vi.fn() })({ ...state, payments: withPastPayment, computed: compute(pledges, withPastPayment, SETTINGS, TODAY) }, null, () => undefined);
+    const dateCell = (id: string) => view.querySelector(`tr[data-id="${id}"] td[data-label="Date Received"]`);
     expect(view.querySelector('tr.row-danger')?.textContent).toContain('⚠ phone not in Pledges');
-    expect(view.querySelector('td.cell-warning')).not.toBeNull();
+    expect(dateCell('y1')?.classList.contains('cell-warning')).toBe(true);
+    expect(dateCell('y1')?.textContent).toBe('Jan 1, 2099 (future)');
+    expect(dateCell('y2')?.textContent).toBe('Jan 1, 2026');
   });
 });
 
@@ -235,9 +333,44 @@ describe('payments view: date range', () => {
     document.body.append(view);
     expect(ids(view)).toHaveLength(4);
     type(dateInput(view, 'payments-date-from'), '2026-02-01');
-    expect(ids(view)).toEqual(['r2', 'r3']);
+    expect(ids(view)).toEqual(['r3', 'r2']);
     type(dateInput(view, 'payments-date-to'), '2026-06-15');
     expect(ids(view)).toEqual(['r2']);
+  });
+
+  it('lists the most recently added payment first until a heading is tapped, and a third tap goes back to that order', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    const dateHeader = () => Array.from(document.querySelectorAll<HTMLButtonElement>('th button')).find((b) => b.textContent === 'Date Received') as HTMLButtonElement;
+    expect(ids(document.body)).toEqual(['r4', 'r3', 'r2', 'r1']);
+    dateHeader().click();
+    expect(ids(document.body)).toEqual(['r1', 'r2', 'r3', 'r4']);
+    dateHeader().click();
+    expect(ids(document.body)).toEqual(['r3', 'r2', 'r1', 'r4']);
+    dateHeader().click();
+    expect(ids(document.body)).toEqual(['r4', 'r3', 'r2', 'r1']);
+  });
+
+  it('sorts from the phone Sort by list, which offers no balance on Payments', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    expect(sortChoices(view)).toEqual(['Default order', 'Oldest first', 'Amount: largest first', 'Name A–Z']);
+    pickSort(view, 'Oldest first');
+    expect(ids(view)).toEqual(['r1', 'r2', 'r3', 'r4']);
+    pickSort(view, 'Default order');
+    expect(ids(view)).toEqual(['r4', 'r3', 'r2', 'r1']);
+  });
+
+  it('shows a heading sort in the Sort by list too, so narrowing the window never shows a stale choice', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    const amountHeader = () => Array.from(view.querySelectorAll<HTMLButtonElement>('th button')).find((b) => b.textContent === 'Amount') as HTMLButtonElement;
+    amountHeader().click();
+    expect(sortShown(view)).toBe('Sorted by a column heading');
+    amountHeader().click();
+    expect(sortShown(view)).toBe('Amount: largest first');
+    amountHeader().click();
+    expect(sortShown(view)).toBe('Default order');
   });
 
   it('clears both bounds with the Clear dates control', () => {
@@ -298,6 +431,127 @@ describe('payments view: date range', () => {
     expect(dateInput(document.body, 'payments-date-from').value).toBe('');
     expect(dateInput(document.body, 'payments-date-to').value).toBe('');
   });
+
+  it('arriving with a drill-down filter clears a leftover search, so the filtered rows are not hidden behind it', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() });
+    document.body.append(view(rangeState, null, () => undefined));
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0002');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['r2']);
+    const filter: ListFilter = { label: 'Undated or out-of-range payments', ids: new Set(['r4']) };
+    document.body.replaceChildren(view(rangeState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['r4']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+  });
+
+  it('keeps a search and date range across re-renders of one drill-down, and clears them when Show is tapped again on the same check', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() });
+    const filter: ListFilter = { label: 'Undated or out-of-range payments', ids: new Set(['r3', 'r4']) };
+    document.body.append(view(rangeState, filter, () => undefined));
+    type(dateInput(document.body, 'payments-date-from'), '2026-06-01');
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0003');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['r3']);
+    document.body.replaceChildren(view(rangeState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['r3']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('0003');
+    expect(dateInput(document.body, 'payments-date-from').value).toBe('2026-06-01');
+    document.body.replaceChildren(view(rangeState, { label: 'Undated or out-of-range payments', ids: new Set(['r3', 'r4']) }, () => undefined));
+    expect(ids(document.body)).toEqual(['r4', 'r3']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+    expect(dateInput(document.body, 'payments-date-from').value).toBe('');
+  });
+});
+
+describe('payments view: money in the filtered rows', () => {
+  const nightPayments = [
+    payment({ id: 'n1', phone: '555-010-0103', amountReceived: 0.1, dateReceived: '2026-08-02', method: 'Cash' }),
+    payment({ id: 'n2', phone: '555-010-0103', amountReceived: 0.2, dateReceived: '2026-08-02', method: 'Cash' }),
+    payment({ id: 'n3', phone: '555-999-0001', amountReceived: 150, dateReceived: '2026-08-02', method: 'Cash' }),
+    payment({ id: 'n4', phone: '555-010-0103', amountReceived: 50, dateReceived: '2026-08-02', method: 'Card' }),
+    payment({ id: 'n5', phone: '555-010-0103', amountReceived: 0.1, dateReceived: '2026-08-02', method: '' }),
+    payment({ id: 'n6', phone: '555-010-0103', amountReceived: 75, dateReceived: '2026-08-01', method: 'Check', notes: 'Said he would pay cash next time' }),
+  ];
+  const nightState: State = { pledges, payments: nightPayments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, nightPayments, SETTINGS, TODAY) };
+  const ids = (view: HTMLElement) => [...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+  const dateInput = (view: HTMLElement, key: string) => view.querySelector(`input[type=date][data-focus-key="${key}"]`) as HTMLInputElement;
+  const metaLines = (view: HTMLElement) => [...view.querySelectorAll('p.meta')].map((line) => line.textContent);
+
+  it('adds up every filtered payment, not-counted ones too, and splits it by the methods that took money', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    expect(metaLines(view)).toEqual([]);
+    type(dateInput(view, 'payments-date-from'), '2026-08-02');
+    expect(view.querySelector('tr[data-id="n3"]')?.textContent).toContain('⚠ phone not in Pledges');
+    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash\u00A0$150.30 · Card\u00A0$50.00 · No method recorded\u00A0$0.10']);
+    type(dateInput(view, 'payments-date-from'), '2030-01-01');
+    expect(metaLines(view)).toEqual(['Showing 0 of 6 · $0.00 logged']);
+  });
+
+  it('redraws the money with the search, and keeps a payment whose notes mention cash out of the Cash figure', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    vi.useFakeTimers();
+    type(view.querySelector('input[type=search]') as HTMLInputElement, 'cash');
+    expect(metaLines(view)).toEqual([]);
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(metaLines(view)).toEqual(['Showing 4 of 6 · $225.30 logged', 'Cash\u00A0$150.30 · Check\u00A0$75.00']);
+  });
+
+  it('adds up the rows a Data-health Show found', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, { label: 'Payments not matched to a pledge', ids: new Set(['n3']) }, () => undefined);
+    expect(metaLines(view)).toEqual(['Showing 1 of 6 · $150.00 logged', 'Cash\u00A0$150.00']);
+  });
+
+  it('keeps each method’s amount beside its name, so a phone never wraps the two onto different lines', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    type(dateInput(view, 'payments-date-from'), '2026-08-02');
+    expect(metaLines(view)[1]?.split(' · ')).toEqual(['Cash\u00A0$150.30', 'Card\u00A0$50.00', 'No method recorded\u00A0$0.10']);
+  });
+
+  it('sets both dates to today with Today, so tonight’s cash can be read straight off', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);
+    document.body.append(view);
+    const button = (label: string) => Array.from(view.querySelectorAll('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+    expect(button('Clear dates').hidden).toBe(true);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 2, 21, 30));
+    button('Today').click();
+    vi.useRealTimers();
+    expect(dateInput(view, 'payments-date-from').value).toBe('2026-08-02');
+    expect(dateInput(view, 'payments-date-to').value).toBe('2026-08-02');
+    expect(ids(view)).toEqual(['n5', 'n4', 'n3', 'n2', 'n1']);
+    expect(button('Clear dates').hidden).toBe(false);
+    expect(metaLines(view)).toEqual(['Showing 5 of 6 · $200.40 logged', 'Cash\u00A0$150.30 · Card\u00A0$50.00 · No method recorded\u00A0$0.10']);
+  });
+
+  it('narrows to Saturday through today with This week, so a Friday announcement reads the week’s money straight off', () => {
+    const weekPayments = [
+      payment({ id: 'w1', phone: '555-010-0103', amountReceived: 40, dateReceived: '2026-07-31', method: 'Cash' }),
+      payment({ id: 'w2', phone: '555-010-0103', amountReceived: 25, dateReceived: '2026-08-01', method: 'Cash' }),
+      payment({ id: 'w3', phone: '555-010-0103', amountReceived: 10, dateReceived: '2026-08-07', method: 'Card' }),
+      payment({ id: 'w4', phone: '555-010-0103', amountReceived: 99, dateReceived: '2026-08-08', method: 'Cash' }),
+    ];
+    const weekState: State = { pledges, payments: weekPayments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, weekPayments, SETTINGS, TODAY) };
+    const view = createPaymentsView({ store, reportError: vi.fn() })(weekState, null, () => undefined);
+    document.body.append(view);
+    const button = (label: string) => Array.from(view.querySelectorAll('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 7, 13, 0));
+    button('This week').click();
+    vi.useRealTimers();
+    expect(dateInput(view, 'payments-date-from').value).toBe('2026-08-01');
+    expect(dateInput(view, 'payments-date-to').value).toBe('2026-08-07');
+    expect(ids(view)).toEqual(['w3', 'w2']);
+    expect(button('Clear dates').hidden).toBe(false);
+    expect(metaLines(view)).toEqual(['Showing 2 of 4 · $35.00 logged', 'Cash\u00A0$25.00 · Card\u00A0$10.00']);
+  });
 });
 
 describe('pledges view: paging at event scale', () => {
@@ -309,16 +563,16 @@ describe('pledges view: paging at event scale', () => {
   it('shows only the first page and a "Show more (N left)" button for an event-scale pledge list', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
     document.body.append(view);
-    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE);
-    expect(showMore(view).textContent).toBe(`Show more (${240 - TABLE_PAGE_SIZE} left)`);
+    expect(ids(view)).toHaveLength(tablePageSize());
+    expect(showMore(view).textContent).toBe(`Show more (${240 - tablePageSize()} left)`);
   });
 
   it('reveals another page per click, until every row is shown and the button disappears', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
     document.body.append(view);
     showMore(view).click();
-    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE * 2);
-    expect(showMore(view).textContent).toBe(`Show more (${240 - TABLE_PAGE_SIZE * 2} left)`);
+    expect(ids(view)).toHaveLength(tablePageSize() * 2);
+    expect(showMore(view).textContent).toBe(`Show more (${240 - tablePageSize() * 2} left)`);
     showMore(view).click();
     expect(ids(view)).toHaveLength(240);
     expect(view.querySelector('.show-more')).toBeNull();
@@ -328,20 +582,20 @@ describe('pledges view: paging at event scale', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
     document.body.append(view);
     showMore(view).click();
-    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE * 2);
+    expect(ids(view)).toHaveLength(tablePageSize() * 2);
     const search = view.querySelector('input[type=search]') as HTMLInputElement;
     vi.useFakeTimers();
     type(search, 'Donor 1');
     vi.advanceTimersByTime(150);
     vi.useRealTimers();
     // "Donor 1", "Donor 10"-"Donor 19", "Donor 100"-"Donor 199" all match - more than one page's worth - so the reset is visible as a "Show more" button again, not the full match set.
-    expect(ids(view).length).toBe(TABLE_PAGE_SIZE);
+    expect(ids(view).length).toBe(tablePageSize());
     expect(view.querySelector('.show-more')).not.toBeNull();
   });
 
   it('arriving with a drill-down (Data-health) filter resets to page 1; a flagged row beyond it is reachable via Show more', () => {
     // The filter matches the first 120 of the 240 rows - more than one page - so a flagged row
-    // past index 100 (big105) needs its own "Show more" click within the filtered set to reach.
+    // past index 100 of them, most recently added first (big5), needs its own "Show more" click within the filtered set to reach.
     const filterIds = new Set(manyPledges.slice(0, 120).map((p) => p.id));
     const filter: ListFilter = { label: 'Flagged for review', ids: filterIds };
     const view = createPledgesView({ store, reportError: vi.fn() });
@@ -351,12 +605,63 @@ describe('pledges view: paging at event scale', () => {
     showMore(unfiltered).click(); // visibleCount now 200, well past where the filter's 120 rows would fit on one page
 
     document.body.replaceChildren(view(manyState, filter, () => undefined));
-    expect(ids(document.body)).toHaveLength(TABLE_PAGE_SIZE);
-    expect(document.querySelector('tr[data-id="big105"]')).toBeNull();
-    expect(showMore(document.body).textContent).toBe(`Show more (${120 - TABLE_PAGE_SIZE} left)`);
+    expect(ids(document.body)).toHaveLength(tablePageSize());
+    expect(document.querySelector('tr[data-id="big5"]')).toBeNull();
+    expect(showMore(document.body).textContent).toBe(`Show more (${120 - tablePageSize()} left)`);
 
     showMore(document.body).click();
-    expect(document.querySelector('tr[data-id="big105"]')).not.toBeNull();
+    expect(document.querySelector('tr[data-id="big5"]')).not.toBeNull();
+  });
+});
+
+describe('paging on a phone-width screen', () => {
+  const phonePledges = Array.from({ length: 60 }, (_, i) => pledge({ id: `phone${i}`, phone: `555-600-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
+  const phonePayments = Array.from({ length: 60 }, (_, i) => payment({ id: `phone-payment${i}`, phone: `555-600-${String(i).padStart(4, '0')}`, amountReceived: 10, dateReceived: '2026-01-01' }));
+  const phoneState: State = { pledges: phonePledges, payments: phonePayments, settings: SETTINGS, me: 'me@example.com', computed: compute(phonePledges, phonePayments, SETTINGS, TODAY) };
+  const rowCount = () => document.querySelectorAll('tbody tr').length;
+  const showMore = () => document.querySelector('.show-more') as HTMLButtonElement;
+  const chip = (label: string) => Array.from(document.querySelectorAll('.chip-toggle')).find((b) => b.textContent === label) as HTMLButtonElement;
+  const typeSearch = (text: string) => {
+    vi.useFakeTimers();
+    type(document.querySelector('input[type=search]') as HTMLInputElement, text);
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+  };
+  beforeEach(() => vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(max-width: 720px)' })));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('draws the pledge list 25 cards at a time, and every way of narrowing it starts back at 25', () => {
+    const render = createPledgesView({ store, reportError: vi.fn() });
+    document.body.append(render(phoneState, null, () => undefined));
+    expect(rowCount()).toBe(25);
+    expect(showMore().textContent).toBe('Show more (35 left)');
+    showMore().click();
+    expect(rowCount()).toBe(50);
+    typeSearch('Donor');
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    chip('Partial').click();
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    document.body.replaceChildren(render(phoneState, { label: 'Flagged for review', ids: new Set(phonePledges.map((p) => p.id)) }, () => undefined));
+    expect(rowCount()).toBe(25);
+  });
+
+  it('draws the payment list 25 cards at a time, and every way of narrowing it starts back at 25', () => {
+    const render = createPaymentsView({ store, reportError: vi.fn() });
+    document.body.append(render(phoneState, null, () => undefined));
+    expect(rowCount()).toBe(25);
+    expect(showMore().textContent).toBe('Show more (35 left)');
+    showMore().click();
+    expect(rowCount()).toBe(50);
+    typeSearch('555-600');
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    type(document.querySelector('input[type=date][data-focus-key="payments-date-from"]') as HTMLInputElement, '2026-01-01');
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    document.body.replaceChildren(render(phoneState, { label: 'Flagged for review', ids: new Set(phonePayments.map((p) => p.id)) }, () => undefined));
+    expect(rowCount()).toBe(25);
   });
 });
 
@@ -1137,5 +1442,40 @@ describe('Save and add another', () => {
     pressInOpenForm('Save');
     expect(openModalTitles()).toEqual([]);
     expect(savePayment).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a new row in a list longer than one page', () => {
+  const longPledges = Array.from({ length: tablePageSize() + 50 }, (_, i) => pledge({ id: `old-pledge${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
+  const longPayments = Array.from({ length: tablePageSize() + 50 }, (_, i) => payment({ id: `old-payment${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, amountReceived: 10, dateReceived: '2026-01-01' }));
+  // The server never answers, so each new row stays in flight for the whole test.
+  const unansweredStore = async () => {
+    const api = {
+      load: async () => ({ pledges: longPledges, payments: longPayments, settings: SETTINGS, me: 'me@example.com' }),
+      savePledge: () => new Promise(() => undefined),
+      savePayment: () => new Promise(() => undefined),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    return liveStore;
+  };
+  const firstRow = () => document.querySelector('tbody tr') as HTMLElement;
+
+  it('shows a just-saved pledge first, marked "Saving…", without Show more', async () => {
+    const liveStore = await unansweredStore();
+    void liveStore.savePledge({ phone: '555-777-0001', name: 'Zara', datePledged: TODAY, amountPledged: 50, notes: '' }, { id: 'new-pledge' });
+    document.body.append(createPledgesView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State, null, () => undefined));
+    expect(firstRow().getAttribute('data-id')).toBe('new-pledge');
+    expect(firstRow().classList.contains('row-pending')).toBe(true);
+    expect(firstRow().textContent).toContain('Saving…');
+  });
+
+  it('shows a just-saved payment first, marked "Saving…", without Show more', async () => {
+    const liveStore = await unansweredStore();
+    void liveStore.savePayment({ phone: '555-500-0007', dateReceived: '2025-12-01', amountReceived: 77, method: 'Cash', notes: '' }, { id: 'new-payment' });
+    document.body.append(createPaymentsView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State, null, () => undefined));
+    expect(firstRow().getAttribute('data-id')).toBe('new-payment');
+    expect(firstRow().classList.contains('row-pending')).toBe(true);
+    expect(firstRow().textContent).toContain('Saving…');
   });
 });

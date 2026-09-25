@@ -1,4 +1,5 @@
-import type { DerivedPayment } from '../engine';
+import { todayIso, weekStartIso } from '../dates';
+import { computeMethods, type DerivedPayment } from '../engine';
 import { formatCents, formatDate } from '../format';
 import { toCents } from '../money';
 import { isPending, type State } from '../store';
@@ -10,12 +11,13 @@ import { describeFilter, filterChip, searchFilter, showingLine, type ListFilter 
 import { openPaymentForm, type PaymentCarry } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
-import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column, type SortState } from './table';
+import { nextSort, renderTable, sortRows, sortSelect, tablePageSize, type Column, type SortOption, type SortState } from './table';
 
 const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'phone', label: 'Phone Number', value: (d) => d.payment.phone },
   { key: 'donor', label: 'Donor Name', derived: true, value: (d) => d.donorName, display: (d) => (d.notCounted ? h('span', { class: 'warning-text' }, d.donorName) : d.donorName) },
-  { key: 'dateReceived', label: 'Date Received', value: (d) => d.payment.dateReceived, display: (d) => formatDate(d.payment.dateReceived), cellClass: (d) => (d.futureDate ? 'cell-warning' : undefined) },
+  // Said in words, not only by the amber tint. Not with a ⚠, which means a payment is not counted: this one still is.
+  { key: 'dateReceived', label: 'Date Received', value: (d) => d.payment.dateReceived, display: (d) => `${formatDate(d.payment.dateReceived)}${d.futureDate ? ' (future)' : ''}`, cellClass: (d) => (d.futureDate ? 'cell-warning' : undefined) },
   { key: 'amount', label: 'Amount', numeric: true, value: (d) => d.payment.amountReceived, display: (d) => formatCents(toCents(d.payment.amountReceived)) },
   { key: 'method', label: 'Method', value: (d) => d.payment.method, display: (d) => methodBadge(d.payment.method) },
   { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },
@@ -27,22 +29,41 @@ function dateRangeFilter(from: string, to: string): string {
   return to === '' ? '' : `Received up to ${formatDate(to)}`;
 }
 
+const SORT_OPTIONS: readonly SortOption[] = [
+  { label: 'Default order', sort: null },
+  { label: 'Oldest first', sort: { key: 'dateReceived', direction: 'asc' } },
+  { label: 'Amount: largest first', sort: { key: 'amount', direction: 'desc' } },
+  { label: 'Name A–Z', sort: { key: 'donor', direction: 'asc' } },
+];
+
+// Split by the Method column rather than trusting a search for "cash", which also matches notes. Only methods that
+// took money are listed, so "No method recorded" shows up exactly when a payment is missing one. A non-breaking space
+// ties each amount to its method: on a phone the line wraps, and an amount left alone at a line's start is misread.
+function methodsLine(rows: readonly DerivedPayment[], methods: readonly string[]): HTMLElement | null {
+  const taken = computeMethods(rows, methods).filter((row) => row.cents !== 0);
+  if (taken.length === 0) return null;
+  return h('p', { class: 'meta' }, taken.map((row) => `${row.label}\u00A0${formatCents(row.cents)}`).join(' · '));
+}
+
 export function createPaymentsView(deps: ListViewDeps) {
   let query = '';
   let sort: SortState | null = null;
   let dateFrom = '';
   let dateTo = '';
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
-  let visibleCount = TABLE_PAGE_SIZE;
-  let lastFilterLabel: string | undefined;
+  let visibleCount = tablePageSize();
+  let lastFilter: ListFilter | null = null;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
-    // A drill-down filter arriving or clearing changes which rows match, same as a new search - start back at page 1.
-    if (filter?.label !== lastFilterLabel) {
-      visibleCount = TABLE_PAGE_SIZE;
-      lastFilterLabel = filter?.label;
-      // A leftover date range would hide the very rows the filter just arrived to show.
+    // Compared by identity, not label: each Data-health Show builds a new filter (even for the check just used), while
+    // store re-renders pass the same one, so a search typed inside a drill-down survives them.
+    if (filter !== lastFilter) {
+      // A drill-down filter arriving or clearing changes which rows match, same as a new search - start back at page 1.
+      visibleCount = tablePageSize();
+      lastFilter = filter;
+      // A leftover search or date range would hide the very rows the filter just arrived to show.
       if (filter) {
+        query = '';
         dateFrom = '';
         dateTo = '';
       }
@@ -87,6 +108,15 @@ export function createPaymentsView(deps: ListViewDeps) {
     // The region stays put while drawTable swaps the line inside it, so a screen reader hears each new count.
     const showing = h('div', { role: 'status' });
     const downloadSlot = h('div');
+    const sortBy = sortSelect(
+      SORT_OPTIONS,
+      sort,
+      (picked) => {
+        sort = picked;
+        drawTable();
+      },
+      'payments-sort',
+    );
     const drawTable = () => {
       const rows = state.computed.payments.filter(
         (d) =>
@@ -94,7 +124,9 @@ export function createPaymentsView(deps: ListViewDeps) {
           matchesDateRange(d) &&
           matchesQuery(query, [d.payment.phone, d.donorName, d.payment.notes, d.payment.method], d.key),
       );
-      const sorted = sortRows(rows, COLUMNS, sort);
+      // With no column picked, the most recently added payment comes first. New rows are appended and only the
+      // first page is drawn, so a just-saved row and its "Saving…" state would otherwise land out of sight.
+      const sorted = sortRows(sort ? rows : [...rows].reverse(), COLUMNS, sort);
       tableSlot.replaceChildren(
         renderTable({
           columns: COLUMNS,
@@ -111,27 +143,31 @@ export function createPaymentsView(deps: ListViewDeps) {
           empty: filter || query || dateFilterActive() ? 'No payments match.' : 'No payments yet. Use “Log a payment” when money comes in.',
           visibleCount,
           onShowMore: () => {
-            visibleCount += TABLE_PAGE_SIZE;
+            visibleCount += tablePageSize();
             drawTable();
           },
         }),
       );
+      sortBy.show(sort);
       const filterName = describeFilter([filter?.label, dateRangeFilter(dateFrom, dateTo), searchFilter(query)]);
       const { line, download } = showingLine({
         filter: filterName,
         shown: sorted.length,
         total: state.computed.payments.length,
+        // Every filtered payment's money, not-counted ones included: at a cash count that money is still in the box.
+        loggedCents: rows.reduce((sum, d) => sum + (toCents(d.payment.amountReceived) ?? 0), 0),
         download: () => downloadList({ list: 'Payments', filter: filterName, rows: sorted }, deps.store.lastLoadedAt()),
         reportError: deps.reportError,
       });
-      showing.replaceChildren(...(line ? [line] : []));
+      const byMethod = line ? methodsLine(rows, state.settings.paymentMethods) : null;
+      showing.replaceChildren(...(line ? [line] : []), ...(byMethod ? [byMethod] : []));
       downloadSlot.replaceChildren(...(download ? [download] : []));
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;
-      visibleCount = TABLE_PAGE_SIZE;
+      visibleCount = tablePageSize();
       clearTimeout(searchTimer);
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
@@ -139,11 +175,13 @@ export function createPaymentsView(deps: ListViewDeps) {
     dateFromInput.value = dateFrom;
     const dateToInput = h('input', { type: 'date', class: 'input', 'data-focus-key': 'payments-date-to' });
     dateToInput.value = dateTo;
+    const today = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Today');
+    const thisWeek = h('button', { type: 'button', class: 'btn btn-ghost' }, 'This week');
     const clearDates = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Clear dates');
-    const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput));
+    const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput), today, thisWeek);
     const redrawDateControls = () => {
       clearDates.hidden = !dateFilterActive();
-      visibleCount = TABLE_PAGE_SIZE;
+      visibleCount = tablePageSize();
       drawTable();
     };
     dateFromInput.addEventListener('input', () => {
@@ -152,6 +190,21 @@ export function createPaymentsView(deps: ListViewDeps) {
     });
     dateToInput.addEventListener('input', () => {
       dateTo = dateToInput.value;
+      redrawDateControls();
+    });
+    today.addEventListener('click', () => {
+      dateFrom = todayIso();
+      dateTo = dateFrom;
+      dateFromInput.value = dateFrom;
+      dateToInput.value = dateTo;
+      redrawDateControls();
+    });
+    // To stops at today, not at Friday: a payment dated later in the week is a typo (see "(future)"), not money in.
+    thisWeek.addEventListener('click', () => {
+      dateTo = todayIso();
+      dateFrom = weekStartIso(dateTo);
+      dateFromInput.value = dateFrom;
+      dateToInput.value = dateTo;
       redrawDateControls();
     });
     clearDates.hidden = !dateFilterActive();
@@ -171,7 +224,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       { class: 'view' },
       h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Money received'), h('h1', { class: 'display-md' }, 'Payments')), add),
       h('p', { class: 'totals-band' }, `${totals.paymentsWithAmount} payments · ${formatCents(totals.loggedCents)} logged`),
-      h('div', { class: 'toolbar' }, search, dateRange, clearDates, filter ? filterChip(filter, clearFilter) : null),
+      h('div', { class: 'toolbar' }, search, sortBy.wrapper, dateRange, clearDates, filter ? filterChip(filter, clearFilter) : null),
       h('div', { class: 'list-status' }, showing, downloadSlot),
       tableSlot,
     );

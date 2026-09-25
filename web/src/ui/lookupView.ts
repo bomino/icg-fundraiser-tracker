@@ -60,7 +60,6 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], actions: Ca
       sort: null,
       rowId: (d) => d.payment.id,
       pending: (d) => isPending(d.payment),
-      onSort: () => undefined,
       onOpen: (d) => actions.openPayment(d.payment),
       empty: 'No payments recorded for this donor.',
     }),

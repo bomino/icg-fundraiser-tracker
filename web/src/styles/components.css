@@ -58,6 +58,9 @@ textarea.input { resize: vertical; }
 .date-range { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 .date-range label { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: 0.75rem; }
 .date-range input { min-width: 9.5rem; }
+/* Phones only: wider screens sort from the column headings, which phones hide (see the card layout under Tables). */
+.sort-by { display: none; align-items: center; gap: var(--space-xs); }
+.sort-by .input { width: auto; }
 .help { font-size: 0.75rem; color: var(--color-ink-muted); }
 .field-error { font-size: 0.8125rem; color: var(--color-danger); }
 .required { color: var(--color-danger); }
@@ -106,6 +109,12 @@ textarea.input { resize: vertical; }
 .data-table th { text-align: left; vertical-align: bottom; padding: var(--space-sm) 12px; border-bottom: 1px solid var(--color-rule-strong); }
 .data-table th button { all: unset; cursor: pointer; font: 600 0.6875rem/1.4 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-ink-soft); }
 .data-table th[aria-sort] button { color: var(--color-ink); }
+/* Colour alone could not show the direction. aria-sort already tells screen readers, so the arrow's alt text is empty;
+   the plain declaration first is kept by browsers that reject the alt-text form (Firefox before 128, Safari before 17.4).
+   A no-break space, not a plain one, keeps the arrow beside the label's last word: under a narrow heading (# Payments)
+   it would otherwise wrap onto a line of its own and make the whole heading row taller when sorted. */
+.data-table th[aria-sort='ascending'] button::after { content: '\a0▲'; content: '\a0▲' / ''; }
+.data-table th[aria-sort='descending'] button::after { content: '\a0▼'; content: '\a0▼' / ''; }
 .data-table th.num { text-align: right; white-space: normal; }
 /* `all: unset` above (and on .match, in Lookup, and .row-open below) strips the global :focus-visible outline; restore it explicitly. */
 .data-table th button:focus-visible, .match:focus-visible, .row-open:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
@@ -139,7 +148,10 @@ textarea.input { resize: vertical; }
 .row-danger .derived { color: var(--color-ink); }
 
 @media (max-width: 720px) {
-  .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  /* Removed, not just visually hidden: its sort buttons would stay as tab stops no one can see. Each card labels its
+     own values, and Sort by above the list takes over sorting; never hide this without that list. */
+  .data-table thead { display: none; }
+  .sort-by { display: inline-flex; }
   .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; }
   .data-table tr { padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-rule); }
   .data-table td { height: auto; min-height: 0; white-space: normal; border: 0; display: flex; justify-content: space-between; gap: var(--space-md); padding: var(--space-xs) var(--space-md); text-align: right; }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { nextSort, renderTable, sortRows, TABLE_PAGE_SIZE, type Column } from '../../web/src/ui/table';
+import { nextSort, renderTable, sortRows, sortSelect, tablePageSize, type Column, type SortOption } from '../../web/src/ui/table';
 import { matchesQuery } from '../../web/src/ui/search';
 
 afterEach(() => document.body.replaceChildren());
@@ -27,10 +27,24 @@ describe('table', () => {
     expect(sortRows(rows, columns, { key: 'amount', direction: 'desc' }).map((r) => r.id)).toEqual(['a', 'c', 'b']);
     expect(sortRows(rows, columns, { key: 'name', direction: 'asc' }).map((r) => r.id)).toEqual(['b', 'c', 'a']);
   });
-  it('toggles direction on the same column and resets on a new one', () => {
+  it('toggles direction on the same column, returns to the default order on a third tap, and resets on a new one', () => {
     expect(nextSort(null, 'name')).toEqual({ key: 'name', direction: 'asc' });
     expect(nextSort({ key: 'name', direction: 'asc' }, 'name')).toEqual({ key: 'name', direction: 'desc' });
+    expect(nextSort({ key: 'name', direction: 'desc' }, 'name')).toBeNull();
     expect(nextSort({ key: 'name', direction: 'desc' }, 'amount')).toEqual({ key: 'amount', direction: 'asc' });
+  });
+  it('makes each heading a sort button and marks the sorted one with its direction', () => {
+    const onSort = vi.fn();
+    const table = renderTable({ columns, rows, sort: { key: 'amount', direction: 'desc' }, rowId: (r) => r.id, onSort, empty: 'none' });
+    const headings = [...table.querySelectorAll('thead th')];
+    expect(headings.map((th) => th.getAttribute('aria-sort'))).toEqual([null, 'descending']);
+    (headings[0].querySelector('button') as HTMLButtonElement).click();
+    expect(onSort).toHaveBeenCalledWith('name');
+  });
+  it('shows plain heading text, not buttons that do nothing, when the table cannot be sorted', () => {
+    const table = renderTable({ columns, rows, sort: null, rowId: (r) => r.id, empty: 'none' });
+    expect(table.querySelector('thead button')).toBeNull();
+    expect([...table.querySelectorAll('thead th')].map((th) => th.textContent)).toEqual(['Name', 'Amount']);
   });
   it('puts a real button in the first cell, which keyboard and screen-reader users activate to open the row', () => {
     const onOpen = vi.fn();
@@ -123,14 +137,14 @@ describe('table', () => {
     });
 
     it('caps the DOM rows at visibleCount and reports the remainder in "Show more (N left)"', () => {
-      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: vi.fn() });
-      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
-      expect(wrap.querySelector('.show-more')?.textContent).toBe(`Show more (${250 - TABLE_PAGE_SIZE} left)`);
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize(), onShowMore: vi.fn() });
+      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(tablePageSize());
+      expect(wrap.querySelector('.show-more')?.textContent).toBe(`Show more (${250 - tablePageSize()} left)`);
     });
 
     it('calls onShowMore when the button is clicked, without renderTable managing the count itself', () => {
       const onShowMore = vi.fn();
-      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore });
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize(), onShowMore });
       (wrap.querySelector('.show-more') as HTMLButtonElement).click();
       expect(onShowMore).toHaveBeenCalledTimes(1);
     });
@@ -154,20 +168,20 @@ describe('table', () => {
 
     it('pages the already sorted and filtered rows, not the other way round: page 1 holds the first 100 of the SORTED order', () => {
       const sorted = sortRows(many, columns, { key: 'amount', direction: 'desc' });
-      const wrap = renderTable({ columns, rows: sorted, sort: { key: 'amount', direction: 'desc' }, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: vi.fn() });
+      const wrap = renderTable({ columns, rows: sorted, sort: { key: 'amount', direction: 'desc' }, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize(), onShowMore: vi.fn() });
       const ids = [...wrap.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
       expect(ids[0]).toBe('p249');
-      expect(ids).toHaveLength(TABLE_PAGE_SIZE);
+      expect(ids).toHaveLength(tablePageSize());
     });
 
     it('shows no "Show more" button when visibleCount is under the row count but no onShowMore is given', () => {
-      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE });
-      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize() });
+      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(tablePageSize());
       expect(wrap.querySelector('.show-more')).toBeNull();
     });
 
     it('moves focus to the newly revealed row\'s open button, so a keyboard/screen-reader user keeps their place', () => {
-      let visibleCount = TABLE_PAGE_SIZE;
+      let visibleCount = tablePageSize();
       const draw = () => {
         document.body.replaceChildren(
           renderTable({
@@ -180,7 +194,7 @@ describe('table', () => {
             empty: 'none',
             visibleCount,
             onShowMore: () => {
-              visibleCount += TABLE_PAGE_SIZE;
+              visibleCount += tablePageSize();
               draw();
             },
           }),
@@ -200,7 +214,7 @@ describe('table', () => {
       // A pathological onShowMore that redraws without growing visibleCount - row 101 never appears.
       const rerenderWithoutGrowing = () => {
         document.body.replaceChildren(
-          renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: rerenderWithoutGrowing }),
+          renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none', visibleCount: tablePageSize(), onShowMore: rerenderWithoutGrowing }),
         );
       };
       rerenderWithoutGrowing();
@@ -208,6 +222,70 @@ describe('table', () => {
       expect(document.querySelector('tr[data-id="p100"]')).toBeNull();
       expect(document.activeElement).toBe(document.querySelector('.show-more'));
     });
+  });
+});
+
+describe('tablePageSize', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const screenWidth = (phone: boolean) => vi.stubGlobal('matchMedia', (query: string) => ({ matches: phone && query === '(max-width: 720px)' }));
+
+  it('pages 25 rows at a time at the width where each row becomes a stacked card', () => {
+    screenWidth(true);
+    expect(tablePageSize()).toBe(25);
+  });
+
+  it('pages 100 rows at a time on a wider screen', () => {
+    screenWidth(false);
+    expect(tablePageSize()).toBe(100);
+  });
+
+  it('pages 100 rows at a time where matchMedia does not exist', () => {
+    expect(typeof matchMedia).toBe('undefined');
+    expect(tablePageSize()).toBe(100);
+  });
+});
+
+describe('sortSelect (the phone sort control)', () => {
+  const options: SortOption[] = [
+    { label: 'Default order', sort: null },
+    { label: 'Amount: largest first', sort: { key: 'amount', direction: 'desc' } },
+    { label: 'Name A–Z', sort: { key: 'name', direction: 'asc' } },
+  ];
+  const selectIn = (wrapper: HTMLElement) => wrapper.querySelector('select') as HTMLSelectElement;
+  const shown = (select: HTMLSelectElement) => select.selectedOptions[0]?.textContent;
+
+  it('lists every option, which each say which way they sort, under a "Sort by" label showing the current sort', () => {
+    const { wrapper } = sortSelect(options, { key: 'name', direction: 'asc' }, vi.fn(), 'pledges-sort');
+    const select = selectIn(wrapper);
+    expect(wrapper.tagName).toBe('LABEL');
+    expect(wrapper.textContent?.startsWith('Sort by')).toBe(true);
+    expect([...select.options].map((option) => option.textContent)).toEqual(['Default order', 'Amount: largest first', 'Name A–Z']);
+    expect(shown(select)).toBe('Name A–Z');
+    // A store publish rebuilds the view; the key lets app.ts hand focus back to the rebuilt list.
+    expect(select.dataset.focusKey).toBe('pledges-sort');
+  });
+
+  it('reports the sort of the option picked, and null for the default order', () => {
+    const onChange = vi.fn();
+    const select = selectIn(sortSelect(options, null, onChange, 'k').wrapper);
+    select.value = select.options[1].value;
+    select.dispatchEvent(new Event('change'));
+    select.value = select.options[0].value;
+    select.dispatchEvent(new Event('change'));
+    expect(onChange.mock.calls).toEqual([[{ key: 'amount', direction: 'desc' }], [null]]);
+  });
+
+  it('shows a sort changed elsewhere, and names a heading sort it does not offer without letting it be picked', () => {
+    const picker = sortSelect(options, null, vi.fn(), 'k');
+    const select = selectIn(picker.wrapper);
+    picker.show({ key: 'amount', direction: 'desc' });
+    expect(shown(select)).toBe('Amount: largest first');
+    picker.show({ key: 'amount', direction: 'asc' });
+    expect(shown(select)).toBe('Sorted by a column heading');
+    expect(select.selectedOptions[0].disabled).toBe(true);
+    picker.show(null);
+    expect(shown(select)).toBe('Default order');
+    expect(select.options).toHaveLength(options.length);
   });
 });
 

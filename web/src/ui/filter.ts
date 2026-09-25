@@ -1,3 +1,4 @@
+import { formatCents } from '../format';
 import { h } from './dom';
 
 export interface ListFilter {
@@ -34,6 +35,8 @@ export interface ShowingOptions {
   filter: string;
   shown: number;
   total: number;
+  /** The shown rows' money, added as "· $X logged": "logged", like the Payments totals band, so it is never read as Summary's "Total received". */
+  loggedCents?: number;
   /** Saves the rows the caller drew, as filtered and sorted: a file that filtered for itself could quietly disagree with the screen. */
   download: () => Promise<void>;
   reportError(err: unknown, context?: string): void;
@@ -45,11 +48,12 @@ export interface ShowingLine {
   download: HTMLElement | null;
 }
 
-/** "Showing N of M", and a Download this list button while any row matches. */
+/** "Showing N of M" (with the rows' money when given), and a Download this list button while any row matches. */
 export function showingLine(options: ShowingOptions): ShowingLine {
   if (options.filter === '') return { line: null, download: null };
+  const logged = options.loggedCents === undefined ? '' : ` · ${formatCents(options.loggedCents)} logged`;
   // Print hides the search box, chips and date range, so on paper the line names the filter itself.
-  const line = h('p', { class: 'meta' }, `Showing ${options.shown} of ${options.total}`, h('span', { class: 'print-only' }, ` · ${options.filter}`));
+  const line = h('p', { class: 'meta' }, `Showing ${options.shown} of ${options.total}${logged}`, h('span', { class: 'print-only' }, ` · ${options.filter}`));
   if (options.shown === 0) return { line, download: null };
   const download = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'download-list' }, 'Download this list');
   download.addEventListener('click', () => {
