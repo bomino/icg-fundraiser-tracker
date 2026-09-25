@@ -11,9 +11,16 @@ const stripQuotePrefix = (value: unknown) => (typeof value === 'string' && value
 // (a leading apostrophe forces text and is not part of the value).
 export class FakeSheet {
   raw: unknown[][] = [];
-  constructor(readonly name: string) {}
+  constructor(
+    private name: string,
+    private readonly tabs: Map<string, FakeSheet>,
+  ) {}
   private width() {
     return Math.max(0, ...this.raw.map((row) => row.length));
+  }
+  // Sheets reads up to the last row with content, and appendRow writes just below it.
+  private dropTrailingBlankRows() {
+    while (this.raw.length > 0 && this.raw[this.raw.length - 1].every((cell) => cell === '' || cell === undefined)) this.raw.pop();
   }
   getDataRange() {
     const width = this.width();
@@ -28,15 +35,48 @@ export class FakeSheet {
   getMaxRows() {
     return 1000;
   }
+  getName() {
+    return this.name;
+  }
+  // Like Sheets, which refuses a name another tab already has.
+  setName(name: string) {
+    if (this.tabs.has(name)) throw new Error(`A sheet with the name "${name}" already exists. Please enter another name.`);
+    this.tabs.delete(this.name);
+    this.name = name;
+    this.tabs.set(name, this);
+    return this;
+  }
+  // Code.gs only ever copies a tab into its own spreadsheet.
+  copyTo(_spreadsheet: unknown) {
+    const copy = new FakeSheet(`Copy of ${this.name}`, this.tabs);
+    copy.raw = this.raw.map((row) => [...row]);
+    this.tabs.set(copy.name, copy);
+    return copy;
+  }
+  getLastRow() {
+    return this.raw.length;
+  }
+  getLastColumn() {
+    return this.width();
+  }
   setFrozenRows(_rows: number) {}
-  getRange(row: number, column: number, _numRows = 1, _numColumns = 1) {
+  getRange(row: number, column: number, numRows = 1, numColumns = 1) {
     const write = (r: number, c: number, value: unknown) => {
       while (this.raw.length < r) this.raw.push([]);
       this.raw[r - 1][c - 1] = value;
     };
     return {
+      getSheet: () => this,
+      getRow: () => row,
+      getColumn: () => column,
+      getLastRow: () => row + numRows - 1,
+      getValues: () => Array.from({ length: numRows }, (_, i) => Array.from({ length: numColumns }, (_, j) => stripQuotePrefix(this.raw[row - 1 + i]?.[column - 1 + j] ?? ''))),
       setValues: (values: unknown[][]) => values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value))),
       setValue: (value: unknown) => write(row, column, value),
+      clearContent: () => {
+        this.raw.slice(row - 1, row - 1 + numRows).forEach((cells) => cells.fill('', column - 1, column - 1 + numColumns));
+        this.dropTrailingBlankRows();
+      },
     };
   }
 }
@@ -55,7 +95,8 @@ export function createServer() {
   const state: {
     fetchCount: number;
     // Throws on the *next* fetch call only, then resets itself, mimicking a one-off transient
-    // network failure rather than a permanently broken connection.
+    // network failure rather than a permanently broken connection. Like the real UrlFetchApp, the
+    // error's message quotes the URL, and so the id_token in it.
     fetchThrows: boolean;
     lockAvailable: boolean;
     // How long (ms) it takes the lock to free up while `lockAvailable` is false. `tryLock(ms)`
@@ -69,16 +110,51 @@ export function createServer() {
   const spreadsheet = {
     getSheetByName: (name: string) => sheets.get(name) ?? null,
     insertSheet: (name: string) => {
-      const sheet = new FakeSheet(name);
+      const sheet = new FakeSheet(name, sheets);
       sheets.set(name, sheet);
       return sheet;
     },
     getSpreadsheetTimeZone: () => state.timeZone,
   };
 
+  // The Sheet's own dialogs and menus. `answer` is what the next prompt gets back; the messages
+  // the script showed and the menus it added are kept for tests to read.
+  const ui: { answer: { button: 'OK' | 'CANCEL'; text: string }; prompts: string[]; alerts: string[]; menus: Array<{ name: string; items: Array<[string, string]> }> } = {
+    answer: { button: 'OK', text: '' },
+    prompts: [],
+    alerts: [],
+    menus: [],
+  };
+  const sheetUi = {
+    Button: { OK: 'OK', CANCEL: 'CANCEL' },
+    ButtonSet: { OK: 'ButtonSet.OK', OK_CANCEL: 'ButtonSet.OK_CANCEL' },
+    prompt: (_title: string, message: string) => {
+      ui.prompts.push(message);
+      const { button, text } = ui.answer;
+      return { getSelectedButton: () => button, getResponseText: () => text };
+    },
+    alert: (_title: string, message: string) => {
+      ui.alerts.push(message);
+      return 'OK';
+    },
+    createMenu: (name: string) => {
+      const menu = { name, items: [] as Array<[string, string]> };
+      const builder = {
+        addItem: (caption: string, functionName: string) => {
+          menu.items.push([caption, functionName]);
+          return builder;
+        },
+        addToUi: () => {
+          ui.menus.push(menu);
+        },
+      };
+      return builder;
+    },
+  };
+
   const context = vm.createContext({
     console,
-    SpreadsheetApp: { getActiveSpreadsheet: () => spreadsheet },
+    SpreadsheetApp: { getActiveSpreadsheet: () => spreadsheet, getUi: () => sheetUi },
     ContentService: {
       MimeType: { JSON: 'application/json' },
       createTextOutput: (text: string) => ({ text, setMimeType() { return this; } }),
@@ -87,7 +163,7 @@ export function createServer() {
       fetch: (url: string) => {
         if (state.fetchThrows) {
           state.fetchThrows = false;
-          throw new Error('Simulated network failure calling tokeninfo');
+          throw new Error(`Address unavailable: ${url}`);
         }
         state.fetchCount += 1;
         const token = decodeURIComponent(new URL(url).searchParams.get('id_token') ?? '');
@@ -127,6 +203,8 @@ export function createServer() {
   });
   vm.runInContext(readFileSync(new URL('../../apps-script/Code.gs', import.meta.url), 'utf8'), context, { filename: 'Code.gs' });
   const call = <T>(name: string, ...args: unknown[]): T => (context[name] as (...a: unknown[]) => T)(...args);
+  // Code.gs's top-level consts are not properties of the context, only visible to code run inside it.
+  const evaluate = <T>(expression: string): T => vm.runInContext(expression, context) as T;
   call('setup');
 
   // A real-looking JWT (header.payload.sig), so Code.gs's cheap local decode of the payload
@@ -151,5 +229,13 @@ export function createServer() {
     return JSON.parse(output.text) as { ok: boolean; data?: any; error?: { code: string; message: string; field?: string; current?: any } };
   }
 
-  return { sheets, cache, state, call, tokenFor, setTokenResponse, post, sheet: (name: string) => sheets.get(name) as FakeSheet };
+  // Types or pastes into the Sheet as a person would (no apostrophes), then runs the onEdit simple
+  // trigger as Sheets does. Google leaves the editor's email blank when it may not share it.
+  function editInSheet(tab: string, row: number, column: number, values: unknown[][], email = '') {
+    const range = (sheets.get(tab) as FakeSheet).getRange(row, column, values.length, values[0].length);
+    range.setValues(values);
+    call('onEdit', { range, user: { getEmail: () => email } });
+  }
+
+  return { sheets, cache, state, ui, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, sheet: (name: string) => sheets.get(name) as FakeSheet };
 }

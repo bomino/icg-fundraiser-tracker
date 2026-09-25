@@ -1,5 +1,6 @@
 import { ApiError, type Api, type LoadResult, type RowRef, type Versioned } from './api';
 import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
+import { SITE_API_VERSION } from './version';
 
 // Dev-only stand-in for the Apps Script backend so every screen can be exercised without Google accounts.
 // main.ts imports it dynamically behind import.meta.env.DEV, so it never ships in a production build.
@@ -199,7 +200,7 @@ export function createDemoApi(latencyMs: number = DEFAULT_LATENCY_MS, options: D
   return {
     async load(): Promise<LoadResult> {
       await delay();
-      return { pledges: pledges.map((row) => ({ ...row })), payments: payments.map((row) => ({ ...row })), settings: { ...settings, paymentMethods: [...settings.paymentMethods] }, me: DEMO_USER };
+      return { pledges: pledges.map((row) => ({ ...row })), payments: payments.map((row) => ({ ...row })), settings: { ...settings, paymentMethods: [...settings.paymentMethods] }, me: DEMO_USER, apiVersion: SITE_API_VERSION };
     },
     async savePledge(draft: PledgeDraft, row: RowRef): Promise<Pledge> {
       await delay();

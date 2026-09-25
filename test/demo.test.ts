@@ -3,8 +3,14 @@ import { ApiError } from '../web/src/api';
 import { createDemoApi } from '../web/src/demo';
 import { compute } from '../web/src/engine';
 import { todayIso } from '../web/src/dates';
+import { SITE_API_VERSION } from '../web/src/version';
 
 describe('demo api', () => {
+  // Otherwise demo mode, and every e2e test, would show the "server is out of date" banner.
+  it('answers as the server version the site was built for', async () => {
+    expect((await createDemoApi(0).load()).apiVersion).toBe(SITE_API_VERSION);
+  });
+
   it('loads seeded data that exercises every status and warning', async () => {
     const api = createDemoApi(0);
     const data = await api.load();

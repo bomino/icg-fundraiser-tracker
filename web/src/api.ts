@@ -1,4 +1,4 @@
-import type { Payment, PaymentDraft, Pledge, PledgeDraft, Settings } from './types';
+import type { Payment, PaymentDraft, Pledge, PledgeDraft, RowsWithoutId, Settings } from './types';
 
 export type ApiErrorCode = 'UNAUTHENTICATED' | 'FORBIDDEN' | 'CONFLICT' | 'NOT_FOUND' | 'BAD_REQUEST' | 'BUSY' | 'INTERNAL' | 'NETWORK';
 
@@ -21,6 +21,10 @@ export interface LoadResult {
   payments: Payment[];
   settings: Settings;
   me: string;
+  /** Absent from a Code.gs deployed before it counted them. */
+  rowsWithoutId?: RowsWithoutId;
+  /** Code.gs's API_VERSION; absent from a Code.gs deployed before it had one. */
+  apiVersion?: number;
 }
 
 export interface Versioned {
@@ -75,29 +79,20 @@ function roundCents(value: unknown): number | null {
   return typeof value === 'number' ? Math.round(value * 100) / 100 : null;
 }
 
-function pledgeMatchesDraft(current: unknown, draft: PledgeDraft): current is Pledge {
+// Walks the draft's own keys rather than a hand-kept field list, which the compiler could not
+// check: a field added to a draft type but missed there would let a CONFLICT that differs only
+// in that field count as saved, silently dropping the volunteer's change.
+function draftMatches(current: unknown, draft: Record<string, unknown>): boolean {
   if (typeof current !== 'object' || current === null) return false;
   const c = current as Record<string, unknown>;
-  return (
-    c.phone === draft.phone &&
-    c.name === draft.name &&
-    c.datePledged === draft.datePledged &&
-    roundCents(c.amountPledged) === roundCents(draft.amountPledged) &&
-    c.notes === draft.notes
-  );
+  return Object.keys(draft).every((field) => {
+    const value = draft[field];
+    return typeof value === 'number' ? roundCents(c[field]) === roundCents(value) : c[field] === value;
+  });
 }
 
-function paymentMatchesDraft(current: unknown, draft: PaymentDraft): current is Payment {
-  if (typeof current !== 'object' || current === null) return false;
-  const c = current as Record<string, unknown>;
-  return (
-    c.phone === draft.phone &&
-    c.dateReceived === draft.dateReceived &&
-    roundCents(c.amountReceived) === roundCents(draft.amountReceived) &&
-    c.method === draft.method &&
-    c.notes === draft.notes
-  );
-}
+const pledgeMatchesDraft = (current: unknown, draft: PledgeDraft): current is Pledge => draftMatches(current, draft);
+const paymentMatchesDraft = (current: unknown, draft: PaymentDraft): current is Payment => draftMatches(current, draft);
 
 export function createApi(
   scriptUrl: string,

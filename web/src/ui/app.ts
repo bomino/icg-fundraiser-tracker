@@ -1,6 +1,7 @@
 import type { Auth } from '../auth';
 import type { Store } from '../store';
 import { currentTheme, toggleTheme } from '../theme';
+import { behindHalf } from '../version';
 import { h } from './dom';
 import { mountDisplay } from './displayView';
 import { createErrorReporter } from './errors';
@@ -26,6 +27,11 @@ const VIEWS: ReadonlyArray<{ name: ViewName; label: string }> = [
 ];
 const LAST_VIEW_KEY = 'icg-last-view';
 const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
+// Only the organiser can fix the first; the second is a tab still running code from before a deploy.
+const OUT_OF_DATE = {
+  server: "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).",
+  site: 'The tracker was updated. Reload this page to get the latest version.',
+} as const;
 
 export function parseRoute(hash: string): Route {
   const name = hash.replace(/^#\/?/, '');
@@ -122,6 +128,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   const offline = h('div', { class: 'banner banner-warning', role: 'status', hidden: navigator.onLine }, 'You are offline. Changes cannot be saved until the connection is back.');
   window.addEventListener('online', () => { offline.hidden = true; });
   window.addEventListener('offline', () => { offline.hidden = false; });
+  // Only warns: most version gaps are harmless validation changes, which blocking saves would turn into lost work.
+  const outOfDate = h('div', { class: 'banner banner-warning', role: 'status', 'data-role': 'version', hidden: true });
 
   // Capture phase runs before the view opens a form, so a nearly expired sign-in is renewed
   // up front instead of interrupting the Save.
@@ -138,8 +146,18 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   const shell = [
     h('header', { class: 'nav-bar' }, h('div', { class: 'nav-inner' }, h('a', { href: '#summary', class: 'wordmark' }, 'ICG Fundraiser Tracker'), nav, h('div', { class: 'nav-actions' }, me, refresh, themeButton, signOut))),
     offline,
+    outOfDate,
     main,
   ];
+
+  // Every publish carries the version from the latest load. The text is only rewritten when it changes,
+  // so a save's publish does not make a screen reader announce the banner again.
+  function showOutOfDate(apiVersion: number | undefined) {
+    const behind = behindHalf(apiVersion);
+    const text = behind ? OUT_OF_DATE[behind] : '';
+    if (outOfDate.textContent !== text) outOfDate.textContent = text;
+    outOfDate.hidden = behind === null;
+  }
 
   // Store publishes rebuild the whole view; without this a volunteer typing a search loses the box mid-word.
   function focusedSearch() {
@@ -158,6 +176,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   function render() {
     const state = deps.store.state();
     if (!state) return;
+    showOutOfDate(state.apiVersion);
     const view = parseRoute(location.hash);
     if (view === 'display') {
       if (lastView === 'summary') destroyMethodChart();

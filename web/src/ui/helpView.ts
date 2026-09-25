@@ -1,4 +1,5 @@
 import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, type HealthId, type Status } from '../engine';
+import { SITE_API_VERSION, SITE_COMMIT } from '../version';
 import { h, type Child } from './dom';
 import { PAYMENT_HELP, PLEDGE_HELP } from './help';
 
@@ -7,11 +8,14 @@ type Inline = Child[];
 // Every string the guide quotes, verbatim, so a test can fail when the app's wording drifts from the guide's.
 const SAID = {
   offline: 'You are offline. Changes cannot be saved until the connection is back.',
+  serverBehind: "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).",
+  siteBehind: 'The tracker was updated. Reload this page to get the latest version.',
   network: 'Could not reach the tracker. Check your connection and try again.',
   httpError: 'The tracker answered with an error',
   busy: 'The tracker is busy. Try again in a moment.',
   serverError: 'Something went wrong on the server. Try again.',
   expired: 'Your sign-in has expired. Please sign in again.',
+  signInIdsDiffer: 'This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.',
   cancelled: 'Sign-in was cancelled.',
   googleDidNotLoad: 'Google sign-in did not load. Check your connection and reload the page.',
   notOnList: 'is not on the volunteer list.',
@@ -21,7 +25,8 @@ const SAID = {
   notSetUp: 'Not set up yet',
   notConfigured: 'The server is not configured',
   unexpectedPage: 'The tracker sent back an unexpected page.',
-  tabMissing: 'tab is missing. Run setup() in Apps Script.',
+  tabMissing: 'tab is missing.',
+  columnChanged: 'The organiser needs to undo the change with Version history, or move new columns to the right of updatedBy.',
   conflict: 'Someone else changed this row since you opened it. Reload to see the latest version, then make your change again.',
   deleted: 'Someone else deleted this row. Reload to see the latest list.',
   notANumber: 'Enter a number, e.g. 250.',
@@ -40,6 +45,8 @@ const SAID = {
   saved: 'Saved.',
   couldNotSave: "Couldn't save",
   couldNotDelete: "Couldn't delete",
+  trackerMenu: 'Fundraiser tracker',
+  newDriveMenu: 'Start a new drive…',
 } as const;
 
 export const QUOTED_MESSAGES: readonly string[] = Object.values(SAID);
@@ -107,6 +114,16 @@ const PROBLEMS: readonly Problem[] = [
     action: ['Wait for the connection to come back. If a save failed meanwhile, press ', b('Reopen'), ' on its message and ', b('Save'), ' again. You can still read the screens.'],
   },
   {
+    message: [said(SAID.serverBehind)],
+    meaning: ['The app was updated, but the organiser has not yet updated the part of the tracker that runs on Google’s side (Code.gs) to match. This shows as a strip under the top bar. It is not something you caused.'],
+    action: ['Tell the organiser. You can keep working, but until it is fixed a save may fail, sometimes with a message that does not fit, such as ', said(SAID.deleted), ' when you add a new pledge or payment. Keep a note of what you add, and enter again anything that did not save once the organiser has fixed it.'],
+  },
+  {
+    message: [said(SAID.siteBehind)],
+    meaning: ['A newer version of the tracker came out while this page was open. This shows as a strip under the top bar.'],
+    action: ['Wait until no row shows ', said(SAID.saving), ', then reload the page with your browser’s reload button. If you opened the tracker from your home screen, close it completely and open it again.'],
+  },
+  {
     message: [said(SAID.network)],
     meaning: ['The save did not reach the shared sheet, usually because the connection dropped.'],
     action: ['Check your connection, then press ', b('Reopen'), ' on the message. The form comes back with everything you typed; press ', b('Save'), ' again.'],
@@ -132,6 +149,11 @@ const PROBLEMS: readonly Problem[] = [
     action: ['Sign in again in the window that appears. The save carries on by itself once you are back.'],
   },
   {
+    message: [said(SAID.signInIdsDiffer)],
+    meaning: ['The tracker’s website and the part that runs on Google’s side (Code.gs) are set up for different Google sign-ins, usually because the organiser has just changed a setting. Signing in again will not fix it. This is not something you caused.'],
+    action: ['Reload the page. If it still says this, tell the organiser, and include the exact message.'],
+  },
+  {
     message: [said(SAID.cancelled)],
     meaning: ['The Google sign-in window was closed before you finished signing in.'],
     action: ['Press ', b('Reopen'), ' on the message, then ', b('Save'), ', and complete the sign-in. The window will not pop up again on its own for about a minute.'],
@@ -153,18 +175,23 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.conflict)],
-    meaning: ['Another volunteer saved a change to the same pledge or payment after you opened it.'],
+    meaning: ['Another volunteer saved a change to the same pledge or payment after you opened it, or the organiser corrected it in the sheet.'],
     action: ['Press ', b('Reload'), ', open the row again, look at their change, and redo yours if it is still needed.'],
   },
   {
     message: [said(SAID.deleted)],
-    meaning: ['Another volunteer deleted the row you were editing.'],
-    action: ['Press ', b('Reload'), '. If the row should still exist, add it again.'],
+    meaning: ['Another volunteer deleted the row you were editing. If you were adding a new pledge or payment instead, the tracker’s server is out of date (a strip under the top bar says so) and your entry was not saved.'],
+    action: ['Press ', b('Reload'), '. If the row should still exist, do not add it again: ask the organiser to bring it back, then make your change. If you were adding a new one, tell the organiser, and add it again once they have fixed the server.'],
   },
   {
-    message: [b(SAID.notSetUp), ', ', said(`${SAID.notConfigured}…`), ', ', said(SAID.unexpectedPage), ' or ', said(`The "…" ${SAID.tabMissing}`)],
+    message: [b(SAID.notSetUp), ', ', said(`${SAID.notConfigured}…`), ', ', said(SAID.unexpectedPage), ' or ', said(`The "…" ${SAID.tabMissing} …`)],
     meaning: ['The tracker itself is not set up correctly. This is not something you caused.'],
     action: ['Tell the organiser, and include the exact message.'],
+  },
+  {
+    message: [said(`The 3rd column of the "Pledges" tab should be "name" but is "Email". ${SAID.columnChanged}`)],
+    meaning: ['Someone added, moved or deleted a column in the Google Sheet behind the tracker. The tracker stops loading and saving until it is put back, so it never shows wrong totals or saves over the new column. This is not something you caused.'],
+    action: ['Tell the organiser, and include the exact message. Once the sheet is fixed, the tracker works again; redo any save that failed meanwhile.'],
   },
 ];
 
@@ -225,9 +252,9 @@ function theScreens(): Child[] {
         [b('The four totals'), ' — Total pledged, Total received, Balance outstanding, and Overpaid / credit. ', b('Understanding the numbers'), ' explains each one.'],
         [b('Donors'), ' — how many donors have pledged, and how many are Fully paid, Partial, Pending or Overpaid.'],
         [b('Reconciliation'), ' — Payments logged (every payment typed in) next to Unmatched payments (money not counted toward any pledge). Unmatched should be $0.00; the card turns amber when it is not.'],
-        [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found.'],
+        [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found. A note under the checks says when the shared sheet has rows that are not counted because they have no id; only the organiser can fix those.'],
         [b('Collected by payment method'), ' — a chart and table of money by Cash, Card and so on. Payments with no method appear as ', b('No method recorded'), '. The last row, ', said(SAID.methodTotal), ', should equal Payments logged.'],
-        [b('Download .xlsx'), ' — saves a copy of everything as an Excel file.'],
+        [b('Download .xlsx'), ' — saves the pledges, payments and totals as an Excel file: a readable record for the treasurer.'],
         [b('Friday display'), ' — a full-screen view of the fundraiser for the projector. See ', b('Show the fundraiser on the projector'), ' in How to….'],
       ),
     ),
@@ -373,7 +400,7 @@ function howTo(): Child[] {
         ['Deleting a payment asks: ', said(SAID.deletePayment)],
         ['Deleting a pledge asks: ', said(SAID.deletePledge)],
       ),
-      note('There is no undo. If you delete something by mistake, add it again.'),
+      note('There is no undo button. If you delete something by mistake, do not add it again: ask the organiser to bring the row back. The tracker keeps a copy of every deleted row for them.'),
     ),
     topic(
       'Fix a payment typed with the wrong phone number',
@@ -415,7 +442,7 @@ function howTo(): Child[] {
         ['On ', b('Summary'), ', press ', b('Friday display'), '.'],
         ['Make the browser full screen (F11 on most computers).'],
       ),
-      p('The screen shows the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
+      p('The screen shows the drive’s name (or just “Fundraiser” until the organiser sets one), the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
       p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
       p('If a sign-in box appears when you press ', b('Friday display'), ', sign in: your sign-in was about to run out, and signing in now keeps the screen updating for about another hour.'),
       note('Google sign-ins last about an hour. After that the figures stop updating, and after 15 minutes a small note says ', said(SAID.displayStale), '. Tap it and sign in to bring the figures up to date. Press ', b('Exit'), ' in the top corner to go back to the Summary.'),
@@ -524,7 +551,7 @@ function workingTogether(): Child[] {
     ),
     topic(
       'When two people change the same row',
-      p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, your save stops and you see the message below, starting with what you were saving. If you are already typing in another form, it waits until you close that form:'),
+      p('The tracker never silently overwrites someone else’s edit. If another volunteer saved a change to a row after you opened it, or the organiser corrected it in the sheet, your save stops and you see the message below, starting with what you were saving. If you are already typing in another form, it waits until you close that form:'),
       p(said(SAID.conflict)),
       steps(['Press ', b('Reload'), '.'], ['Open the row again and look at what changed.'], ['Make your change again if it is still needed.']),
       p('If you reopen a save that seemed to fail and press Save again, the tracker checks whether the first one actually went through. If it did, nothing is added twice. If the saved values differ from what you are sending, you see the same message — reload and check the row.'),
@@ -551,39 +578,94 @@ function forTheOrganiser(): Child[] {
     p('These tasks happen in the Google Sheet behind the tracker, not in the app.'),
     topic(
       'Volunteers',
-      p('Add each volunteer’s Google email address to the ', b('Allowlist'), ' tab, one per row. To remove someone, delete their row. The change takes effect the next time they do anything in the tracker.'),
+      p('Add each volunteer’s Google email address to the ', b('Allowlist'), ' tab, one per row, in the first column. To remove someone, delete their row. The change takes effect the next time they do anything in the tracker.'),
+      p('To remember whose address is whose, you can type each volunteer’s name in the second column, next to their email. The tracker reads only the first column.'),
     ),
     topic(
-      'Payment methods and the goal',
+      'Payment methods, the goal and the drive’s name',
       p('The ', b('Settings'), ' tab has one setting per row. ', b('paymentMethods'), ' is the list volunteers pick from, separated by commas — for example Cash,Bank Transfer,Card,Check,Online,Other. ', b('goal'), ' is the fundraiser target; volunteers can also change it with ', b('Edit goal'), ' on the Summary.'),
+      p(
+        b('campaignName'),
+        ' is the title of the Friday display, such as Masjid Expansion 2026. Left blank, the display says Fundraiser. If the tab has no campaignName row, add one: campaignName in the first column and the name in the second.',
+      ),
       p('Volunteers see changes to Settings after pressing Refresh. Payments that use a method you removed are grouped as “Other / unlisted” on the Summary, and must be given a listed method the next time someone edits them.'),
     ),
     topic(
       'Keeping the sheet healthy',
       bullets(
         ['Do not format the Pledges or Payments columns as ', b('Plain text'), '. Leave them on Automatic, or phone numbers and dates get corrupted.'],
-        ['Add pledges and payments through the app. Rows typed directly into the sheet have no id and are ignored.'],
+        [
+          'Add pledges and payments through the app. A row typed or pasted into the sheet with a blank ',
+          b('id'),
+          ' (the first column) is left out of every total and list, so a totals or notes row under the data does no harm. When such rows look like real pledges or payments, the Summary says how many, under Data health.',
+        ],
+        [
+          'To bring those rows in, give each one an id no other row uses. Type a new word and a number in the id column of the first row, such as dinner1, then drag the small square at the corner of that cell down the batch to fill in dinner2, dinner3 and so on. Use a different word for each batch.',
+        ],
+        [
+          'You can correct a pledge or payment directly in the sheet. The tracker marks the row as changed, filling in ',
+          b('updatedAt'),
+          ' and ',
+          b('updatedBy'),
+          ' for you, so a volunteer who opened it before your fix is asked to reload instead of saving the old values over it. Rows brought in with ',
+          b('File → Import'),
+          ' are not marked, so do not use Import to change rows.',
+        ],
+        [
+          'Add your own columns to Pledges or Payments only to the right of the last one, ',
+          b('updatedBy'),
+          '. Do not rename, move or delete the existing columns, and do not rename or delete the tabs. Otherwise the tracker stops loading and saving until the change is undone; ',
+          b('Version history'),
+          ' is the quickest way.',
+        ],
       ),
+    ),
+    topic(
+      'Bring back a deleted or changed row',
+      p(
+        'Whenever a volunteer edits or deletes a pledge or payment, the tracker first copies the old row to the ',
+        b('Pledges history'),
+        ' or ',
+        b('Payments history'),
+        ' tab. The last three columns say when (',
+        b('changedAt'),
+        '), who (',
+        b('changedBy'),
+        ') and whether it was an ',
+        b('edit'),
+        ' or a ',
+        b('delete'),
+        ' (',
+        b('action'),
+        ').',
+      ),
+      steps(
+        ['Find the row in the history tab. The newest are at the bottom.'],
+        ['Select its first 8 cells, from ', b('id'), ' to ', b('updatedBy'), ', and copy them. Leave out the last three.'],
+        ['For a deleted row, paste them into the first empty row of the Pledges or Payments tab. For an edited row, paste them over the row with the same id instead, or it will be counted twice.'],
+        ['The row keeps its id, so volunteers see it after pressing ', b('Refresh'), '.'],
+      ),
+      p(
+        'If the history tabs do not have it (a change from before they existed, or one made directly in the sheet), open ',
+        b('File → Version history → See version history'),
+        ', click a version from before the mistake, copy the row’s first 8 cells there, then go back to the current sheet and paste them in the same way.',
+      ),
+      note(
+        'Do not press ',
+        b('Restore this version'),
+        ' to get a row back. It rolls back the whole sheet, so every pledge and payment any volunteer entered or changed since that version is lost.',
+      ),
+      p('The history tabs keep deleted rows, phone numbers included. To remove a donor’s details for good, delete their rows from the history tab too.'),
     ),
     topic(
       'Data safety routine',
       p('The Sheet is the only copy of the fundraiser’s records. A little routine protects it.'),
       bullets(
         [
-          b('Undo a bad change with Version history'),
-          ' — in the Google Sheet, ',
-          b('File → Version history → See version history'),
-          ', find the version from before the mistake, and press ',
+          b('Bring back one row at a time'),
+          ' — copy it from a history tab or an old version, as described above, instead of pressing ',
           b('Restore this version'),
-          '.',
-        ],
-        [
-          b('Download a copy'),
-          ' — on ',
-          b('Summary'),
-          ', press ',
-          b('Download .xlsx'),
-          ' once a month and again right after each event, and keep the file somewhere safe (a laptop, a shared drive) outside the Sheet itself.',
+          ', which undoes every volunteer’s work since that version.',
         ],
         [
           b('Add a second editor'),
@@ -591,10 +673,90 @@ function forTheOrganiser(): Child[] {
           b('Editor'),
           ' (not just Viewer), so the fundraiser’s records are never locked to one person’s Google account.',
         ],
+        [
+          b('Keep a copy of the Sheet'),
+          ' — once a month and again right after each event, the second editor opens the Sheet and uses ',
+          b('File → Make a copy'),
+          ', naming the copy with the date, such as ICG backup 2026-09-24. The copy stays in their own Google Drive and keeps every tab (Settings and the Allowlist too) and the tracker’s script, so the tracker can be set up again from it if the Sheet is ever lost. docs/SETUP.md in the project’s GitHub repository explains how.',
+        ],
+        [
+          b('Download .xlsx'),
+          ' on the Summary is a readable record for the treasurer, not the backup. The tracker cannot be set up again from it.',
+        ],
         [b('Never delete the Sheet or its Apps Script project'), ' — that is the tracker’s only database; deleting either takes every pledge and payment with it.'],
       ),
     ),
-    topic('Setup and troubleshooting', p('Setting the tracker up, and fixing setup problems, is covered in docs/SETUP.md in the project’s GitHub repository.')),
+    topic(
+      'When the drive ends',
+      p('The tracker runs one drive at a time. When a drive is over:'),
+      steps(
+        [
+          b('Keep a final copy'),
+          ' — in the sheet, use ',
+          b('File → Make a copy'),
+          ', named for the drive, such as ICG final 2026. For the treasurer, also press ',
+          b('Download .xlsx'),
+          ' on ',
+          b('Summary'),
+          ': a readable record of the final figures, not a backup.',
+        ],
+        [
+          b('Take everyone else off the Allowlist'),
+          ' — everyone on it can still open the tracker and see every donor’s phone number, for as long as their row is there. Delete every row except your own.',
+        ],
+        [
+          b('Switch the tracker off only if it will never be used again'),
+          ' — in Apps Script, ',
+          b('Deploy → Manage deployments → Archive'),
+          '. Its web address then stops working for good, so another drive would need the tracker set up again. If there may be another drive, leave it on: with only you on the Allowlist, nobody else can get in.',
+        ],
+        [
+          b('Decide when donors’ phone numbers are deleted'),
+          ' — and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), every copy of the sheet (ask the second editor to delete their monthly copies, since only they can), and every downloaded .xlsx file. Deleting a tab does not take it out of the sheet’s ',
+          b('Version history'),
+          ', whose older versions still hold the numbers, and only deleting the whole sheet removes those. So if the tracker will not be used again, delete the whole sheet.',
+        ],
+      ),
+    ),
+    topic(
+      'Starting the next drive',
+      p('Keep the same sheet, so the tracker’s web address carries on working. Do this when no one is using the tracker.'),
+      steps(
+        [
+          'In the sheet, choose ',
+          b(`${SAID.trackerMenu} → ${SAID.newDriveMenu}`),
+          ' from the menu bar, type a name for the finished drive, such as 2026, and press OK. It copies the ',
+          b('Pledges'),
+          ', ',
+          b('Payments'),
+          ', ',
+          b('Pledges history'),
+          ' and ',
+          b('Payments history'),
+          ' tabs into new tabs named like Pledges 2026, then empties the four originals, keeping row 1. The tracker only uses the tabs with exactly those four names, so it ignores the copies.',
+        ],
+        ['Set the new goal with ', b('Edit goal'), ' on the Summary, and the new drive’s name in the ', b('campaignName'), ' row of the Settings tab.'],
+        ['Put the new drive’s volunteers back on the Allowlist.'],
+        ['Ask every volunteer to press ', b('Refresh'), ' before adding anything. A page left open still shows the old drive until it reloads.'],
+      ),
+      p(
+        'To do the first step by hand instead, do this for each of the four tabs: right-click the tab’s name, choose ',
+        b('Duplicate'),
+        ', and rename the copy with the drive’s name, such as Pledges 2026. Then, in the original tab, click the 2 at the left of row 2, hold Shift and click the number of the last row, and press Delete on the keyboard, which empties the rows. Make sure no one is using the tracker, since a save made halfway through can be lost.',
+      ),
+      note('Never clear or delete row 1, the row of column names. Without it, the tracker stops loading and saving.'),
+    ),
+    topic(
+      'Setup and troubleshooting',
+      p('Setting the tracker up, and fixing setup problems, is covered in docs/SETUP.md in the project’s GitHub repository.'),
+      p(
+        'This copy of the app ',
+        ...(SITE_COMMIT === '' ? ['is a local build'] : ['was built from commit ', b(SITE_COMMIT)]),
+        '. It works with the Code.gs that contains the line ',
+        b(`const API_VERSION = ${SITE_API_VERSION};`),
+        '. Mention both when you report a problem.',
+      ),
+    ),
   ];
 }
 

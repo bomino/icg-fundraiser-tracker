@@ -2,6 +2,12 @@
 // the owner, so only this script ever touches the Sheet. Every request must carry a Google ID
 // token for an allowlisted, verified email.
 
+// The site is built against this number (vite.config.ts reads this exact line) and compares it with
+// the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
+// when this script and the site are deployed out of step. Raise it on every edit to this file;
+// test/server/code.test.ts fails until you do.
+const API_VERSION = 4;
+
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
   Payments: ['id', 'phone', 'dateReceived', 'amountReceived', 'method', 'notes', 'updatedAt', 'updatedBy'],
@@ -10,9 +16,10 @@ const ENTRY_FIELDS = {
   Pledges: ['phone', 'name', 'datePledged', 'amountPledged', 'notes'],
   Payments: ['phone', 'dateReceived', 'amountReceived', 'method', 'notes'],
 };
+const HISTORY_HEADERS = ['changedAt', 'changedBy', 'action'];
 const AMOUNT_FIELDS = ['amountPledged', 'amountReceived'];
 const DATE_FIELDS = ['datePledged', 'dateReceived'];
-const DEFAULT_SETTINGS = [['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other']];
+const DEFAULT_SETTINGS = [['goal', 10000], ['paymentMethods', 'Cash,Bank Transfer,Card,Check,Online,Other'], ['campaignName', 'Fundraiser']];
 // Keep in step with web/src/validate.ts.
 const MAX_TEXT = 500;
 const MAX_AMOUNT = 1000000000;
@@ -33,29 +40,43 @@ class ApiError extends Error {
 }
 
 function doPost(e) {
+  let request = {};
   let body;
   try {
-    const request = JSON.parse(e.postData.contents);
+    request = readRequest_(e);
     const email = verifyToken_(request.idToken);
     body = { ok: true, data: dispatch_(request.op, request.payload || {}, email) };
   } catch (err) {
-    body = { ok: false, error: errorBody_(err) };
+    body = { ok: false, error: errorBody_(err, request) };
   }
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Parsed on its own so that a JSON.parse error, which quotes the raw body and its idToken, is
+// never logged: a body that can't be read has no known token to mask.
+function readRequest_(e) {
+  let request;
+  try {
+    request = JSON.parse(e.postData.contents);
+  } catch (err) {
+    request = null;
+  }
+  if (request === null || typeof request !== 'object') throw new ApiError('BAD_REQUEST', 'The request could not be read.');
+  return request;
 }
 
 function dispatch_(op, payload, email) {
   switch (op) {
     case 'load':
-      return { pledges: readRows_('Pledges'), payments: readRows_('Payments'), settings: readSettings_(), me: email };
+      return load_(email);
     case 'upsertPledge':
       return withLock_(() => upsert_('Pledges', payload, email));
     case 'upsertPayment':
       return withLock_(() => upsert_('Payments', payload, email));
     case 'deletePledge':
-      return withLock_(() => remove_('Pledges', payload));
+      return withLock_(() => remove_('Pledges', payload, email));
     case 'deletePayment':
-      return withLock_(() => remove_('Payments', payload));
+      return withLock_(() => remove_('Payments', payload, email));
     case 'setSetting':
       return withLock_(() => setSetting_(payload));
     default:
@@ -63,16 +84,30 @@ function dispatch_(op, payload, email) {
   }
 }
 
-function errorBody_(err) {
-  if (err instanceof ApiError) return Object.assign({ code: err.code, message: err.message }, err.extra);
-  // Never log err.message: for a JSON.parse failure it can echo the raw request body, idToken included.
-  console.error('Unhandled server error', err && err.name);
+// doPost answers every error itself, so the Executions page lists each run as Completed and these
+// lines are the owner's only trace of what went wrong. Every line has the caller's token masked.
+function errorBody_(err, request) {
+  if (err instanceof ApiError) {
+    // The other refusals are the volunteer's to fix; these show how often the tracker is
+    // overloaded, and who was turned away (an Allowlist typo, say).
+    if (err.code === 'BUSY' || err.code === 'FORBIDDEN') console.warn(maskToken_(err.code + ' in ' + request.op + ': ' + err.message, request.idToken));
+    return Object.assign({ code: err.code, message: err.message }, err.extra);
+  }
+  // The whole stack, message included, because "Service Spreadsheets timed out" and a TypeError
+  // need different fixes. readRequest_ and fetchTokenInfo_ keep out the errors that quote the token.
+  console.error(maskToken_('Unhandled server error in ' + request.op + ': ' + (err && err.stack ? err.stack : err), request.idToken));
   return { code: 'INTERNAL', message: 'Something went wrong on the server. Try again.' };
 }
 
+function maskToken_(text, token) {
+  return typeof token === 'string' && token !== '' ? String(text).split(token).join('<token>') : String(text);
+}
+
 function clientId_() {
-  const clientId = PropertiesService.getScriptProperties().getProperty('CLIENT_ID');
-  // Without it every token looks foreign, which would read to volunteers as an endless "sign-in expired".
+  // Trimmed, because a space or line break pasted in with the value would make every token look foreign.
+  const clientId = (PropertiesService.getScriptProperties().getProperty('CLIENT_ID') || '').trim();
+  // Without it every token looks foreign, and the answer would blame two different sign-in IDs
+  // when the organiser has in fact left this one out.
   if (!clientId) throw new ApiError('INTERNAL', 'The server is not configured: set the CLIENT_ID script property (see docs/SETUP.md).');
   return clientId;
 }
@@ -88,7 +123,7 @@ function verifyToken_(token) {
   const cacheKey = 'tok_' + clientId + '_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
   let email = cache.get(cacheKey);
   if (!email) {
-    const response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+    const response = fetchTokenInfo_(token);
     if (response.getResponseCode() !== 200) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
     const info = JSON.parse(response.getContentText());
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -103,6 +138,15 @@ function verifyToken_(token) {
   return email;
 }
 
+// A failed fetch's own error quotes the URL, token included, so a fixed one is thrown instead.
+function fetchTokenInfo_(token) {
+  try {
+    return UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+  } catch (err) {
+    throw new Error('tokeninfo request failed');
+  }
+}
+
 // Rejects malformed tokens and tokens minted for a different app locally, before spending a
 // network call on them. Tokeninfo (in verifyToken_) remains the actual authority.
 function assertPlausibleToken_(token, clientId) {
@@ -115,7 +159,11 @@ function assertPlausibleToken_(token, clientId) {
   } catch (err) {
     throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
   }
-  if (payload.aud !== clientId) throw new ApiError('UNAUTHENTICATED', 'Your sign-in has expired. Please sign in again.');
+  // The site signs volunteers in for its VITE_GOOGLE_CLIENT_ID, so a token for another audience
+  // means that and CLIENT_ID differ. A fresh sign-in would carry the same audience, so this is not
+  // UNAUTHENTICATED, which the app answers by asking for one. The unverified payload only picks
+  // the message: the request is refused either way.
+  if (payload.aud !== clientId) throw new ApiError('INTERNAL', 'This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.');
 }
 
 function allowlist_() {
@@ -126,7 +174,8 @@ function allowlist_() {
 
 function sheet_(name) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!sheet) throw new ApiError('INTERNAL', 'The "' + name + '" tab is missing. Run setup() in Apps Script.');
+  // setup() only adds tabs, so following it after a rename would leave the records stranded in the renamed tab.
+  if (!sheet) throw new ApiError('INTERNAL', 'The "' + name + '" tab is missing. If it was renamed, rename it back to "' + name + '". Run setup() only when setting up a new Sheet.');
   return sheet;
 }
 
@@ -140,10 +189,62 @@ function withLock_(fn) {
   }
 }
 
+function load_(email) {
+  const pledges = readRows_('Pledges');
+  const payments = readRows_('Payments');
+  return {
+    pledges: pledges.records,
+    payments: payments.records,
+    settings: readSettings_(),
+    me: email,
+    rowsWithoutId: { pledges: pledges.withoutId, payments: payments.withoutId },
+    apiVersion: API_VERSION,
+  };
+}
+
 function readRows_(tab) {
-  return sheet_(tab).getDataRange().getValues().slice(1)
-    .filter((row) => row[0] !== '')
-    .map((row) => toRecord_(tab, row));
+  const values = sheet_(tab).getDataRange().getValues();
+  assertHeaders_(tab, values[0]);
+  const rows = values.slice(1);
+  return {
+    records: rows.filter((row) => row[0] !== '').map((row) => toRecord_(tab, row)),
+    withoutId: rows.filter((row) => row[0] === '' && looksLikeEntry_(tab, row)).length,
+  };
+}
+
+// A row with no id is never loaded, so the Summary says how many look like real entries: a phone,
+// and on Payments an amount. Totals and notes rows under the data have neither, and are left out.
+function looksLikeEntry_(tab, row) {
+  const record = toRecord_(tab, row);
+  if (record.phone.replace(PHONE_IGNORED, '') === '') return false;
+  return tab !== 'Payments' || record.amountReceived !== null;
+}
+
+// Rows are read and written by column position, so a column inserted, moved or deleted in the
+// Sheet would misread every field after it and let the next edit overwrite the new column.
+// Relabelling ("Amount Pledged") is harmless, and so are extra columns after updatedBy, which
+// are never read or written.
+function assertHeaders_(tab, header) {
+  const cells = header || [];
+  const expected = HEADERS[tab];
+  for (let i = 0; i < expected.length; i++) {
+    const cell = cells[i] === undefined ? '' : String(cells[i]).trim();
+    if (headerKey_(cell) !== headerKey_(expected[i])) {
+      const found = cell === '' ? 'blank' : '"' + cell + '"';
+      const problem = 'The ' + ordinal_(i + 1) + ' column of the "' + tab + '" tab should be "' + expected[i] + '" but is ' + found + '.';
+      // Volunteers see this too, so it names who can fix it.
+      throw new ApiError('INTERNAL', problem + ' The organiser needs to undo the change with Version history, or move new columns to the right of updatedBy.');
+    }
+  }
+}
+
+function headerKey_(label) {
+  return label.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function ordinal_(n) {
+  const suffixes = { 1: 'st', 2: 'nd', 3: 'rd' };
+  return n + (suffixes[n] || 'th');
 }
 
 function toRecord_(tab, row) {
@@ -183,18 +284,19 @@ function amountFromCell_(value) {
   return null;
 }
 
+function toSheetRow_(tab, record) {
+  return HEADERS[tab].map((field) => toCell_(record[field]));
+}
+
 // The apostrophe is the only text-forcing mechanism — do not also format Pledges/Payments
 // columns as plain text ('@') in setup(): a '@'-formatted cell stores the apostrophe itself
 // instead of stripping it, corrupting every id/date/text value written this way.
 // It forces Sheets to store text verbatim: keeps leading zeros and '+', stops dates being
 // reinterpreted, and prevents a value like '=HYPERLINK(...)' running as a formula.
-function toSheetRow_(tab, record) {
-  return HEADERS[tab].map((field) => {
-    const value = record[field];
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string' && value !== '') return "'" + value;
-    return value;
-  });
+function toCell_(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' && value !== '') return "'" + value;
+  return value;
 }
 
 function invalid_(field, message) {
@@ -245,8 +347,10 @@ function validateRow_(tab, payload, methods) {
   return row;
 }
 
+// Every append, update and delete looks its row up here first, so this header check guards every write.
 function findRow_(sheet, tab, id) {
   const values = sheet.getDataRange().getValues();
+  assertHeaders_(tab, values[0]);
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(id)) return { rowNumber: i + 1, record: toRecord_(tab, values[i]) };
   }
@@ -290,18 +394,59 @@ function upsert_(tab, payload, email) {
   const found = findRow_(sheet, tab, payload.id);
   assertUnchanged_(found, payload.updatedAt);
   record.id = payload.id;
+  appendHistory_(tab, found.record, email, 'edit');
   sheet.getRange(found.rowNumber, 1, 1, HEADERS[tab].length).setValues([toSheetRow_(tab, record)]);
   return record;
 }
 
-function remove_(tab, payload) {
+function remove_(tab, payload, email) {
   assertValidId_(payload.id);
   if (typeof payload.updatedAt !== 'string') throw invalid_('updatedAt', 'Missing the row version.');
   const sheet = sheet_(tab);
   const found = findRow_(sheet, tab, payload.id);
   assertUnchanged_(found, payload.updatedAt);
+  appendHistory_(tab, found.record, email, 'delete');
   sheet.deleteRow(found.rowNumber);
   return { id: payload.id };
+}
+
+// The script runs as the owner, so the Sheet's own version history can't say which volunteer
+// changed a row, and restoring an old version there undoes everyone's work since. This keeps the
+// version an edit or delete replaces, laid out so its first cells can be pasted straight back.
+// It runs before the change and any failure fails the change, so nothing changes unrecorded.
+function appendHistory_(tab, record, email, action) {
+  const change = { changedAt: new Date().toISOString(), changedBy: email, action: action };
+  historySheet_(tab).appendRow(toSheetRow_(tab, record).concat(HISTORY_HEADERS.map((field) => toCell_(change[field]))));
+}
+
+// Also created on first use, so a Sheet set up before history was kept needs no setup() re-run.
+function historySheet_(tab) {
+  return ensureTab_(SpreadsheetApp.getActiveSpreadsheet(), historyTabName_(tab), HEADERS[tab].concat(HISTORY_HEADERS), () => {});
+}
+
+function historyTabName_(tab) {
+  return tab + ' history';
+}
+
+// A simple trigger: Sheets runs it for edits typed or pasted into the Sheet, never for this
+// script's own writes. Without a new updatedAt, a volunteer who opened the row before the edit
+// would pass the version check and save the old values back over it. Only rows that already have
+// an id are stamped, since giving a row one would count a totals or notes row as an entry.
+// Columns right of updatedBy are never read or written, so edits there need no new version.
+function onEdit(e) {
+  const sheet = e.range.getSheet();
+  const tab = sheet.getName();
+  if (Object.keys(HEADERS).indexOf(tab) < 0 || e.range.getColumn() > HEADERS[tab].length) return;
+  const first = Math.max(e.range.getRow(), 2);
+  const count = e.range.getLastRow() - first + 1;
+  if (count < 1) return;
+  // After a column is moved, updatedAt's place holds some other field, which a stamp would overwrite.
+  assertHeaders_(tab, sheet.getRange(1, 1, 1, HEADERS[tab].length).getValues()[0]);
+  const stamp = [[toCell_(new Date().toISOString()), toCell_((e.user && e.user.getEmail()) || 'edited in Sheet')]];
+  const versionColumn = HEADERS[tab].indexOf('updatedAt') + 1;
+  sheet.getRange(first, 1, count, 1).getValues().forEach((row, i) => {
+    if (row[0] !== '') sheet.getRange(first + i, versionColumn, 1, 2).setValues(stamp);
+  });
 }
 
 function readSettings_() {
@@ -313,6 +458,7 @@ function readSettings_() {
   return {
     goal: goal === null || isFinite(goal) ? goal : null,
     paymentMethods: String(values.paymentMethods || '').split(',').map((method) => method.trim()).filter(Boolean),
+    campaignName: String(values.campaignName || '').trim(),
   };
 }
 
@@ -344,12 +490,64 @@ function setup() {
     const owner = Session.getEffectiveUser().getEmail();
     if (owner) sheet.appendRow([owner]);
   });
+  Object.keys(HEADERS).forEach((tab) => historySheet_(tab));
+}
+
+// A simple trigger. The organiser's tasks sit in the Sheet's own menu because they ask before
+// changing anything, and the Apps Script editor can't show a dialog (getUi() throws there), so
+// they can't be started from its Run button by mistake either.
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Fundraiser tracker').addItem('Start a new drive…', 'startNewDrive').addToUi();
+}
+
+// Keeps the finished drive in tabs named for it, which the app never reads, then empties the live
+// tabs from row 2 down, all under the lock so that no save lands between the copy and the clear.
+// It clears the rows rather than deleting them: Sheets refuses to delete every row below a frozen
+// header, which deleting rows 2 to the last becomes once appendRow has grown a tab past 1,000 rows.
+function startNewDrive() {
+  const ui = SpreadsheetApp.getUi();
+  const answer = ui.prompt(
+    'Start a new drive',
+    'This copies the Pledges and Payments tabs and their two history tabs into new tabs named with what you type, then empties the four originals from row 2 down, ready for the next drive. Ask volunteers to stop using the tracker first. Type a name for the finished drive, such as 2026:',
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (answer.getSelectedButton() !== ui.Button.OK) return;
+  const label = answer.getResponseText().trim();
+  if (label === '') {
+    ui.alert('Start a new drive', 'Nothing was changed. Type a name for the finished drive, such as 2026.', ui.ButtonSet.OK);
+    return;
+  }
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const tabs = Object.keys(HEADERS);
+  const names = tabs.concat(tabs.map((tab) => historyTabName_(tab)));
+  const taken = names.map((name) => name + ' ' + label).filter((name) => spreadsheet.getSheetByName(name));
+  if (taken.length > 0) {
+    ui.alert('Start a new drive', 'Nothing was changed: there is already a tab named "' + taken[0] + '". Start again and type another name.', ui.ButtonSet.OK);
+    return;
+  }
+  withLock_(() => {
+    tabs.forEach((tab) => assertHeaders_(tab, sheet_(tab).getRange(1, 1, 1, HEADERS[tab].length).getValues()[0]));
+    const sheets = tabs.map((tab) => sheet_(tab)).concat(tabs.map((tab) => historySheet_(tab)));
+    // Every copy is made before anything is cleared, so a copy that fails costs no rows.
+    sheets.forEach((sheet) => sheet.copyTo(spreadsheet).setName(sheet.getName() + ' ' + label));
+    sheets.forEach((sheet) => {
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+    });
+  });
+  ui.alert(
+    'Start a new drive',
+    'Done. The finished drive is in the tabs ending "' + label + '". Next, set the new goal and campaignName on the Settings tab, put the new volunteers on the Allowlist, and ask every volunteer to press Refresh before adding anything.',
+    ui.ButtonSet.OK,
+  );
 }
 
 function ensureTab_(spreadsheet, name, headers, initialise) {
-  if (spreadsheet.getSheetByName(name)) return;
+  const existing = spreadsheet.getSheetByName(name);
+  if (existing) return existing;
   const sheet = spreadsheet.insertSheet(name);
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.setFrozenRows(1);
   initialise(sheet);
+  return sheet;
 }

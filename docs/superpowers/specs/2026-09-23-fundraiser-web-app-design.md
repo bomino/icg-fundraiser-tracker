@@ -44,24 +44,26 @@ ui/*     Summary · Pledges · Payments · Find donor
 
 - **Full load and client-side calculation.** `load` returns every row of every tab. The engine recalculates everything in memory after each load or change. At the expected volume the payload is under 1 MB and the calculation takes milliseconds, so the O(n²) lookup cost of the sheet formulas goes away.
 - **No CORS preflight.** Requests are `POST` with `Content-Type: text/plain;charset=utf-8` and a JSON body. Apps Script can't answer an `OPTIONS` preflight, and its responses reach the browser through a `googleusercontent.com` redirect, which `fetch` follows.
-- **Config** comes from two build-time variables: `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID`. Neither is secret, because security rests on the server-side token check and allowlist.
+- **Config** comes from two build-time variables: `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID`. Neither is secret, because security rests on the server-side token check and allowlist. A build without them still succeeds and shows "Not set up yet", so the deploy workflow checks both before uploading the site and deploys nothing when either is missing or malformed (§8). Added 2026-09-25.
 
 ## 3. Google Sheet schema
 
-Row 1 holds the headers and data starts at row 2. There are no formulas anywhere. `setup()` in Apps Script creates the tabs and headers and freezes row 1. Leading zeros in `phone` are kept by apostrophe-prefixing the text at write time (`toSheetRow_`), not by formatting the column as Plain text — a Plain-text cell stores the apostrophe literally instead of hiding it, corrupting ids, phone numbers and dates (see `CLAUDE.md`).
+Row 1 holds the headers and data starts at row 2. There are no formulas anywhere. `setup()` in Apps Script creates the tabs and headers and freezes row 1. Pledges and Payments are read and written by column position, so every read and write first checks their row 1 (ignoring case and anything but letters and digits) and answers `INTERNAL`, naming the first column out of place, if a column was inserted, moved or deleted; extra columns after `updatedBy` are allowed. Leading zeros in `phone` are kept by apostrophe-prefixing the text at write time (`toSheetRow_`), not by formatting the column as Plain text — a Plain-text cell stores the apostrophe literally instead of hiding it, corrupting ids, phone numbers and dates (see `CLAUDE.md`).
 
 | Tab | Columns |
 |---|---|
 | `Pledges` | `id` · `phone` · `name` · `datePledged` · `amountPledged` · `notes` · `updatedAt` · `updatedBy` |
 | `Payments` | `id` · `phone` · `dateReceived` · `amountReceived` · `method` · `notes` · `updatedAt` · `updatedBy` |
-| `Settings` | key/value rows: `goal` (default 10000), `paymentMethods` (default `Cash,Bank Transfer,Card,Check,Online,Other`) |
-| `Allowlist` | `email` (one per row, compared case-insensitively) |
+| `Settings` | key/value rows: `goal` (default 10000), `paymentMethods` (default `Cash,Bank Transfer,Card,Check,Online,Other`), `campaignName` (default `Fundraiser`; the Friday display's title, which reads `Fundraiser` when it is blank or missing; added 2026-09-25) |
+| `Allowlist` | `email` (one per row, compared case-insensitively); the organiser may keep a `name` in column B, which is never read |
+| `Pledges history` / `Payments history` | the `Pledges`/`Payments` columns, then `changedAt` · `changedBy` · `action` (`edit` or `delete`) |
 
 - `id` is a UUID chosen by the client (`crypto.randomUUID()`) — the server only validates its shape. A create is therefore idempotent by id: a Save retried after a lost response cannot add a duplicate.
-- `updatedAt` is an ISO timestamp and `updatedBy` an email, both stamped by the server.
+- `updatedAt` is an ISO timestamp and `updatedBy` an email, both stamped by the server. An edit typed or pasted straight into a Pledges or Payments row that has an `id` is stamped too, by an `onEdit` simple trigger (`updatedBy` is `edited in Sheet` when Google doesn't share the editor's email), so a volunteer's older copy fails the version check instead of overwriting the fix. The trigger never adds an `id`. Added 2026-09-25.
 - Dates are stored as ISO `YYYY-MM-DD` text, so nothing is shifted by time zones.
 - Amounts are stored as numbers with at most 2 decimals. A blank cell means "not entered", which is different from 0 (§5).
 - Row order in the Sheet is insertion order. The engine keeps that order, because "first matching pledge" matters (§5.3).
+- The history tabs hold the version of a row that each edit or delete replaced, with when, which volunteer (the caller's email) and which action, so the organiser can copy a row's first 8 cells back (`docs/SETUP.md`, Data safety routine). The script runs as the owner, so the Sheet's own version history names only the owner, and restoring a version there rolls back every volunteer's entries since. `load` never reads these tabs. Added 2026-09-25, reversing §9's original exclusion of any edit history.
 
 ## 4. Apps Script API (`apps-script/Code.gs`)
 
@@ -71,16 +73,18 @@ Every request looks like `{idToken, op, payload}`. Every response is `{ok: true,
 - Call `https://oauth2.googleapis.com/tokeninfo?id_token=…`.
 - Require `aud == CLIENT_ID` (a Script property), `email_verified == "true"`, an `exp` in the future, and the email on the `Allowlist` tab.
 - Cache the verified email in `CacheService`, keyed by a hash of the token, for `min(300 s, exp − now)`.
-- Error codes: `UNAUTHENTICATED` for a bad or expired token, `FORBIDDEN` for an email not on the allowlist.
+- Error codes: `UNAUTHENTICATED` for a bad or expired token, `FORBIDDEN` for an email not on the allowlist. A token whose own payload names an audience other than `CLIENT_ID` answers `INTERNAL` "This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.", because signing in again can't fix it (§7). Added 2026-09-25.
 
 | op | payload | behaviour |
 |---|---|---|
-| `load` | — | `{pledges[], payments[], settings, me: email}` |
-| `upsertPledge` / `upsertPayment` | row (without `id` for an insert; with `id` and `updatedAt` for an update) | Validates (§7). For an update, if the stored `updatedAt` ≠ the sent `updatedAt`, returns `CONFLICT` with the current row. Otherwise stamps and writes the row and returns it. |
-| `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then deletes the sheet row. `NOT_FOUND` if the row is gone. |
+| `load` | — | `{pledges[], payments[], settings, me: email, rowsWithoutId: {pledges, payments}, apiVersion}`. Rows with a blank `id` are skipped; `rowsWithoutId` counts the skipped rows that look like entries (a non-blank phone, plus an amount on Payments), so a totals or notes row isn't counted. Ids are never filled in automatically. `apiVersion` is the script's `API_VERSION` (§7, Errors and state). |
+| `upsertPledge` / `upsertPayment` | row (without `id` for an insert; with `id` and `updatedAt` for an update) | Validates (§7). For an update, if the stored `updatedAt` ≠ the sent `updatedAt`, returns `CONFLICT` with the current row. Otherwise appends the stored row to the history tab (§3), then stamps and writes the row and returns it. |
+| `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then appends the row to the history tab (§3) and deletes it from the sheet. `NOT_FOUND` if the row is gone. A history write that fails fails the edit or delete. |
 | `setSetting` | `{key: "goal", value}` | Goal must be a number ≥ 0. `paymentMethods` can't be changed from the app; edit it in the Sheet. |
 
 Writes run under `LockService.getScriptLock().tryLock(10000)`, which throws `BUSY` "The tracker is busy. Try again in a moment." rather than waiting indefinitely, and rows are found by scanning column A for the `id`. `setup()` is run once by hand from the Apps Script editor.
+
+A body that isn't a JSON object answers `BAD_REQUEST` "The request could not be read." Any other unexpected failure answers `INTERNAL` "Something went wrong on the server. Try again." and is logged for the owner with its operation and stack; `BUSY` and `FORBIDDEN` are logged as one-line warnings. The caller's token is masked in every log line (see `docs/SETUP.md`, "Reading the server's log").
 
 ## 5. Calculation engine (`web/src/engine.ts`)
 
@@ -198,7 +202,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 
 **Screens**
 - **Top bar:** app name, the signed-in email, and sign-out. The tabs are Summary, Pledges, Payments and Find donor. The last view used is remembered in `localStorage`.
-- **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links, the method breakdown, and a "Download .xlsx" export.
+- **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links (followed by a neutral note when `load` reports rows with no id, which no health check can see), the method breakdown, and a "Download .xlsx" export.
 - **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
   - Derived columns are read-only and styled differently.
   - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date.
@@ -209,7 +213,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
   - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed.
   - Help text under each field reuses the workbook's header tooltips.
   - Delete lives inside the edit dialog and asks for confirmation.
-- **Export:** SheetJS builds a workbook with a Pledges sheet (entries plus derived columns), a Payments sheet and a Summary sheet. It's a backup and treasurer copy, not a round-trip format.
+- **Export:** SheetJS builds a workbook with a Pledges sheet (entries plus derived columns), a Payments sheet and a Summary sheet. It's a treasurer copy, not a backup, and not a round-trip format: it has no row ids and no Allowlist, so the backup is the Sheet's own **File → Make a copy** (`docs/SETUP.md`, Data safety routine). Changed 2026-09-25.
 
 **Validation**, identical on client and server:
 - `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23.
@@ -226,6 +230,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.
 - `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser."
 - A network failure or `navigator.onLine === false` shows a banner. The app makes no attempt to work offline.
+- A site and `Code.gs` deployed out of step show a banner after any load. The site is built for the `API_VERSION` in its own copy of `Code.gs` and compares it with `load`'s `apiVersion`. A missing or lower server version reads "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).", a higher one "The tracker was updated. Reload this page to get the latest version." Neither blocks saving, and the server never rejects a request over its version. Added 2026-09-25.
 
 **Wording** follows the workbook's column names and the guide's plain language.
 
@@ -261,19 +266,23 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 1. Create the Sheet.
 2. Paste in `Code.gs` and run `setup()`.
 3. Add emails to Allowlist.
-4. Create a Google Cloud OAuth *Web* client ID, with the Pages origin as an authorized JavaScript origin.
+4. Create a Google Cloud OAuth *Web* client ID, with the Pages origin as its only authorized JavaScript origin. Local work uses demo mode; `localhost` origins are added only for a session run against the real Sheet, and removed afterwards (clarified 2026-09-25).
 5. Set the Script property `CLIENT_ID`.
 6. Deploy as a web app: execute as me, access "Anyone".
 7. Set the `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID` repo variables and enable Pages from Actions.
 
-The Vite `base` is set to the repo name.
+The Vite `base` is set to the repo name. Vite also reads `API_VERSION` from `apps-script/Code.gs`, so every change to `Code.gs` raises it (a test enforces this) and is deployed before the site (§7, Errors and state).
+
+Before uploading the site, the build job checks the two repo variables on every run except a pull request's: `VITE_SCRIPT_URL` must be an Apps Script `/exec` URL (the `/macros/s/…` form or a Workspace account's `/a/macros/<domain>/s/…`), and `VITE_GOOGLE_CLIENT_ID` must end in `.apps.googleusercontent.com` with no whitespace. Otherwise the run fails, naming the variable and the `SETUP.md` step, and the live site is left as it was. Added 2026-09-25.
 
 **Privacy:** the repo, CI logs and the build contain no donor data. Fixtures use `555-01xx` numbers and made-up names. The Sheet stays private to the owner; only the Apps Script, running as the owner, touches it.
+
+**End of a drive:** `SETUP.md` also covers closing a drive: a final copy, cutting the Allowlist down to the organiser (everyone on it can load every donor's phone number for as long as their row stays), archiving the deployment only if the tracker won't be reused (archiving kills the `/exec` URL), and a date for deleting donor phone numbers. The next drive reuses the same Sheet: the Sheet's **Fundraiser tracker → Start a new drive…** menu (`startNewDrive` in `Code.gs`, added by an `onOpen` simple trigger), or the organiser by hand, copies `Pledges`, `Payments` and both history tabs to tabs named with a label, which the app never reads, then clears the originals from row 2 down, never row 1. The script does it under the lock and with `clearContent()`, not `deleteRows`, which Sheets refuses once a tab has grown past its first 1,000 rows. Still one drive at a time (§9). Added 2026-09-25.
 
 ## 9. Out of scope
 
 - offline use
-- an edit history beyond `updatedAt`/`updatedBy`
+- an in-app edit history or undo. (This line first excluded any edit history beyond `updatedAt`/`updatedBy`; since 2026-09-25 the Sheet's history tabs keep each edited or deleted row's old version for the organiser, §3. Goal changes are still not recorded.)
 - roles or permissions
 - receipts and emails
 - multiple campaigns

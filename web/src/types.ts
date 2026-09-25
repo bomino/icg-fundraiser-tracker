@@ -23,6 +23,14 @@ export interface Payment {
 export interface Settings {
   goal: number | null;
   paymentMethods: string[];
+  /** The Friday display's title. Absent from a Code.gs deployed before it read one. */
+  campaignName?: string;
+}
+
+/** Rows in each tab that the server skipped for having no id, though they look like entries. */
+export interface RowsWithoutId {
+  pledges: number;
+  payments: number;
 }
 
 export type PledgeDraft = Pick<Pledge, 'phone' | 'name' | 'datePledged' | 'amountPledged' | 'notes'>;

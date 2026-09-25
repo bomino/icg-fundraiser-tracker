@@ -8,6 +8,7 @@ import type { State, Store } from '../../web/src/store';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
 import { PAYMENT_HELP, PLEDGE_HELP } from '../../web/src/ui/help';
 import { HELP_SECTIONS, QUOTED_MESSAGES, createHelpView } from '../../web/src/ui/helpView';
+import { SITE_API_VERSION, SITE_COMMIT } from '../../web/src/version';
 import { SETTINGS, TODAY, pledge } from '../support/factories';
 
 const SECTION_TITLES = [
@@ -23,7 +24,7 @@ const SECTION_TITLES = [
 
 function fakeStore() {
   const pledges = [pledge({ id: 'p1', phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 100 })];
-  const state: State = { pledges, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, [], SETTINGS, TODAY) };
+  const state: State = { pledges, payments: [], settings: SETTINGS, me: 'me@example.com', apiVersion: SITE_API_VERSION, computed: compute(pledges, [], SETTINGS, TODAY) };
   const listeners = new Set<(state: State) => void>();
   const store = {
     state: () => state,
@@ -135,6 +136,18 @@ describe('createHelpView', () => {
     for (const status of Object.values(STATUS)) expect(text).toContain(status);
     expect(text).toContain(WARN_NOT_IN_PLEDGES);
     expect(text).toContain(WARN_NO_AMOUNT);
+  });
+
+  it('explains both out-of-date banners', () => {
+    const text = createHelpView().textContent ?? '';
+    expect(text).toContain("The tracker's server is out of date.");
+    expect(text).toContain('The tracker was updated. Reload this page to get the latest version.');
+  });
+
+  it('names the commit the site was built from and the Code.gs it needs, for the organiser to quote', () => {
+    const text = createHelpView().textContent ?? '';
+    expect(text).toContain(SITE_COMMIT === '' ? 'This copy of the app is a local build' : `This copy of the app was built from commit ${SITE_COMMIT}`);
+    expect(text).toContain(`const API_VERSION = ${SITE_API_VERSION};`);
   });
 
   it('describes the form fields with the same help the forms show', () => {

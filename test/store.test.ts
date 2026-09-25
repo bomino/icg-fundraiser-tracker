@@ -61,6 +61,29 @@ describe('store', () => {
     vi.useRealTimers();
   });
 
+  it('keeps the count of sheet rows with no id from the latest load through saves and goal changes', async () => {
+    const rowsWithoutId = { pledges: 2, payments: 1 };
+    const store = createStore(fakeApi({ load: async () => ({ pledges: [aisha], payments: [], settings: SETTINGS, me: 'me@example.com', rowsWithoutId }) }), () => TODAY);
+    await store.load();
+    expect(store.state()?.rowsWithoutId).toEqual(rowsWithoutId);
+    await store.savePledge({ ...draftOf(aisha), name: 'Aisha R.' }, aisha);
+    await store.setGoal(5000);
+    expect(store.state()?.rowsWithoutId).toEqual(rowsWithoutId);
+  });
+
+  it("keeps the server's API version from the latest load through saves and goal changes", async () => {
+    let apiVersion = 3;
+    const store = createStore(fakeApi({ load: async () => ({ pledges: [aisha], payments: [], settings: SETTINGS, me: 'me@example.com', apiVersion }) }), () => TODAY);
+    await store.load();
+    expect(store.state()?.apiVersion).toBe(3);
+    await store.savePledge({ ...draftOf(aisha), name: 'Aisha R.' }, aisha);
+    await store.setGoal(5000);
+    expect(store.state()?.apiVersion).toBe(3);
+    apiVersion = 4;
+    await store.load();
+    expect(store.state()?.apiVersion).toBe(4);
+  });
+
   it('shows a new row immediately, then swaps in the server copy', async () => {
     const pending = deferred<Pledge>();
     const store = createStore(fakeApi({ savePledge: () => pending.promise }), () => TODAY);

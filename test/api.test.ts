@@ -184,6 +184,24 @@ describe('createApi', () => {
       await expect(api.savePledge(pledgeDraft, { id: 'p1', updatedAt: 'v1' })).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
+    it('compares every field the draft carries, so a field added later cannot be skipped', async () => {
+      const draftWithNewField = { ...pledgeDraft, receiptNumber: 'R-2' };
+      const api = createApi(URL, async () => 'tok', conflictOn({ ...currentPledge, receiptNumber: 'R-1' }));
+      await expect(api.savePledge(draftWithNewField, { id: 'p1', updatedAt: 'v1' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
+    it('matches a blank amount against the blank the server sends back', async () => {
+      const blankCurrent = { ...currentPledge, amountPledged: null };
+      const api = createApi(URL, async () => 'tok', conflictOn(blankCurrent));
+      await expect(api.savePledge({ ...pledgeDraft, amountPledged: null }, { id: 'p1', updatedAt: 'v1' })).resolves.toEqual(blankCurrent);
+    });
+
+    it('still throws when the saved row lacks an amount the draft leaves blank', async () => {
+      const withoutAmount = { id: 'p1', phone: '1', name: 'A', datePledged: '', notes: '', updatedAt: 'v2', updatedBy: 'x@y.z' };
+      const api = createApi(URL, async () => 'tok', conflictOn(withoutAmount));
+      await expect(api.savePledge({ ...pledgeDraft, amountPledged: null }, { id: 'p1', updatedAt: 'v1' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
     it('does not recover a CONFLICT on the create path', async () => {
       const api = createApi(URL, async () => 'tok', conflictOn(currentPledge));
       await expect(api.savePledge(pledgeDraft, { id: 'new-id' })).rejects.toMatchObject({ code: 'CONFLICT' });

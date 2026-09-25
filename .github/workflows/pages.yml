@@ -25,6 +25,36 @@ jobs:
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_SCRIPT_URL: ${{ vars.VITE_SCRIPT_URL }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+      # A missing or mistyped variable still builds, and deploying that build would swap the working
+      # site for the "Not set up yet" screen or one that can't reach the server. Pull requests don't
+      # deploy, and a fork's never get the variables. test/pagesWorkflow.test.ts runs this script.
+      - name: Check the repository variables
+        if: github.event_name != 'pull_request'
+        env:
+          VITE_SCRIPT_URL: ${{ vars.VITE_SCRIPT_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+        run: |
+          # A Google Workspace account's web app URL has /a/macros/<domain>/ in place of /macros/.
+          script_url_pattern='^https://script\.google\.com/(a/macros/[^/]+|macros)/s/[A-Za-z0-9_-]+/exec$'
+          failed=0
+          if [[ -z "$VITE_SCRIPT_URL" ]]; then
+            echo "::error::The VITE_SCRIPT_URL repository variable is missing or empty. Add it under Settings → Secrets and variables → Actions → Variables (docs/SETUP.md, step 4.4)."
+            failed=1
+          elif [[ ! "$VITE_SCRIPT_URL" =~ $script_url_pattern ]]; then
+            echo "::error::VITE_SCRIPT_URL must be exactly the web app URL that ends in /exec, with no spaces (docs/SETUP.md, step 3.3). The /dev URL and the editor's address don't work."
+            failed=1
+          fi
+          if [[ -z "$VITE_GOOGLE_CLIENT_ID" ]]; then
+            echo "::error::The VITE_GOOGLE_CLIENT_ID repository variable is missing or empty. Add it under Settings → Secrets and variables → Actions → Variables (docs/SETUP.md, step 4.4)."
+            failed=1
+          elif [[ "$VITE_GOOGLE_CLIENT_ID" =~ [[:space:]] || "$VITE_GOOGLE_CLIENT_ID" != *.apps.googleusercontent.com ]]; then
+            echo "::error::VITE_GOOGLE_CLIENT_ID must be exactly the OAuth Client ID, ending in .apps.googleusercontent.com, with no spaces (docs/SETUP.md, step 2.4)."
+            failed=1
+          fi
+          if [[ $failed == 1 ]]; then
+            echo "::error::Nothing was deployed, so the live site is unchanged."
+            exit 1
+          fi
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
