@@ -7,6 +7,7 @@ import { createStore, type State, type Store } from '../../web/src/store';
 import type { Pledge } from '../../web/src/types';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
 import { renderMessageScreen } from '../../web/src/ui/screens';
+import { showToast } from '../../web/src/ui/toast';
 import { SITE_API_VERSION } from '../../web/src/version';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
@@ -294,6 +295,45 @@ describe('mountApp', () => {
     expect(closePage().defaultPrevented).toBe(true);
     store.hasUnsettledWrites.mockReturnValue(false);
     expect(closePage().defaultPrevented).toBe(false);
+  });
+
+  describe('while a failed save still holds what was typed', () => {
+    const UNSAVED = 'A change could not be saved. Signing out now loses it. Sign out anyway?';
+    const failSave = () => showToast("Couldn't save the payment from 555-1234. Could not reach the tracker.", 'error', { label: 'Reopen', run: vi.fn() });
+    const toastButton = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('.toast button')).find((button) => button.textContent === label) as HTMLButtonElement;
+
+    it('asks before signing out or closing the page, until its Reopen or Dismiss is pressed', async () => {
+      const auth = fakeAuth();
+      mountApp(root, { store: fakeStore().store, auth });
+      failSave();
+
+      expect(closePage().defaultPrevented).toBe(true);
+      navButton(root, 'Sign out').click();
+      expect(document.querySelector('dialog[open]')?.textContent).toContain(UNSAVED);
+      openDialogButton('Cancel').click();
+      await vi.waitFor(() => expect(document.querySelector('dialog[open]')).toBeNull());
+      expect(auth.signOut).not.toHaveBeenCalled();
+
+      toastButton('Dismiss').click();
+
+      expect(closePage().defaultPrevented).toBe(false);
+      navButton(root, 'Sign out').click();
+      expect(auth.signOut).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks before the page closes while that failure still waits behind an open form', async () => {
+      mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+      (Array.from(root.querySelectorAll<HTMLButtonElement>('main button')).find((button) => button.textContent === 'Add pledge') as HTMLButtonElement).click();
+      failSave();
+
+      expect(document.querySelector('.toast')).toBeNull();
+      expect(closePage().defaultPrevented).toBe(true);
+
+      openDialogButton('Cancel').click();
+      await vi.waitFor(() => expect(document.querySelector('.toast')).not.toBeNull());
+      toastButton('Dismiss').click();
+      expect(closePage().defaultPrevented).toBe(false);
+    });
   });
 
   it('does not ask again as the page goes away after Sign out anyway', async () => {

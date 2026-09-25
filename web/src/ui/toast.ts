@@ -82,12 +82,27 @@ function expireOutsideDialogs(toast: HTMLElement, lifetimeMs: number, close: () 
   setTimeout(expire, lifetimeMs);
 }
 
+// Action toasts still waiting behind an open form to be shown.
+let actionToastsWaiting = 0;
+
+/**
+ * True while a toast with an action, a failed save's Reopen, is showing or waiting to show. It holds
+ * the only copy of what was typed, so leaving the page loses it.
+ */
+export function hasActionToast(): boolean {
+  return actionToastsWaiting > 0 || document.querySelector('.toast-with-action') !== null;
+}
+
 export function showToast(message: string, kind: 'info' | 'error' = 'info', action?: ToastAction): void {
   // A failure usually lands while the volunteer is typing the next entry, and the open form makes the
   // toasts inert: one added then is never announced, not even once the form closes. So it waits for
   // the page to be live again.
   if (kind === 'error' && document.querySelector('dialog[open]')) {
-    void whenNoDialogOpen().then(() => showToast(message, kind, action));
+    if (action) actionToastsWaiting++;
+    void whenNoDialogOpen().then(() => {
+      if (action) actionToastsWaiting--;
+      showToast(message, kind, action);
+    });
     return;
   }
   if (!action) {

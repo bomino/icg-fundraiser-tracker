@@ -16,7 +16,7 @@ import { createPaymentsView } from './paymentsView';
 import { createPledgesView } from './pledgesView';
 import { renderMessageScreen } from './screens';
 import { renderSummary } from './summaryView';
-import { mountToasts } from './toast';
+import { hasActionToast, mountToasts } from './toast';
 
 export type ViewName = 'summary' | 'pledges' | 'payments' | 'find' | 'help';
 /** The Friday display is a route but not a tab: it replaces the whole app shell. */
@@ -182,8 +182,15 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   const signOut = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Sign out');
   // Set once the volunteer has chosen to go, so the browser does not ask them a second time.
   let leaving = false;
+  // A failed save's Reopen toast holds the only copy of what was typed, once the store has rolled the
+  // change back, so leaving loses it just as surely as leaving mid-save.
+  const leaveQuestion = () =>
+    deps.store.hasUnsettledWrites() ? 'A change is still saving. Signing out now could lose it. Sign out anyway?'
+    : hasActionToast() ? 'A change could not be saved. Signing out now loses it. Sign out anyway?'
+    : null;
   const confirmSignOut = async () => {
-    if (deps.store.hasUnsettledWrites() && !(await confirmDialog('A change is still saving. Signing out now could lose it. Sign out anyway?', 'Sign out anyway'))) return;
+    const question = leaveQuestion();
+    if (question !== null && !(await confirmDialog(question, 'Sign out anyway'))) return;
     leaving = true;
     deps.auth.signOut();
   };
@@ -192,7 +199,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   // sent never reaches the sheet. iOS ignores beforeunload, and a tab swiped away or discarded never
   // asks, so this protects closing or reloading a tab on a computer, not a phone.
   window.addEventListener('beforeunload', (event) => {
-    if (leaving || !deps.store.hasUnsettledWrites()) return;
+    if (leaving || leaveQuestion() === null) return;
     event.preventDefault();
     event.returnValue = '';
   });

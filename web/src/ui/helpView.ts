@@ -71,6 +71,7 @@ const SAID = {
   saving: 'Saving…',
   saved: 'Saved.',
   signOutWhileSaving: 'A change is still saving. Signing out now could lose it. Sign out anyway?',
+  signOutWithFailedSave: 'A change could not be saved. Signing out now loses it. Sign out anyway?',
   signedOut: 'You are signed out',
   signInAgain: 'Sign in again',
   signOutOfGoogle: 'Sign out of Google on this computer',
@@ -298,7 +299,8 @@ function gettingStarted(): Child[] {
         ['If you did not use one, press ', b(SAID.signOutOfGoogle), ' on the signed-out screen. Only do this on a shared computer: it also signs that browser out of Gmail and every other Google service.'],
       ),
       p('If something you just saved is still on its way to the shared sheet, the tracker first asks ', said(SAID.signOutWhileSaving), ' Press ', b('Cancel'), ', wait a few seconds, then press ', b('Sign out'), ' again. If the change could not be saved, its message appears once you press Cancel, so you can deal with it first.'),
-      note('On a computer, closing or reloading the page while a change is still saving asks first too. A phone usually does not ask, so on a phone wait a few seconds after your last change, until no row shows ', said(SAID.saving), ', before you close the page.'),
+      p('While a change that could not be saved still has its message showing, the tracker asks ', said(SAID.signOutWithFailedSave), ' Press ', b('Cancel'), ', then ', b('Reopen'), ' on the message and ', b('Save'), ' again, or ', b('Dismiss'), ' if you no longer need that change.'),
+      note('On a computer, closing or reloading the page while a change is still saving, or while a change that could not be saved still has its message showing, asks first too. A phone usually does not ask, so on a phone wait a few seconds after your last change, until no row shows ', said(SAID.saving), ', before you close the page.'),
     ),
   ];
 }
