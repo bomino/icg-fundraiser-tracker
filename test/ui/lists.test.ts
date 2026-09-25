@@ -31,7 +31,7 @@ describe('pledges view', () => {
   it('marks duplicates red and filters by search without losing the box', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);
-    expect([...view.querySelectorAll('tr.row-danger')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p1', 'p2']);
+    expect([...view.querySelectorAll('tr.row-danger')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p2', 'p1']);
     const search = view.querySelector('input[type=search]') as HTMLInputElement;
     vi.useFakeTimers();
     type(search, 'chen');
@@ -60,6 +60,21 @@ describe('pledges view', () => {
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Log a payment');
     expect((document.querySelector('input[name=phone]') as HTMLInputElement).value).toBe('555-010-0103');
+  });
+
+  it('lists the most recently added pledge first until a heading is tapped, and a third tap goes back to that order', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    const ids = () => [...document.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+    const nameHeader = () => Array.from(document.querySelectorAll<HTMLButtonElement>('th button')).find((b) => b.textContent === 'Donor Name') as HTMLButtonElement;
+    expect(ids()).toEqual(['p3', 'p2', 'p1']);
+    nameHeader().click();
+    expect(ids()).toEqual(['p2', 'p1', 'p3']);
+    nameHeader().click();
+    expect(ids()).toEqual(['p3', 'p1', 'p2']);
+    nameHeader().click();
+    expect(ids()).toEqual(['p3', 'p2', 'p1']);
+    expect(document.querySelector('th[aria-sort]')).toBeNull();
   });
 });
 
@@ -101,6 +116,15 @@ describe('pledges view: status chips and follow-up', () => {
     expect(ids(view)).toEqual(['f4', 'f1']);
   });
 
+  it('"Needs follow-up" puts the most recently added pledge first among equal balances', () => {
+    const tiedPledges = [...followUpPledges, pledge({ id: 'f5', phone: '555-200-0005', name: 'Tied Pending', amountPledged: 3000, datePledged: '2020-01-01' })];
+    const tiedState: State = { ...followUpState, pledges: tiedPledges, computed: compute(tiedPledges, followUpPayments, SETTINGS, TODAY) };
+    const view = createPledgesView({ store, reportError: vi.fn() })(tiedState, null, () => undefined);
+    document.body.append(view);
+    chip(view, 'Needs follow-up').click();
+    expect(ids(view)).toEqual(['f5', 'f4', 'f1']);
+  });
+
   it('lets a column sort override the default balance ordering under "Needs follow-up"', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
     document.body.append(view);
@@ -137,7 +161,7 @@ describe('pledges view: status chips and follow-up', () => {
     expect(ids(document.body)).toEqual(['f3']);
     const filter: ListFilter = { label: 'Pending pledges', ids: new Set(['f2', 'f4']) };
     document.body.replaceChildren(view(followUpState, filter, () => undefined));
-    expect(ids(document.body)).toEqual(['f2', 'f4']);
+    expect(ids(document.body)).toEqual(['f4', 'f2']);
     expect(chip(document.body, 'All').getAttribute('aria-pressed')).toBe('true');
     expect(chip(document.body, 'Paid').getAttribute('aria-pressed')).toBe('false');
   });
@@ -173,9 +197,22 @@ describe('payments view: date range', () => {
     document.body.append(view);
     expect(ids(view)).toHaveLength(4);
     type(dateInput(view, 'payments-date-from'), '2026-02-01');
-    expect(ids(view)).toEqual(['r2', 'r3']);
+    expect(ids(view)).toEqual(['r3', 'r2']);
     type(dateInput(view, 'payments-date-to'), '2026-06-15');
     expect(ids(view)).toEqual(['r2']);
+  });
+
+  it('lists the most recently added payment first until a heading is tapped, and a third tap goes back to that order', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    const dateHeader = () => Array.from(document.querySelectorAll<HTMLButtonElement>('th button')).find((b) => b.textContent === 'Date Received') as HTMLButtonElement;
+    expect(ids(document.body)).toEqual(['r4', 'r3', 'r2', 'r1']);
+    dateHeader().click();
+    expect(ids(document.body)).toEqual(['r1', 'r2', 'r3', 'r4']);
+    dateHeader().click();
+    expect(ids(document.body)).toEqual(['r3', 'r2', 'r1', 'r4']);
+    dateHeader().click();
+    expect(ids(document.body)).toEqual(['r4', 'r3', 'r2', 'r1']);
   });
 
   it('clears both bounds with the Clear dates control', () => {
@@ -262,7 +299,7 @@ describe('pledges view: paging at event scale', () => {
 
   it('arriving with a drill-down (Data-health) filter resets to page 1; a flagged row beyond it is reachable via Show more', () => {
     // The filter matches the first 120 of the 240 rows - more than one page - so a flagged row
-    // past index 100 (big105) needs its own "Show more" click within the filtered set to reach.
+    // past index 100 of them, most recently added first (big5), needs its own "Show more" click within the filtered set to reach.
     const filterIds = new Set(manyPledges.slice(0, 120).map((p) => p.id));
     const filter: ListFilter = { label: 'Flagged for review', ids: filterIds };
     const view = createPledgesView({ store, reportError: vi.fn() });
@@ -273,11 +310,11 @@ describe('pledges view: paging at event scale', () => {
 
     document.body.replaceChildren(view(manyState, filter, () => undefined));
     expect(ids(document.body)).toHaveLength(TABLE_PAGE_SIZE);
-    expect(document.querySelector('tr[data-id="big105"]')).toBeNull();
+    expect(document.querySelector('tr[data-id="big5"]')).toBeNull();
     expect(showMore(document.body).textContent).toBe(`Show more (${120 - TABLE_PAGE_SIZE} left)`);
 
     showMore(document.body).click();
-    expect(document.querySelector('tr[data-id="big105"]')).not.toBeNull();
+    expect(document.querySelector('tr[data-id="big5"]')).not.toBeNull();
   });
 });
 
@@ -475,5 +512,40 @@ describe('instant save from the lists', () => {
     document.body.replaceChildren(render(liveStore.state() as State, null, () => undefined));
     (document.querySelector('tr[data-id="y1"] .row-open') as HTMLButtonElement).click();
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit payment');
+  });
+});
+
+describe('a new row in a list longer than one page', () => {
+  const longPledges = Array.from({ length: TABLE_PAGE_SIZE + 50 }, (_, i) => pledge({ id: `old-pledge${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
+  const longPayments = Array.from({ length: TABLE_PAGE_SIZE + 50 }, (_, i) => payment({ id: `old-payment${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, amountReceived: 10, dateReceived: '2026-01-01' }));
+  // The server never answers, so each new row stays in flight for the whole test.
+  const unansweredStore = async () => {
+    const api = {
+      load: async () => ({ pledges: longPledges, payments: longPayments, settings: SETTINGS, me: 'me@example.com' }),
+      savePledge: () => new Promise(() => undefined),
+      savePayment: () => new Promise(() => undefined),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    return liveStore;
+  };
+  const firstRow = () => document.querySelector('tbody tr') as HTMLElement;
+
+  it('shows a just-saved pledge first, marked "Saving…", without Show more', async () => {
+    const liveStore = await unansweredStore();
+    void liveStore.savePledge({ phone: '555-777-0001', name: 'Zara', datePledged: TODAY, amountPledged: 50, notes: '' }, undefined, 'new-pledge');
+    document.body.append(createPledgesView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State, null, () => undefined));
+    expect(firstRow().getAttribute('data-id')).toBe('new-pledge');
+    expect(firstRow().classList.contains('row-pending')).toBe(true);
+    expect(firstRow().textContent).toContain('Saving…');
+  });
+
+  it('shows a just-saved payment first, marked "Saving…", without Show more', async () => {
+    const liveStore = await unansweredStore();
+    void liveStore.savePayment({ phone: '555-500-0007', dateReceived: '2025-12-01', amountReceived: 77, method: 'Cash', notes: '' }, undefined, 'new-payment');
+    document.body.append(createPaymentsView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State, null, () => undefined));
+    expect(firstRow().getAttribute('data-id')).toBe('new-payment');
+    expect(firstRow().classList.contains('row-pending')).toBe(true);
+    expect(firstRow().textContent).toContain('Saving…');
   });
 });

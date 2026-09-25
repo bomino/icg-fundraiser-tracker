@@ -200,6 +200,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - **Top bar:** app name, the signed-in email, and sign-out. The tabs are Summary, Pledges, Payments and Find donor. The last view used is remembered in `localStorage`.
 - **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links, the method breakdown, and a "Download .xlsx" export.
 - **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
+  - With no column sorted, the most recently added row comes first (the reverse of Sheet order), so a just-saved row is on the first page. A third tap on a sorted header returns to that order.
   - Derived columns are read-only and styled differently.
   - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date.
   - On narrow screens the table collapses to cards.

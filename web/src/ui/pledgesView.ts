@@ -87,8 +87,12 @@ export function createPledgesView(deps: ListViewDeps) {
       const rows = state.computed.pledges.filter(
         (d) => (!filter || filter.ids.has(d.pledge.id)) && matchesChip(d) && matchesQuery(query, [d.pledge.phone, d.pledge.name, d.pledge.notes], d.key),
       );
-      // "Needs follow-up" defaults to worst-balance-first; a column click still wins once the volunteer picks one.
-      const ordered = statusChip === FOLLOW_UP_CHIP && !sort ? [...rows].sort((a, b) => (b.balanceCents ?? 0) - (a.balanceCents ?? 0)) : rows;
+      // With no column picked, the most recently added pledge comes first. New rows are appended and only the first
+      // page is drawn, so a just-saved row and its "Saving…" state would otherwise land out of sight.
+      const addedOrder = sort ? rows : [...rows].reverse();
+      // "Needs follow-up" defaults to worst-balance-first, and the sort is stable, so equal balances stay most recently
+      // added first; a column click still wins once the volunteer picks one.
+      const ordered = statusChip === FOLLOW_UP_CHIP && !sort ? [...addedOrder].sort((a, b) => (b.balanceCents ?? 0) - (a.balanceCents ?? 0)) : addedOrder;
       tableSlot.replaceChildren(
         renderTable({
           columns: COLUMNS,

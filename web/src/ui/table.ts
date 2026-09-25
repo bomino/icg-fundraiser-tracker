@@ -39,9 +39,10 @@ export interface TableOptions<R> {
 /** Event-scale tables (~1,500+ rows) render 15,000+ DOM cells at once without this; see task-7-report.md. */
 export const TABLE_PAGE_SIZE = 100;
 
-export function nextSort(current: SortState | null, key: string): SortState {
-  if (current?.key === key) return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
-  return { key, direction: 'asc' };
+/** A third tap on the same heading returns null - the list's own default order - so newly added rows come back to the top without a reload. */
+export function nextSort(current: SortState | null, key: string): SortState | null {
+  if (current?.key !== key) return { key, direction: 'asc' };
+  return current.direction === 'asc' ? { key, direction: 'desc' } : null;
 }
 
 const isBlank = (value: string | number | null) => value === null || value === '';

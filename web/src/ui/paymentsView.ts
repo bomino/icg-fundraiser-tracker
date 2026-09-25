@@ -75,7 +75,9 @@ export function createPaymentsView(deps: ListViewDeps) {
       tableSlot.replaceChildren(
         renderTable({
           columns: COLUMNS,
-          rows: sortRows(rows, COLUMNS, sort),
+          // With no column picked, the most recently added payment comes first. New rows are appended and only the
+          // first page is drawn, so a just-saved row and its "Saving…" state would otherwise land out of sight.
+          rows: sortRows(sort ? rows : [...rows].reverse(), COLUMNS, sort),
           sort,
           rowId: (d) => d.payment.id,
           rowClass: (d) => (d.notCounted ? 'row-danger' : undefined),

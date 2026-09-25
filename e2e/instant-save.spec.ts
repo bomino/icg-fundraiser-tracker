@@ -17,6 +17,7 @@ test('logging a payment closes the form at once, shows the row as Saving…, the
 
   await expect(dialog).toBeHidden();
   const row = page.locator('tbody tr', { hasText: '$17.35' });
+  await expect(page.locator('tbody tr').first()).toContainText('$17.35');
   await expect(row).toHaveClass(/row-pending/);
   await expect(row).toContainText('Saving…');
   const openButton = row.getByRole('button', { name: '555-0110 — Saving…' });

@@ -27,9 +27,10 @@ describe('table', () => {
     expect(sortRows(rows, columns, { key: 'amount', direction: 'desc' }).map((r) => r.id)).toEqual(['a', 'c', 'b']);
     expect(sortRows(rows, columns, { key: 'name', direction: 'asc' }).map((r) => r.id)).toEqual(['b', 'c', 'a']);
   });
-  it('toggles direction on the same column and resets on a new one', () => {
+  it('toggles direction on the same column, returns to the default order on a third tap, and resets on a new one', () => {
     expect(nextSort(null, 'name')).toEqual({ key: 'name', direction: 'asc' });
     expect(nextSort({ key: 'name', direction: 'asc' }, 'name')).toEqual({ key: 'name', direction: 'desc' });
+    expect(nextSort({ key: 'name', direction: 'desc' }, 'name')).toBeNull();
     expect(nextSort({ key: 'name', direction: 'desc' }, 'amount')).toEqual({ key: 'amount', direction: 'asc' });
   });
   it('puts a real button in the first cell, which keyboard and screen-reader users activate to open the row', () => {
