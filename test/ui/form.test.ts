@@ -367,6 +367,29 @@ describe('runForm', () => {
     expect(discardQuestions()).toHaveLength(0);
   });
 
+  describe('a secondary action offered only sometimes', () => {
+    const nameTyped = () => (document.querySelector('input[name=name]') as HTMLInputElement).value !== '';
+
+    it('is hidden while not offered, and checked again as each field is typed in', () => {
+      const { name, dialog } = setup(async () => undefined, { secondary: { label: 'Check', run: vi.fn(), offered: nameTyped } });
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(true);
+      name.input.value = 'Aisha';
+      name.input.dispatchEvent(new Event('input'));
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(false);
+      name.input.value = '';
+      name.input.dispatchEvent(new Event('input'));
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(true);
+    });
+
+    it('is offered at once on a form reopened with what it needs', () => {
+      const { dialog } = setup(async () => undefined, {
+        secondary: { label: 'Check', run: vi.fn(), offered: nameTyped },
+        restore: { values: { name: 'Aisha' }, error: new ApiError('BUSY', 'busy') },
+      });
+      expect(buttonIn(dialog.element, 'Check').hidden).toBe(false);
+    });
+  });
+
   it('reopens the goal form with the typed goal and the server field error', async () => {
     const reportError = vi.fn();
     const onSave = vi.fn(async () => { throw new ApiError('BAD_REQUEST', 'Enter a goal of 0 or more.', 'goal'); });

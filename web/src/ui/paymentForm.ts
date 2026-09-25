@@ -1,6 +1,6 @@
 import type { NewRow } from '../api';
 import { todayIso } from '../dates';
-import { WARNING_MARK, createDonorResolver } from '../engine';
+import { WARNING_MARK, WARN_NOT_IN_PLEDGES, createDonorResolver } from '../engine';
 import { parseAmount } from '../format';
 import { newId as makeId } from '../id';
 import { matchKey } from '../matchKey';
@@ -48,8 +48,10 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const blank = matchKey(phone) === '';
     const warning = !blank && donor.startsWith(WARNING_MARK);
     preview.className = warning ? 'hint hint-warning' : 'hint';
+    // A walk-in donor's number is right but has no pledge; the one-step path records both without typing it twice.
+    const walkIn = donor === WARN_NOT_IN_PLEDGES ? " If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment." : '';
     if (blank) preview.textContent = 'Type the phone number to find the donor.';
-    else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.`;
+    else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.${walkIn}`;
     else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}`;
   };
   fields.phone.input.addEventListener('input', updatePreview);
@@ -85,4 +87,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     restore,
     busy: () => (existing ? isPending(existing) : false),
   });
+  // showModal lands on the first box, the phone already filled in for the donor; the amount is what is left to type.
+  // A Reopen keeps its own rule: the cursor goes where the fix is needed.
+  if (options.phone && !restore) fields.amountReceived.input.focus();
 }

@@ -26,8 +26,9 @@ export interface FormSpec<D> {
   /**
    * A secondary footer action (e.g. "Log a payment"). Disabled once Save is pressed. Set
    * `discardsTyping` when it closes the form, so it asks first, as Cancel does, before losing typing.
+   * With `offered`, it is hidden whenever that returns false, checked again as any field is typed in.
    */
-  secondary?: { label: string; run(): void; discardsTyping?: boolean };
+  secondary?: { label: string; run(): void; discardsTyping?: boolean; offered?: () => boolean };
   /** `context` names the interrupted change, e.g. "Couldn't save Aisha", because the form has already closed by then. */
   reportError(err: unknown, context: string): void;
   /**
@@ -120,12 +121,17 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   });
 
   if (secondary && spec.secondary) {
-    const { run, discardsTyping } = spec.secondary;
+    const { run, discardsTyping, offered } = spec.secondary;
     secondary.addEventListener('click', () => {
       if (secondary.disabled) return;
       if (discardsTyping) askBeforeDiscarding(run);
       else run();
     });
+    if (offered) {
+      const offer = () => { secondary.hidden = !offered(); };
+      for (const f of Object.values(spec.fields)) f.input.addEventListener('input', offer);
+      offer();
+    }
   }
 
   spec.form.addEventListener('submit', (event) => {

@@ -50,11 +50,13 @@ export function createPledgesView(deps: ListViewDeps) {
       // A leftover status chip would hide the very rows the filter just arrived to show.
       if (filter) statusChip = ALL_CHIP;
     }
-    const openPaymentFor = (pledge: Pledge) => {
+    const openPaymentFor = (phone: string) => {
+      // Read now, not at render: a pledge whose save has just started is already in the store, and the donor preview must find it.
+      const current = deps.store.state() ?? state;
       openPaymentForm({
-        phone: pledge.phone,
-        methods: state.settings.paymentMethods,
-        pledges: state.pledges,
+        phone,
+        methods: current.settings.paymentMethods,
+        pledges: current.pledges,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });
@@ -67,7 +69,7 @@ export function createPledgesView(deps: ListViewDeps) {
         onSave: (draft, row) => deps.store.savePledge(draft, row),
         onDelete: (current) => deps.store.deletePledge(current),
         latest: () => deps.store.state()?.pledges.find((p) => p.id === existing?.id),
-        onLogPayment: existing ? () => openPaymentFor(existing) : undefined,
+        onLogPayment: openPaymentFor,
         reportError: deps.reportError,
       });
     };

@@ -202,7 +202,7 @@ async function measure(viewport: Viewport, throttled: boolean): Promise<Measurem
   await dialog.getByLabel('Amount pledged ($)').fill('42');
   await resetSettleWatch(page);
   const saveStart = await startClock(page);
-  await dialog.getByRole('button', { name: 'Save' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   const saveSettledAt = await waitForQuiet(page);
   const savePledgeRedrawMs = saveSettledAt - saveStart.epochMs;
   const saveLongTasks = await longTaskDurationsSince(page, saveStart.perfNowMs);

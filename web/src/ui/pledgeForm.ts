@@ -9,7 +9,7 @@ import type { Pledge, PledgeDraft } from '../types';
 import { validatePledge, type FieldErrors } from '../validate';
 import { h } from './dom';
 import { field } from './field';
-import { runForm, type FormRestore } from './form';
+import { runForm, type FormRestore, type FormSpec } from './form';
 import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
 
 export interface PledgeFormOptions {
@@ -24,8 +24,11 @@ export interface PledgeFormOptions {
   onDelete?: (existing: Pledge) => Promise<void>;
   /** The row being edited as the store has it now, so a reopened form starts from the current version. */
   latest?: () => Pledge | undefined;
-  /** Called once the dialog has closed, after the "Log a payment" button is used. Only offered for an existing pledge with a phone. */
-  onLogPayment?: () => void;
+  /**
+   * Opens the payment form for `phone` once the dialog has closed. An existing pledge with a phone offers
+   * "Log a payment"; a new pledge offers "Save and log a payment", which calls this only after its save has started.
+   */
+  onLogPayment?: (phone: string) => void;
   reportError(err: unknown, context?: string): void;
 }
 
@@ -72,13 +75,27 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   updateHint();
 
   const onLogPayment = options.onLogPayment;
-  const canLogPayment = Boolean(existing && matchKey(existing.phone) !== '' && onLogPayment);
-  let requested = false;
+  // Never stack form dialogs: both actions close the pledge dialog first, then its close event opens the payment form.
+  let paymentPhone: string | null = null;
 
-  function handleLogPayment() {
-    // Never stack form dialogs: this closes the pledge dialog first, then the caller opens the payment form.
-    requested = true;
+  function logPayment(pledge: Pledge) {
+    paymentPhone = pledge.phone;
     dialog.close();
+  }
+
+  function saveAndLogPayment() {
+    paymentPhone = fields.phone.input.value.trim();
+    form.requestSubmit();
+    // Still open means the checks failed; left set, the phone would open a payment form on a later Cancel.
+    if (dialog.element.open) paymentPhone = null;
+  }
+
+  function paymentAction(): FormSpec<PledgeDraft>['secondary'] {
+    if (!onLogPayment) return undefined;
+    if (!existing) return { label: 'Save and log a payment', run: saveAndLogPayment, offered: () => matchKey(fields.phone.input.value) !== '' };
+    // A payment finds its donor by phone, so a pledge without one has nothing to log against.
+    if (matchKey(existing.phone) === '') return undefined;
+    return { label: 'Log a payment', run: () => logPayment(existing), discardsTyping: true };
   }
 
   const onDelete = options.onDelete;
@@ -105,7 +122,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     describe: (draft) => draft.name || draft.phone || 'the pledge',
     onSave: (draft) => options.onSave(draft, existing ?? { id: newId }),
     onDelete: existing && onDelete ? () => onDelete(existing) : undefined,
-    secondary: canLogPayment ? { label: 'Log a payment', run: handleLogPayment, discardsTyping: true } : undefined,
+    secondary: paymentAction(),
     deleteMessage: existing ? deleteMessage(existing, options.pledges, options.derived) : '',
     reportError: options.reportError,
     reopen: (again) => openPledgeForm({ ...options, newId, existing: existing && (options.latest?.() ?? existing) }, again),
@@ -113,7 +130,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
     busy: () => (existing ? isPending(existing) : false),
   });
 
-  if (canLogPayment && onLogPayment) {
-    dialog.element.addEventListener('close', () => { if (requested) onLogPayment(); }, { once: true });
+  if (onLogPayment) {
+    dialog.element.addEventListener('close', () => { if (paymentPhone !== null) onLogPayment(paymentPhone); }, { once: true });
   }
 }
