@@ -222,6 +222,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 **Errors and state**
 - A first-load skeleton. After 5 s its line changes to "Still loading — the shared sheet can take up to 20 seconds. Please keep this page open.", so a slow first load isn't mistaken for a hang and reloaded.
 - Saves are optimistic: the table updates at once, is rolled back on failure, and a toast shows the error.
+- While a save, delete or goal change is still in flight, Sign out asks "A change is still saving. Signing out now could lose it. Sign out anyway?", and closing or reloading the tab triggers the browser's own leave-page question, because a page that has gone can't show the failure. Phones mostly don't ask (iOS ignores the leave-page question), so the Help guide tells volunteers there to wait until "Saving…" clears.
 - `CONFLICT` shows a dialog, "Someone else changed this row since you opened it", with a Reload option. A reload always re-runs `load`.
 - `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.
 - `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser."

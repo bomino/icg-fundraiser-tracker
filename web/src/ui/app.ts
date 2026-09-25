@@ -1,6 +1,7 @@
 import type { Auth } from '../auth';
 import type { Store } from '../store';
 import { currentTheme, toggleTheme } from '../theme';
+import { confirmDialog } from './dialog';
 import { h } from './dom';
 import { mountDisplay } from './displayView';
 import { createErrorReporter } from './errors';
@@ -119,7 +120,22 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     if (!refresh.disabled) void reload();
   });
   const signOut = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Sign out');
-  signOut.addEventListener('click', () => deps.auth.signOut());
+  // Set once the volunteer has chosen to go, so the browser does not ask them a second time.
+  let leaving = false;
+  const confirmSignOut = async () => {
+    if (deps.store.hasUnsettledWrites() && !(await confirmDialog('A change is still saving. Signing out now could lose it. Sign out anyway?', 'Sign out anyway'))) return;
+    leaving = true;
+    deps.auth.signOut();
+  };
+  signOut.addEventListener('click', () => void confirmSignOut());
+  // Once the page is gone, a failed save can never show its message or Reopen, and a request not yet
+  // sent never reaches the sheet. iOS ignores beforeunload, and a tab swiped away or discarded never
+  // asks, so this protects closing or reloading a tab on a computer, not a phone.
+  window.addEventListener('beforeunload', (event) => {
+    if (leaving || !deps.store.hasUnsettledWrites()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   const me = h('span', { class: 'meta' }, deps.store.state()?.me ?? '');
   const offline = h('div', { class: 'banner banner-warning', role: 'status', hidden: navigator.onLine }, 'You are offline. Changes cannot be saved until the connection is back.');
   window.addEventListener('online', () => { offline.hidden = true; });

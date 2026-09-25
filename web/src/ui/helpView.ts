@@ -39,6 +39,7 @@ const SAID = {
   displayStale: 'Figures may be out of date — tap to reconnect',
   saving: 'Saving…',
   saved: 'Saved.',
+  signOutWhileSaving: 'A change is still saving. Signing out now could lose it. Sign out anyway?',
   couldNotSave: "Couldn't save",
   couldNotDelete: "Couldn't delete",
 } as const;
@@ -212,6 +213,8 @@ function gettingStarted(): Child[] {
     topic(
       'Signing out',
       p('On a shared or borrowed device, press ', b('Sign out'), ' when you finish, so the next person cannot see donor details. On your own phone you can stay signed in.'),
+      p('If something you just saved is still on its way to the shared sheet, the tracker first asks ', said(SAID.signOutWhileSaving), ' Press ', b('Cancel'), ', wait a few seconds, then press ', b('Sign out'), ' again. If the change could not be saved, its message appears once you press Cancel, so you can deal with it first.'),
+      note('On a computer, closing or reloading the page while a change is still saving asks first too. A phone usually does not ask, so on a phone wait a few seconds after your last change, until no row shows ', said(SAID.saving), ', before you close the page.'),
     ),
   ];
 }

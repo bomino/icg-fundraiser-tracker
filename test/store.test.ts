@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, type Api } from '../web/src/api';
-import { createStore, isPending } from '../web/src/store';
-import type { Pledge } from '../web/src/types';
+import { createStore, isPending, type Store } from '../web/src/store';
+import type { Payment, Pledge, Settings } from '../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from './support/factories';
 
 function deferred<T>() {
@@ -468,5 +468,71 @@ describe('store', () => {
     await pendingEarlier;
     expect(isPending(aisha)).toBe(false);
     error.mockRestore();
+  });
+
+  // Sign out and closing the page ask first while this is true, so a change that settles either way must stop counting.
+  describe('hasUnsettledWrites', () => {
+    it('counts a save, delete or goal change until each one succeeds', async () => {
+      const saving = deferred<Pledge>();
+      const deleting = deferred<void>();
+      const goalSaving = deferred<Settings>();
+      const store = createStore(fakeApi({ savePledge: () => saving.promise, deletePayment: () => deleting.promise, setGoal: () => goalSaving.promise }), () => TODAY);
+      await store.load();
+      expect(store.hasUnsettledWrites()).toBe(false);
+      const save = store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha);
+      const remove = store.deletePayment(store.state()?.payments[0] as Payment);
+      const goal = store.setGoal(99);
+      expect(store.hasUnsettledWrites()).toBe(true);
+      saving.resolve({ ...aisha, name: 'Changed', updatedAt: 'v2' });
+      await save;
+      deleting.resolve();
+      await remove;
+      expect(store.hasUnsettledWrites()).toBe(true);
+      goalSaving.resolve({ ...SETTINGS, goal: 99 });
+      await goal;
+      expect(store.hasUnsettledWrites()).toBe(false);
+    });
+
+    it.each([
+      ['save', (store: Store) => store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha)],
+      ['delete', (store: Store) => store.deletePledge(aisha)],
+      ['goal change', (store: Store) => store.setGoal(99)],
+    ])('stops counting a %s that fails', async (_kind, start) => {
+      const refusal = deferred<never>();
+      const refuse = () => refusal.promise;
+      const store = createStore(fakeApi({ savePledge: refuse, deletePledge: refuse, setGoal: refuse }), () => TODAY);
+      await store.load();
+      const write = start(store);
+      expect(store.hasUnsettledWrites()).toBe(true);
+      refusal.reject(new ApiError('BUSY', 'busy'));
+      await expect(write).rejects.toMatchObject({ code: 'BUSY' });
+      expect(store.hasUnsettledWrites()).toBe(false);
+    });
+
+    it('does not count a saved change that is only being kept for a reload already under way', async () => {
+      const saving = deferred<Pledge>();
+      const reloading = deferred<void>();
+      let gateLoads = false;
+      const store = createStore(
+        fakeApi({
+          load: async () => {
+            if (gateLoads) await reloading.promise;
+            return { pledges: [aisha], payments: [], settings: SETTINGS, me: 'me@example.com' };
+          },
+          savePledge: () => saving.promise,
+        }),
+        () => TODAY,
+      );
+      await store.load();
+      const save = store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha);
+      gateLoads = true;
+      const reload = store.load();
+      saving.resolve({ ...aisha, name: 'Changed', updatedAt: 'v2' });
+      await save;
+      expect(store.hasUnsettledWrites()).toBe(false);
+      reloading.resolve();
+      await reload;
+      expect(store.state()?.pledges[0].name).toBe('Changed');
+    });
   });
 });

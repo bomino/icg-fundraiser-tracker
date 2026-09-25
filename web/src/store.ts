@@ -27,6 +27,8 @@ export interface Store {
   deletePledge(row: Pledge): Promise<void>;
   deletePayment(row: Payment): Promise<void>;
   setGoal(goal: number): Promise<void>;
+  /** True while a save, delete or goal change has not yet heard back: leaving the page now would hide how it ended. */
+  hasUnsettledWrites(): boolean;
 }
 
 // How many saves of each row id are still in flight. Module-level because the views ask about a
@@ -252,5 +254,7 @@ export function createStore(api: Api, today: () => string): Store {
       settle(mutation, (_fresh, onto) => ({ ...onto, settings }));
       if (untouched) publishSettled({ ...loaded(), settings });
     },
+    // Read from `mutations` rather than a counter of its own, so it can never drift from what settle() recorded.
+    hasUnsettledWrites: () => [...mutations].some((m) => !m.committed),
   };
 }

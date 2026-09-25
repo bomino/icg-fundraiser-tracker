@@ -24,12 +24,24 @@ function fakeStore() {
       publish();
     }),
     lastLoadedAt: vi.fn(() => Date.now()),
+    hasUnsettledWrites: vi.fn(() => false),
   };
-  return { store: store as unknown as Store & { load: typeof store.load; lastLoadedAt: typeof store.lastLoadedAt }, publish };
+  return { store: store as unknown as Store & { load: typeof store.load; lastLoadedAt: typeof store.lastLoadedAt; hasUnsettledWrites: typeof store.hasUnsettledWrites }, publish };
 }
 
 function fakeAuth() {
   return { getToken: vi.fn(async () => 'tok'), refreshIfStale: vi.fn(), hasFreshToken: vi.fn(() => false), suppressPrompts: vi.fn(() => vi.fn()), signOut: vi.fn() } satisfies Auth;
+}
+
+const navButton = (root: HTMLElement, label: string) => Array.from(root.querySelectorAll<HTMLButtonElement>('.nav-actions button')).find((button) => button.textContent === label) as HTMLButtonElement;
+
+const openDialogButton = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] button')).find((button) => button.textContent === label) as HTMLButtonElement;
+
+// What the browser does just before a tab closes or reloads; a prevented event is the browser's "Leave site?" question.
+function closePage(): Event {
+  const event = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+  return event;
 }
 
 function setVisibility(state: 'visible' | 'hidden') {
@@ -151,6 +163,54 @@ describe('mountApp', () => {
     refresh.click();
     await vi.waitFor(() => expect(document.querySelector('.toast-error')?.textContent).toBe('Could not reach the tracker.'));
     expect(refresh.disabled).toBe(false);
+  });
+
+  it('signs out at once when nothing is still saving', () => {
+    const auth = fakeAuth();
+    mountApp(root, { store: fakeStore().store, auth });
+    navButton(root, 'Sign out').click();
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('dialog[open]')).toBeNull();
+  });
+
+  it('asks before signing out while a change is still saving, and signs out only on Sign out anyway', async () => {
+    const { store } = fakeStore();
+    store.hasUnsettledWrites.mockReturnValue(true);
+    const auth = fakeAuth();
+    mountApp(root, { store, auth });
+
+    navButton(root, 'Sign out').click();
+    expect(document.querySelector('dialog[open]')?.textContent).toContain('A change is still saving. Signing out now could lose it. Sign out anyway?');
+    openDialogButton('Cancel').click();
+    await vi.waitFor(() => expect(document.querySelector('dialog[open]')).toBeNull());
+    expect(auth.signOut).not.toHaveBeenCalled();
+
+    navButton(root, 'Sign out').click();
+    openDialogButton('Sign out anyway').click();
+    await vi.waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(1));
+  });
+
+  it('asks before the page closes or reloads only while a change is still saving', () => {
+    const { store } = fakeStore();
+    mountApp(root, { store, auth: fakeAuth() });
+    expect(closePage().defaultPrevented).toBe(false);
+    store.hasUnsettledWrites.mockReturnValue(true);
+    expect(closePage().defaultPrevented).toBe(true);
+    store.hasUnsettledWrites.mockReturnValue(false);
+    expect(closePage().defaultPrevented).toBe(false);
+  });
+
+  it('does not ask again as the page goes away after Sign out anyway', async () => {
+    const { store } = fakeStore();
+    store.hasUnsettledWrites.mockReturnValue(true);
+    const auth = fakeAuth();
+    const reloads: Event[] = [];
+    auth.signOut.mockImplementation(() => { reloads.push(closePage()); });
+    mountApp(root, { store, auth });
+    navButton(root, 'Sign out').click();
+    openDialogButton('Sign out anyway').click();
+    await vi.waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(1));
+    expect(reloads.map((reload) => reload.defaultPrevented)).toEqual([false]);
   });
 
   it('builds the toast live regions at startup, so the first "Saved." lands in a region a screen reader is already watching', () => {
