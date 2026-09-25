@@ -57,12 +57,15 @@ a { color: var(--color-emerald); }
 
 @media print {
   .nav-bar, .toolbar, .btn, .banner, .toasts, .screen-only { display: none !important; }
+  /* Find donor prints as a statement a donor may be handed: it loses the search and everything written for volunteers
+     (notes, warnings), and gains a heading and a Total paid line from the print-only rule below. */
+  .lookup-view .print-hidden { display: none !important; }
   .container { padding: 0; max-width: none; }
   .card, .stat-card { box-shadow: none; break-inside: avoid; }
   /* Colours that carry meaning; browsers drop backgrounds and shadows on paper unless told otherwise. */
   .progress-track, .progress-fill, .method-ring, .swatch, .health-list li.is-flagged { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
-/* What paper alone needs, such as the filter a printed list shows: on screen the controls already say it. */
+/* What paper alone needs, such as the filter a printed list shows or a donor statement’s heading: on screen the controls already say it. */
 @media not print {
   .print-only { display: none !important; }
 }

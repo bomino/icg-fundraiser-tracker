@@ -74,6 +74,7 @@ export function createPledgesView(deps: ListViewDeps) {
         methods: current.settings.paymentMethods,
         pledges: current.pledges,
         computed: current.computed,
+        pledgesLoadedAt: deps.store.lastLoadedAt(),
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });
@@ -167,7 +168,7 @@ export function createPledgesView(deps: ListViewDeps) {
       showing.replaceChildren(...(line ? [line] : []));
       downloadSlot.replaceChildren(...(download ? [download] : []));
     };
-    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', 'data-focus-key': 'pledges-search' });
+    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', dir: 'auto', 'data-focus-key': 'pledges-search' });
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;

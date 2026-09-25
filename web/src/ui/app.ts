@@ -298,9 +298,14 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   window.addEventListener('hashchange', () => {
     render();
     window.scrollTo({ top: 0 });
-    if (!focusListHeading) return;
-    focusListHeading = false;
-    focusHeading(main);
+    if (focusListHeading) {
+      focusListHeading = false;
+      focusHeading(main);
+    } else if (parseRoute(location.hash) === 'find') {
+      // Find donor is opened with someone waiting, so land in its search box. Only on arrival:
+      // render() also runs on every store publish, and must not pull focus from wherever the volunteer is.
+      main.querySelector<HTMLInputElement>('#lookup-input')?.focus();
+    }
   });
   deps.store.subscribe(render);
   adoptDisplayParam();

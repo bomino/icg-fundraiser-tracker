@@ -63,6 +63,10 @@ const SAID = {
   lastChangedAt: 'Last changed at',
   refreshing: 'Refreshing…',
   couldNotDownload: "Couldn't download the file",
+  noDonorFound: 'No donor found.',
+  refreshBeforePledge: 'If they pledged with another volunteer since then, press Refresh before adding a pledge.',
+  saveAnyway: 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.',
+  keepTyping: 'keep typing to narrow it down.',
   displayStale: 'Figures may be out of date — tap to reconnect',
   saving: 'Saving…',
   saved: 'Saved.',
@@ -334,7 +338,9 @@ function theScreens(): Child[] {
           b('Overpaid'),
           ' chips filter to that status. ',
           b('Needs follow-up'),
-          ' finds Pending or Partial donors with no pledge or payment activity in the last 30 days, biggest balance first.',
+          ' finds Pending or Partial donors with no payment, and no change saved to their pledge, in the last 30 days, biggest balance first. See ',
+          b('Follow up with donors who still owe'),
+          ' in How to….',
         ],
       ),
     ),
@@ -367,14 +373,22 @@ function theScreens(): Child[] {
     ),
     topic(
       'Find donor',
-      p('Type a donor’s full phone number, in any format, or part of their name. A phone number takes you straight to the donor; a name shows a list to choose from.'),
-      p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made.'),
+      p('Type a donor’s phone number, in any format, or part of their name. The whole number takes you straight to the donor. Part of a number, such as the last four digits, or part of a name shows a list of matching donors with their number and status. Several donors can share the same last few digits, so check the name as well before you tap one to open it.'),
+      p('When lots of donors match, only the first 20 are listed, under a line such as ', said(`Showing 20 of 312 — ${SAID.keepTyping}`), ' Type a few more letters or digits and the list shrinks.'),
+      p('If nobody matches, it says ', said(SAID.noDonorFound), ' and offers ', b('Add a pledge'), '. If you searched by phone number, that number is already filled in on the pledge form. If you only typed part of the number, type the rest before saving.'),
+      p('If your list was last refreshed more than a couple of minutes ago, it also says how long ago, and adds ', said(SAID.refreshBeforePledge), ' Another volunteer may have just added that donor, and two pledges for the same donor count their payments twice.'),
+      p('The donor card shows their pledge, what they have paid, their balance and status, and every payment they have made. If they have paid more than they pledged, the extra shows as ', b('Credit'), '. On a phone, tap their phone number to call them.'),
       p(
         'From the card, press ',
         b('Log a payment'),
         ' to record money from them, press ',
         b('Edit pledge'),
         ' to correct their pledge, or tap one of their payments to correct or delete it. If you change the phone number on their pledge, the card keeps showing them.',
+      ),
+      p(
+        'If a donor asks what they have paid so far, press ',
+        b('Print'),
+        ' on their card. The printed page has the masjid’s name, today’s date, their pledge, each payment and the total paid. Notes and warnings are left off, because they are written for volunteers. On a phone, the print options usually let you save it as a PDF to send instead. It is a record of payments, not a tax receipt.',
       ),
     ),
     topic(
@@ -415,6 +429,7 @@ function howTo(): Child[] {
       note('If the phone number is already on another pledge, an amber note appears: ', said(`${SAID.duplicateHint} …`), ' Do not save a second pledge for the same donor — edit the existing one instead. If it is someone else in the same household, either add their amount to that pledge and write each person’s share in Notes, or use their own phone number.'),
       note('If the donor is also handing over money right now, press ', b('Save and log a payment'), ' instead of Save. See ', b('Someone pledges and pays at once'), '.'),
       note('Typing up a stack of pledge cards? Press ', b(SAID.saveAndAddAnother), ' instead of Save. The pledge saves and an empty form opens for the next card with the same Date pledged, so check the date on each card. Nothing is saved from that empty form until you type in it, so after the last card, press Cancel.'),
+      note('You can also start a pledge from ', b('Find donor'), ': when nobody matches your search, press ', b('Add a pledge'), '. A phone number you searched for is filled in for you.'),
     ),
     topic(
       'Log a payment',
@@ -434,6 +449,7 @@ function howTo(): Child[] {
         ['Payment method', PAYMENT_HELP.method],
         ['Notes', PAYMENT_HELP.notes],
       ),
+      note('If the warning is ', said(WARN_NOT_IN_PLEDGES), ' and your list was last refreshed more than a couple of minutes ago, it adds ', said(SAID.saveAnyway), ' The payment finds the donor’s pledge by phone number as soon as your list refreshes.'),
       note(
         'If a number on no pledge is close to one that is — one digit different, two digits side by side swapped, or the same 10-digit number with a country code (other than the US +1, which already matches) or a leading 0 in front of only one of them — a question appears under the warning, for example ',
         said(`${SAID.isThisFrom} Aisha Rahman (555-010-0101)?`),
@@ -552,6 +568,22 @@ function howTo(): Child[] {
       note('Pressing Esc on a computer, or Back on an Android phone, usually asks the same question. Cancel always does.'),
     ),
     topic(
+      'Follow up with donors who still owe',
+      steps(
+        ['On ', b('Pledges'), ', tap ', b('Needs follow-up'), '. The donors who owe the most are at the top.'],
+        ['Tap a donor to open their pledge. Press ', b('Call'), ' or ', b('Text'), ', just under the phone number, to ring or message them from your phone.'],
+        ['After calling, add a note such as “Called 24 Sep – paying Friday” and press ', b('Save'), '.'],
+      ),
+      p('The note shows on the donor’s row and their Find donor card, so other volunteers can see they were called once their list refreshes. Saving it also takes the donor off Needs follow-up for 30 days, so nobody calls them again straight away.'),
+      note(
+        'Any change saved to a pledge restarts its 30 days, even fixing a typo in the name. After many pledges are tidied up at once, those donors stay off Needs follow-up for a month, so check the ',
+        b('Pending'),
+        ' and ',
+        b('Partial'),
+        ' chips too.',
+      ),
+    ),
+    topic(
       'Delete a pledge or payment',
       steps(['Tap the row to open it.'], ['Press ', b('Delete'), ' at the bottom left of the form.'], ['Read the question and press ', b('Delete'), ' again to confirm. The row disappears at once.']),
       bullets(
@@ -579,7 +611,9 @@ function howTo(): Child[] {
       note('Not sure whose payment it is? Type the last 4 digits of the payment’s phone number into the search box on ', b('Pledges'), '. The donor shows up even when the rest of the number was typed differently.'),
       note('If it is the pledge’s number that was typed wrong, correct the pledge instead — see ', b('Correct a donor’s phone number'), '. Using the pledge’s number here would copy the mistake onto the payment.'),
       p(
-        'If the phone number was right but the donor has no pledge yet, add a pledge for them with that number instead, and press ',
+        'If the phone number was right, press ',
+        b('Refresh'),
+        ' at the top of the page first: another volunteer may have just added the donor’s pledge. If the warning is still there, the donor has no pledge yet. Add a pledge for them with that number, and press ',
         b('Save'),
         ' — not Save and log a payment, because the payment is already there. It starts counting by itself. Next time, ',
         b('Someone pledges and pays at once'),
@@ -599,7 +633,7 @@ function howTo(): Child[] {
     ),
     topic(
       'Handle a donor who paid more than they pledged',
-      p('Their status shows ', b(STATUS.overpaid), ' and their Balance Due is shown in brackets, for example ($50.00).'),
+      p('Their status shows ', b(STATUS.overpaid), ' and their Balance Due is shown in brackets, for example ($50.00). Their Find donor card shows it as ', b('Credit'), ' $50.00.'),
       steps(
         ['First check their payments for a typo, such as 500 typed instead of 50. Fix it if so.'],
         ['If the donor really did give more (for example, their employer matched the gift), you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
@@ -708,7 +742,7 @@ function theNumbers(): Child[] {
     topic('Status', terms(...STATUS_ORDER.map((status): [Node, ...Inline] => [b(status), STATUS_HELP[status]])), p('A pledge with no amount has no status until the amount is filled in.')),
     topic(
       'Balance Due',
-      p('Amount Pledged minus Received, for one donor. A negative balance is a credit: the donor has given more than they pledged. The tracker shows negative money in brackets, so ($50.00) means a $50 credit.'),
+      p('Amount Pledged minus Received, for one donor. A negative balance is a credit: the donor has given more than they pledged. The tracker shows negative money in brackets, so ($50.00) means a $50 credit. The Find donor card writes it out as Credit $50.00.'),
     ),
     topic(
       'The Summary totals',
@@ -760,7 +794,9 @@ function warningsAndHealth(): Child[] {
           b(SAID.useTheirNumber),
           '. Otherwise, type the last 4 digits of the number into the search box on ',
           b('Pledges'),
-          ' to find the donor, and correct the number — or, if the donor has no pledge yet, add one. For money with no donor, such as collection-box cash, see ',
+          ' to find the donor, and correct the number. If the number is right, press ',
+          b('Refresh'),
+          ' first; add a pledge only if the warning is still there. For money with no donor, such as collection-box cash, see ',
           b('Record money with no phone number (collection box, walk-in)'),
           ' in How to….',
         ],
@@ -797,6 +833,7 @@ function workingTogether(): Child[] {
       ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
       ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
       ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away, and each time you press ', b('Download .xlsx'), '.'],
+      ['Until you refresh, the tracker does not know about a pledge another volunteer has just added. Before adding a pledge for a donor it cannot find, press ', b('Refresh'), ': two pledges for the same donor count their payments twice.'],
       ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the sheet is busy with other volunteers’ saves, or the connection drops for a moment, the tracker quietly tries again on its own — you do not need to do anything unless you actually see an error message.'],
     ),
     topic(

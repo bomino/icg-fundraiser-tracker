@@ -11,6 +11,7 @@ import { h } from './dom';
 import { field } from './field';
 import { runForm, type FormRestore, type FormSpec } from './form';
 import { NOT_A_NUMBER, PLEDGE_HELP } from './help';
+import { dialNumber } from './phoneLinks';
 
 /** What "Save and add another" keeps for the next new pledge; every other box starts empty. */
 export type PledgeCarry = Pick<PledgeDraft, 'datePledged'>;
@@ -21,6 +22,8 @@ export interface PledgeFormOptions {
   derived?: DerivedPledge;
   /** The id a new pledge is created under. Left out, the form makes one; Reopen passes it back, so a retried Save names the same row. */
   newId?: string;
+  /** Default phone for a new pledge, e.g. the number typed into Find donor when nobody matched it. */
+  phone?: string;
   pledges: readonly Pledge[];
   /** Every payment as the form opened, so an edit that changes the phone can say how many payments the old number leaves behind. */
   payments?: readonly Payment[];
@@ -80,7 +83,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   // One id per opened form: a Save retried after a lost response must name the same row.
   const newId = options.newId ?? makeId();
   const fields = {
-    phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? '', help: PLEDGE_HELP.phone }),
+    phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PLEDGE_HELP.phone }),
     name: field({ name: 'name', label: 'Donor name', value: existing?.name ?? '', help: PLEDGE_HELP.name }),
     datePledged: field({ name: 'datePledged', label: 'Date pledged', type: 'date', value: existing ? existing.datePledged : options.carried?.datePledged ?? todayIso(), help: PLEDGE_HELP.datePledged }),
     amountPledged: field({ name: 'amountPledged', label: 'Amount pledged ($)', inputmode: 'decimal', value: existing?.amountPledged?.toString() ?? '', help: PLEDGE_HELP.amountPledged }),
@@ -96,6 +99,20 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   };
   fields.phone.input.addEventListener('input', updateHint);
   updateHint();
+
+  // Here, not on the Pledges rows: each row is a button that opens this dialog, and a link cannot sit inside a button.
+  const call = h('a', { class: 'btn btn-secondary' }, 'Call');
+  const text = h('a', { class: 'btn btn-secondary' }, 'Text');
+  const contact = h('div', { class: 'toolbar' }, call, text);
+  const updateContact = () => {
+    const number = dialNumber(fields.phone.input.value);
+    // Edits only: a new pledge's donor is usually standing there, and the links would sit in the Tab path from Phone to Name.
+    contact.hidden = !existing || number === '';
+    call.href = `tel:${number}`;
+    text.href = `sms:${number}`;
+  };
+  fields.phone.input.addEventListener('input', updateContact);
+  updateContact();
 
   const oldPhone = existing?.phone ?? '';
   const leftBehind = existing ? paymentsOnOldNumber(existing, options.pledges, options.payments ?? []) : 0;
@@ -135,7 +152,7 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
 
   const onDelete = options.onDelete;
   const onAddAnother = options.onAddAnother;
-  const form = h('form', { class: 'form' }, fields.phone.wrapper, duplicateHint, oldNumberHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
+  const form = h('form', { class: 'form' }, fields.phone.wrapper, contact, duplicateHint, oldNumberHint, fields.name.wrapper, fields.datePledged.wrapper, fields.amountPledged.wrapper, fields.notes.wrapper);
   const dialog = runForm<PledgeDraft>({
     title: existing ? 'Edit pledge' : 'Add pledge',
     form,

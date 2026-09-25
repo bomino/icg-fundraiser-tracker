@@ -12,6 +12,10 @@ import { h } from './dom';
 import { field } from './field';
 import { runForm, type FormRestore } from './form';
 import { NOT_A_NUMBER, PAYMENT_HELP } from './help';
+import { staleListAge } from './staleList';
+
+// Saving is right when the pledge is only newer than this list: payments are matched to pledges afresh on every load.
+const SAVE_ANYWAY = 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.';
 
 /** What "Save and add another" keeps for the next new payment; every other box starts empty. */
 export type PaymentCarry = Pick<PaymentDraft, 'dateReceived' | 'method'>;
@@ -26,6 +30,8 @@ export interface PaymentFormOptions {
   pledges: readonly Pledge[];
   /** The engine's figures as the form opened, for the donor's balance and for a payment that is already logged. */
   computed: Computed;
+  /** When `pledges` was loaded (the store's lastLoadedAt()); an old list may be missing a donor who has just pledged with another volunteer. */
+  pledgesLoadedAt?: number | null;
   /** Saves against `existing` as this form holds it (a reopened form may hold a newer version than the first one did), or `{ id }` naming a new payment. */
   onSave(draft: PaymentDraft, row: Payment | NewRow): Promise<void>;
   onDelete?: (existing: Payment) => Promise<void>;
@@ -93,6 +99,8 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     // The pressed button goes with the suggestions; the volunteer lands back on the number it filled in.
     fields.phone.input.focus();
   };
+  // The pledge may just be newer than this list, and a second pledge would count the donor's payments twice.
+  const mayBeNewPledge = (donor: string) => donor === WARN_NOT_IN_PLEDGES && staleListAge(options.pledgesLoadedAt ?? null) !== null;
   // Shows, before saving, exactly what the Donor Name column will say, so a mistyped phone is caught at the door.
   const updatePreview = () => {
     const phone = fields.phone.input.value;
@@ -105,7 +113,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const walkIn = !existing && donor === WARN_NOT_IN_PLEDGES ? " If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment." : '';
     const text =
       blank ? 'Type the phone number to find the donor.'
-      : warning ? `${donor} — this payment will not be counted until that is fixed.${walkIn}`
+      : warning ? `${donor} — this payment will not be counted until that is fixed.${mayBeNewPledge(donor) ? ` ${SAVE_ANYWAY}` : ''}${walkIn}`
       : `Donor: ${donor || '(no name on the pledge)'}${standing(findByPhone(options.computed, phone), !existing)}`;
     // Every partial number gives the same warning; rewriting it on each digit could have a screen reader repeat it.
     if (preview.textContent !== text) preview.textContent = text;

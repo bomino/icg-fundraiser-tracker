@@ -9,7 +9,11 @@ import { createLookupView } from '../../web/src/ui/lookupView';
 import type { PaymentDraft } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
-afterEach(() => document.body.replaceChildren());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  document.body.replaceChildren();
+});
 
 const pledges = [
   pledge({ id: 'p1', phone: '555-010-0101', name: '<b>Aisha</b>', amountPledged: 100 }),
@@ -32,6 +36,19 @@ const type = (name: string, value: string) => {
 const submit = () => (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
 const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement;
 const dialogTitle = () => document.querySelector('dialog[open] .modal-title')?.textContent;
+const loadedMinutesAgo = (minutes: number) => {
+  const loadedAt = Date.now() - minutes * 60_000;
+  return () => loadedAt;
+};
+// What the print stylesheet leaves on paper, and what the screen shows without the print-only parts.
+const without = (view: HTMLElement, selector: string) => {
+  const copy = view.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll(selector).forEach((hidden) => hidden.remove());
+  return copy;
+};
+const onPaper = (view: HTMLElement) => without(view, '.print-hidden, .toolbar, .btn');
+const onScreen = (view: HTMLElement) => without(view, '.print-only');
+const cardRows = (root: Element) => Object.fromEntries(Array.from(root.querySelectorAll('.lookup-card dt')).map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
 
 describe('find donor', () => {
   it('finds by phone in any format and shows payment history as text', () => {
@@ -57,6 +74,19 @@ describe('find donor', () => {
     expect(view.textContent).toContain('$40.00');
   });
 
+  it('makes the phone on the donor card a call link of its digits, left as text when it has none', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    const phoneCell = () => Array.from(view.querySelectorAll('.lookup-card dt')).find((dt) => dt.textContent === 'Phone')?.nextElementSibling as HTMLElement;
+    search(view, '(555) 010 0101');
+    const link = phoneCell().querySelector('a') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('tel:5550100101');
+    expect(link.textContent).toBe('555-010-0101');
+    search(view, 'dashes');
+    (view.querySelector('.match') as HTMLButtonElement).click();
+    expect(phoneCell().querySelector('a')).toBeNull();
+    expect(phoneCell().textContent).toBe('--');
+  });
+
   it('lists name matches, then opens the chosen donor', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, 'aisha');
@@ -66,14 +96,91 @@ describe('find donor', () => {
     expect(view.textContent).toContain('Aisha Khan');
   });
 
-  it('says Not found', () => {
+  it('lists donors whose number contains the typed digits when no number matches in full', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
-    search(view, '999');
-    expect(view.textContent).toContain('Not found');
+    for (const partial of ['0101', '555-010']) {
+      search(view, partial);
+      expect(Array.from(view.querySelectorAll('.match')).map((match) => match.textContent), partial).toEqual([expect.stringContaining('555-010-0101')]);
+    }
+  });
+
+  it('keeps each match phone left-to-right, so it reads in order after an Arabic-script name, and lets the search box follow what is typed', () => {
+    const arabic = [pledge({ id: 'a1', phone: '555-010-0101', name: 'محمد', amountPledged: 100 }), pledge({ id: 'a2', phone: '555-010-0102', name: 'محمود', amountPledged: 100 })];
+    const arabicState: State = { pledges: arabic, payments: [], settings: SETTINGS, me: 'me', computed: compute(arabic, [], SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(arabicState);
+    expect(view.querySelector('input')?.getAttribute('dir')).toBe('auto');
+    search(view, 'مح');
+    expect(Array.from(view.querySelectorAll('.match .meta')).map((phone) => [phone.textContent?.trim(), phone.getAttribute('dir')])).toEqual([
+      ['555-010-0101', 'ltr'],
+      ['555-010-0102', 'ltr'],
+    ]);
+  });
+
+  it('shows each match with its status', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(view, 'aisha');
+    expect(Array.from(view.querySelectorAll('.match .badge')).map((badge) => badge.textContent)).toEqual(['Partial', 'Pending']);
+  });
+
+  it('shows only the first 20 matches, saying how many there are in all', () => {
+    const crowd = Array.from({ length: 25 }, (_, i) => pledge({ phone: `555-020-${String(i).padStart(4, '0')}`, name: `Donor ${i + 1}`, amountPledged: 10 }));
+    const crowdState: State = { pledges: crowd, payments: [], settings: SETTINGS, me: 'me', computed: compute(crowd, [], SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(crowdState);
+    search(view, 'donor');
+    expect(view.querySelectorAll('.match')).toHaveLength(20);
+    expect(view.textContent).toContain('Showing 20 of 25 — keep typing to narrow it down.');
+    search(view, 'donor 2');
+    expect(view.querySelectorAll('.match')).toHaveLength(7);
+    expect(view.textContent).not.toContain('Showing');
+  });
+
+  it('says No donor found and offers Add a pledge with the typed number filled in, naming a new row per open', () => {
+    const savePledge = vi.fn<Store['savePledge']>(async () => undefined);
+    const store = { savePledge, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store;
+    document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 999-0000');
+    expect(document.body.textContent).toContain('No donor found.');
+    const addPledge = () => {
+      (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
+      expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value).toBe('(555) 999-0000');
+      (document.querySelector('dialog[open] input[name=name]') as HTMLInputElement).value = 'Zainab';
+      (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    };
+    addPledge();
+    addPledge();
+    expect(savePledge.mock.calls.map(([draft, row]) => [draft.phone, draft.name, row])).toEqual([
+      ['(555) 999-0000', 'Zainab', { id: expect.any(String) }],
+      ['(555) 999-0000', 'Zainab', { id: expect.any(String) }],
+    ]);
+    const [first, second] = savePledge.mock.calls.map(([, row]) => row.id);
+    expect(second).not.toBe(first);
+  });
+
+  it('leaves the phone blank on Add a pledge after a search with letters in it, digits or not', () => {
+    for (const text of ['Zainab', 'Zainab 2']) {
+      document.body.replaceChildren(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
+      search(document.body, text);
+      (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add a pledge') as HTMLButtonElement).click();
+      expect((document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement).value, text).toBe('');
+    }
+  });
+
+  it('asks for a Refresh before adding a pledge when nobody matches on a list loaded over 2 minutes ago', () => {
+    const view = createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(5) } as unknown as Store, reportError: vi.fn() })(state);
+    search(view, '(555) 999-0000');
+    expect(view.textContent).toContain('No donor found.');
+    expect(view.querySelector('.hint-warning')?.textContent).toBe('Your list was last updated 5 minutes ago. If they pledged with another volunteer since then, press Refresh before adding a pledge.');
+  });
+
+  it('says only No donor found on a list loaded in the last 2 minutes', () => {
+    const view = createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(1) } as unknown as Store, reportError: vi.fn() })(state);
+    search(view, '(555) 999-0000');
+    expect(view.textContent).toContain('No donor found.');
+    expect(view.textContent).not.toContain('Refresh');
   });
 
   it('tells a screen reader what each search found in a short status line, not by reading out the whole card', () => {
-    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    const view = createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state);
     const status = view.querySelector('[role=status]') as HTMLElement;
     expect(status.textContent).toBe('');
     search(view, 'aisha');
@@ -85,7 +192,7 @@ describe('find donor', () => {
     search(view, '(555) 010 0101');
     expect(status.textContent).toBe('Found <b>Aisha</b>');
     search(view, '999');
-    expect(status.textContent).toBe('Not found.');
+    expect(status.textContent).toBe('No donor found.');
     search(view, '');
     expect(status.textContent).toBe('');
     expect(view.querySelectorAll('[role=status]')).toHaveLength(1);
@@ -118,7 +225,7 @@ describe('find donor', () => {
   it('logs a payment from the donor card, calling store.savePayment with the phone', () => {
     // Typed so `.mock.calls[0][0]` below is not indexed into an inferred empty tuple.
     const savePayment = vi.fn(async (_draft: PaymentDraft) => undefined);
-    const store = { savePayment } as unknown as Store;
+    const store = { savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store;
     document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     const logPayment = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
@@ -138,7 +245,7 @@ describe('find donor', () => {
   it('retries a failed payment logged from the donor card under the same id', async () => {
     // #given a payment logged from the card whose save fails with a lost connection
     const savePayment = vi.fn<Store['savePayment']>(async () => { throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.'); });
-    document.body.append(createLookupView({ store: { savePayment } as unknown as Store, reportError: vi.fn() })(state));
+    document.body.append(createLookupView({ store: { savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     button('Log a payment').click();
     type('amountReceived', '25');
@@ -170,7 +277,7 @@ describe('find donor', () => {
     // #when the change lands and the view redraws, though the typed search no longer matches
     const moved = [{ ...pledges[0], phone: '555-010-7777' }, ...pledges.slice(1)];
     document.body.replaceChildren(render({ ...state, pledges: moved, computed: compute(moved, payments, SETTINGS, TODAY) }));
-    // #then the card still shows that donor, not "Not found"
+    // #then the card still shows that donor, not "No donor found"
     expect(document.querySelector('.lookup-card h2')?.textContent).toBe('<b>Aisha</b>');
     expect(document.querySelector('.lookup-card dd')?.textContent).toBe('555-010-7777');
   });
@@ -194,7 +301,7 @@ describe('find donor', () => {
 
   it('opens a payment from the donor card history to edit it', async () => {
     const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
-    document.body.append(createLookupView({ store: { savePayment } as unknown as Store, reportError: vi.fn() })(state));
+    document.body.append(createLookupView({ store: { savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     (document.querySelector('.lookup-card tbody tr .row-open') as HTMLButtonElement).click();
     expect(dialogTitle()).toBe('Edit payment');
@@ -217,7 +324,7 @@ describe('find donor', () => {
     const view = createLookupView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State);
     search(view, '2');
     // #then its edit button says why it cannot be used yet, since an edit opened now would start from a version about to be replaced
-    const edit = view.querySelector('.lookup-card button') as HTMLButtonElement;
+    const edit = view.querySelector('.lookup-card [data-focus-key=lookup-edit-pledge]') as HTMLButtonElement;
     edit.click();
     // Still focusable, like a saving row's button, so a keyboard volunteer who saved from it is not thrown to the top of the page.
     expect({ text: edit.textContent, ariaDisabled: edit.getAttribute('aria-disabled'), disabled: edit.disabled, opened: document.querySelector('dialog[open]') }).toEqual({
@@ -226,6 +333,14 @@ describe('find donor', () => {
       disabled: false,
       opened: null,
     });
+  });
+
+  it('opens Log a payment from the donor card knowing how old the list is', () => {
+    document.body.append(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(5) } as unknown as Store, reportError: vi.fn() })(state));
+    search(document.body, '(555) 010 0101');
+    (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
+    search(document.querySelector('dialog[open]') as HTMLElement, '555 999 0000');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain('Do not add a second pledge.');
   });
 
   it('labels a payment that is still saving in the donor card history', async () => {
@@ -241,5 +356,62 @@ describe('find donor', () => {
     const saving = Array.from(view.querySelectorAll('.lookup-card tbody tr')).filter((tr) => tr.classList.contains('row-pending'));
     expect(saving).toHaveLength(1);
     expect(saving[0].textContent).toContain('Saving…');
+  });
+
+  it('prints the donor card as a statement under the masjid name, leaving off notes and warnings, with Total paid added up from the payments listed', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 24, 12));
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    // A blank Amount pledged leaves Amount received blank, and a second pledge on the number raises the duplicate warning.
+    const donorPledges = [
+      pledge({ phone: '555-010-0201', name: 'Bilal Ahmed', amountPledged: null, notes: 'Asked to stay anonymous' }),
+      pledge({ phone: '555 010 0201', name: 'Bilal A.', amountPledged: 100 }),
+    ];
+    const donorPayments = [
+      payment({ phone: '5550100201', dateReceived: '2026-07-10', amountReceived: 25.1, method: 'Cash', notes: 'Left with the imam' }),
+      payment({ phone: '555-010-0201', dateReceived: '2026-08-10', amountReceived: 14.9, method: 'Check' }),
+    ];
+    const donorState: State = { pledges: donorPledges, payments: donorPayments, settings: SETTINGS, me: 'me', computed: compute(donorPledges, donorPayments, SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(donorState);
+    search(view, '555-010-0201');
+
+    expect(cardRows(onScreen(view))).toMatchObject({ 'Amount received': '', Notes: 'Asked to stay anonymous' });
+    expect(onScreen(view).querySelector('.hint-warning')?.textContent).toContain('more than one pledge');
+    expect(onScreen(view).textContent).not.toContain('pledge statement');
+
+    const paper = onPaper(view);
+    expect(paper.querySelector('.lookup-card')?.firstElementChild?.textContent).toBe('Islamic Center of Greensboro — pledge statement, printed Sep 24, 2026');
+    expect(Object.keys(cardRows(paper))).toEqual(['Phone', 'Date pledged', 'Amount pledged', 'Total paid', 'Balance due', 'Last payment', '# Payments', 'Status']);
+    expect(cardRows(paper)['Total paid']).toBe('$40.00');
+    expect(Array.from(paper.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['Date', 'Amount', 'Method']);
+    for (const internal of ['Asked to stay anonymous', 'Left with the imam', 'more than one pledge', 'Find a donor', 'Search']) expect(paper.textContent, internal).not.toContain(internal);
+
+    (Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Print') as HTMLButtonElement).click();
+    expect(print).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the statement-only parts off the screen, and the volunteer-only parts off paper in Find donor alone', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'base.css'), 'utf8');
+    expect(css).toMatch(/@media print \{[^@]*\.lookup-view \.print-hidden \{ display: none !important; \}/);
+    // Shared with a printed list's filter line, so print-only parts are off every screen, not just this one.
+    expect(css).toMatch(/@media not print \{\s*\.print-only \{ display: none !important; \}/);
+    expect(css).not.toMatch(/(^|[{},])\s*\.print-hidden\b/m);
+    expect(createLookupView({ store: {} as Store, reportError: vi.fn() })(state).classList).toContain('lookup-view');
+  });
+
+  it('shows an overpaid donor’s balance as a Credit, not an amount in brackets', () => {
+    const overpaid = [pledge({ phone: '555-010-0301', name: 'Hana', amountPledged: 100 })];
+    const overpayments = [payment({ phone: '555-010-0301', dateReceived: '2026-08-01', amountReceived: 150, method: 'Cash' })];
+    const overpaidState: State = { pledges: overpaid, payments: overpayments, settings: SETTINGS, me: 'me', computed: compute(overpaid, overpayments, SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(overpaidState);
+    search(view, '555-010-0301');
+    expect(cardRows(view)).toMatchObject({ Credit: '$50.00' });
+    expect(cardRows(view)).not.toHaveProperty('Balance due');
+    expect(view.textContent).not.toContain('($50.00)');
+
+    const owing = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(owing, '(555) 010 0101');
+    expect(cardRows(owing)).toMatchObject({ 'Balance due': '$60.00' });
+    expect(cardRows(owing)).not.toHaveProperty('Credit');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compute, duplicatePaymentKey, findByName, findByPhone, nearMatches, paymentsForKey } from '../../web/src/engine';
+import { compute, duplicatePaymentKey, findByPhone, nearMatches, paymentsForKey } from '../../web/src/engine';
 import { matchKey } from '../../web/src/matchKey';
 import type { Payment, Pledge } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
@@ -197,10 +197,6 @@ describe('lookup', () => {
   it('returns null for blank or unknown phones', () => {
     expect(findByPhone(computed, '')).toBeNull();
     expect(findByPhone(computed, '000')).toBeNull();
-  });
-  it('matches names case-insensitively by substring', () => {
-    expect(findByName(computed, '  grace ').map((d) => d.pledge.id)).toEqual(['first', 'second']);
-    expect(findByName(computed, '   ')).toEqual([]);
   });
   it("lists a donor's payments by key", () => {
     expect(paymentsForKey(computed, '#5550100107').map((d) => d.payment.id)).toEqual(['pay']);

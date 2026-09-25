@@ -10,6 +10,17 @@ function derive(pledgeFields: Parameters<typeof pledge>[0], payments: Parameters
   return d;
 }
 
+function inTimeZone(zone: string, run: () => void) {
+  const original = process.env.TZ;
+  process.env.TZ = zone;
+  try {
+    run();
+  } finally {
+    if (original === undefined) delete process.env.TZ;
+    else process.env.TZ = original;
+  }
+}
+
 describe('needsFollowUp', () => {
   it('is false for a Paid pledge no matter how stale', () => {
     const d = derive({ phone: '1', amountPledged: 100, datePledged: '2020-01-01' }, [{ phone: '1', amountReceived: 100, dateReceived: '2020-01-02' }]);
@@ -21,9 +32,35 @@ describe('needsFollowUp', () => {
     expect(needsFollowUp(d, TODAY)).toBe(false);
   });
 
-  it('is true when Pending with both dates blank', () => {
-    const d = derive({ phone: '1', amountPledged: 100 });
+  it('is true when Pending with both dates and the saved time blank', () => {
+    const d = derive({ phone: '1', amountPledged: 100, updatedAt: '' });
     expect(needsFollowUp(d, TODAY)).toBe(true);
+  });
+
+  it('counts a change saved to the pledge, such as a note after a call, as activity', () => {
+    const d = derive({ phone: '1', amountPledged: 100, datePledged: '2026-01-01', notes: 'Called 20 Sep – paying Friday', updatedAt: new Date(2026, 8, 20, 12, 0).toISOString() });
+    expect(needsFollowUp(d, TODAY)).toBe(false);
+  });
+
+  it('reads the saved time as a local date, like today', () => {
+    // 23:30 local on the 31st day back is already the 30th day in UTC west of Greenwich; 00:30 local
+    // on the 30th day back is still the 31st in UTC east of it. Only the local reading gets both right.
+    // The zones are pinned because on a machine set to UTC, as CI runners usually are, both readings agree.
+    for (const zone of ['America/New_York', 'Asia/Karachi']) {
+      inTimeZone(zone, () => {
+        const lateOnDay31 = derive({ phone: '1', amountPledged: 100, datePledged: '2026-01-01', updatedAt: new Date(2026, 7, 24, 23, 30).toISOString() });
+        const earlyOnDay30 = derive({ phone: '1', amountPledged: 100, datePledged: '2026-01-01', updatedAt: new Date(2026, 7, 25, 0, 30).toISOString() });
+        expect(needsFollowUp(lateOnDay31, TODAY), zone).toBe(true);
+        expect(needsFollowUp(earlyOnDay30, TODAY), zone).toBe(false);
+      });
+    }
+  });
+
+  it('ignores a blank or unreadable saved time', () => {
+    for (const updatedAt of ['', 'yesterday']) {
+      const d = derive({ phone: '1', amountPledged: 100, datePledged: '2026-01-01', updatedAt });
+      expect(needsFollowUp(d, TODAY), updatedAt).toBe(true);
+    }
   });
 
   it('is false at exactly 30 days before today (not "more than")', () => {

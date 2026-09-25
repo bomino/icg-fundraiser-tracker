@@ -74,6 +74,7 @@ export function createPaymentsView(deps: ListViewDeps) {
         methods: state.settings.paymentMethods,
         pledges: state.pledges,
         computed: state.computed,
+        pledgesLoadedAt: deps.store.lastLoadedAt(),
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onDelete: (current) => deps.store.deletePayment(current),
         latest: () => deps.store.state()?.payments.find((p) => p.id === existing.id),
@@ -90,6 +91,7 @@ export function createPaymentsView(deps: ListViewDeps) {
         methods: current.settings.paymentMethods,
         pledges: current.pledges,
         computed: current.computed,
+        pledgesLoadedAt: deps.store.lastLoadedAt(),
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onAddAnother: logPayment,
         reportError: deps.reportError,
@@ -163,7 +165,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       showing.replaceChildren(...(line ? [line] : []), ...(byMethod ? [byMethod] : []));
       downloadSlot.replaceChildren(...(download ? [download] : []));
     };
-    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
+    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', dir: 'auto', 'data-focus-key': 'payments-search' });
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;

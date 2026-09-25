@@ -21,7 +21,7 @@ const pledges = [
 ];
 const payments = [payment({ id: 'y1', phone: '555-999-0000', amountReceived: 35, dateReceived: '2099-01-01' })];
 const state: State = { pledges, payments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, payments, SETTINGS, TODAY) };
-const store = { state: () => state, savePledge: vi.fn(async () => undefined), savePayment: vi.fn(async () => undefined), deletePledge: vi.fn(), deletePayment: vi.fn() } as unknown as Store;
+const store = { state: () => state, savePledge: vi.fn(async () => undefined), savePayment: vi.fn(async () => undefined), deletePledge: vi.fn(), deletePayment: vi.fn(), lastLoadedAt: () => Date.now() } as unknown as Store;
 const type = (input: HTMLInputElement, value: string) => {
   input.value = value;
   input.dispatchEvent(new Event('input'));
@@ -47,6 +47,9 @@ const pickSort = (view: HTMLElement, label: string) => {
   select.value = ([...select.options].find((option) => option.textContent === label) as HTMLOptionElement).value;
   select.dispatchEvent(new Event('change'));
 };
+const STALE_LOAD_MS = 5 * 60_000;
+const SAVE_ANYWAY = 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.';
+const NOT_PLEDGED_YET = "If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment.";
 
 describe('pledges view', () => {
   it('marks duplicates red and in words, and filters by search without losing the box', () => {
@@ -65,6 +68,11 @@ describe('pledges view', () => {
     vi.useRealTimers();
     expect([...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p3']);
     expect(document.body.contains(search)).toBe(true);
+  });
+
+  it('lets the search box run right-to-left when the search starts in Arabic script', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    expect(view.querySelector('input[type=search]')?.getAttribute('dir')).toBe('auto');
   });
 
   it('shows only filtered rows and a chip that clears the filter', () => {
@@ -129,6 +137,16 @@ describe('pledges view', () => {
     nameHeader().click();
     expect(ids()).toEqual(['p3', 'p2', 'p1']);
     expect(document.querySelector('th[aria-sort]')).toBeNull();
+  });
+
+  it('opens Log a payment from a pledge knowing how old the list is', async () => {
+    const view = createPledgesView({ store: { ...store, lastLoadedAt: () => Date.now() - STALE_LOAD_MS } as Store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    (view.querySelector('tr[data-id="p3"]') as HTMLElement).click();
+    (Array.from(document.querySelectorAll('dialog[open] button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(openModalTitles()).toEqual(['Log a payment']));
+    type(document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement, '555 999 0000');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain(SAVE_ANYWAY);
   });
 });
 
@@ -308,6 +326,19 @@ describe('payments view', () => {
     expect(dateCell('y1')?.classList.contains('cell-warning')).toBe(true);
     expect(dateCell('y1')?.textContent).toBe('Jan 1, 2099 (future)');
     expect(dateCell('y2')?.textContent).toBe('Jan 1, 2026');
+  });
+
+  it('lets the search box run right-to-left when the search starts in Arabic script', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    expect(view.querySelector('input[type=search]')?.getAttribute('dir')).toBe('auto');
+  });
+
+  it('opens Log a payment knowing how old the list is', () => {
+    const view = createPaymentsView({ store: { ...store, lastLoadedAt: () => Date.now() - STALE_LOAD_MS } as Store, reportError: vi.fn() })(state, null, () => undefined);
+    document.body.append(view);
+    (Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
+    type(document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement, '555 999 0000');
+    expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain(SAVE_ANYWAY);
   });
 });
 
@@ -764,6 +795,26 @@ describe('payment form', () => {
     expect({ text: preview.textContent, className: preview.className }).toEqual({ text: 'Type the phone number to find the donor.', className: 'hint' });
   });
 
+  it('says to save anyway, not add a second pledge, when a list loaded over 2 minutes ago cannot find the phone', () => {
+    openPaymentForm({ methods: METHODS, pledges, computed: state.computed, pledgesLoadedAt: Date.now() - STALE_LOAD_MS, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '123');
+    // Before the walk-in advice, so a volunteer reads "do not add a second pledge" before "Add pledge".
+    expect(document.querySelector('[data-role=donor-preview]')?.textContent).toBe(`⚠ phone not in Pledges — this payment will not be counted until that is fixed. ${SAVE_ANYWAY} ${NOT_PLEDGED_YET}`);
+  });
+
+  it('leaves out the save-anyway advice on a list loaded in the last 2 minutes', () => {
+    openPaymentForm({ methods: METHODS, pledges, computed: state.computed, pledgesLoadedAt: Date.now() - 60_000, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '123');
+    expect(document.querySelector('[data-role=donor-preview]')?.textContent).toBe(`⚠ phone not in Pledges — this payment will not be counted until that is fixed. ${NOT_PLEDGED_YET}`);
+  });
+
+  it('keeps the warning short for a donor whose pledge has no amount, however old the list', () => {
+    const noAmount = pledge({ phone: '555-010-0109', name: 'Amount To Come' });
+    openPaymentForm({ methods: METHODS, pledges: [...pledges, noAmount], computed: state.computed, pledgesLoadedAt: Date.now() - STALE_LOAD_MS, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '555-010-0109');
+    expect(document.querySelector('[data-role=donor-preview]')?.textContent).toBe('⚠ no amount on Pledges — this payment will not be counted until that is fixed.');
+  });
+
   it('turns typed text into a draft', async () => {
     // Typed so `.mock.calls[0][0]` below is not indexed into an inferred empty tuple.
     const onSave = vi.fn(async (_draft: PaymentDraft) => undefined);
@@ -978,6 +1029,30 @@ describe('pledge form', () => {
       type(phoneBox(), '555-010-0110');
       expect(oldNumberHint().textContent).toMatch(/^1 payment was logged under the old number 555-010-0103\./);
     });
+  });
+
+  it('offers Call and Text for the phone as typed, dialling only its digits and plus sign, and only when it has digits', () => {
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+    const link = (name: string) => Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === name) as HTMLAnchorElement;
+    expect(link('Call').getAttribute('href')).toBe('tel:5550100103');
+    expect(link('Text').getAttribute('href')).toBe('sms:5550100103');
+    const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
+    type(phone, '+1 (555) 010.0199');
+    expect(link('Call').getAttribute('href')).toBe('tel:+15550100199');
+    expect(link('Text').getAttribute('href')).toBe('sms:+15550100199');
+    expect(link('Call').closest('[hidden]')).toBeNull();
+    type(phone, '--');
+    expect(link('Call').closest('[hidden]')).not.toBeNull();
+    expect(link('Text').closest('[hidden]')).not.toBeNull();
+  });
+
+  it('keeps Call and Text off a new pledge, even once a phone number is filled in or typed', () => {
+    openPledgeForm({ pledges, phone: '555 0101', onSave: vi.fn(), reportError: vi.fn() });
+    const link = (name: string) => Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === name) as HTMLAnchorElement;
+    expect(link('Call').closest('[hidden]')).not.toBeNull();
+    type(document.querySelector('input[name=phone]') as HTMLInputElement, '555 0102');
+    expect(link('Call').closest('[hidden]')).not.toBeNull();
+    expect(link('Text').closest('[hidden]')).not.toBeNull();
   });
 
   it('rejects an amount that is not a number', () => {

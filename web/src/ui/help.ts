@@ -3,7 +3,7 @@ export const PLEDGE_HELP = {
   name: 'Full name, e.g. Ahmed Yusuf.',
   datePledged: 'The date the pledge was made.',
   amountPledged: 'Total amount promised, e.g. 500. Enter 0 if the amount is not known yet — payments still count; they only stop counting if this is left blank.',
-  notes: 'Anything worth remembering, e.g. "Prefers to pay after Jumuah".',
+  notes: 'Anything worth remembering, e.g. "Prefers to pay after Jumuah" or "Called 24 Sep – paying Friday".',
 } as const;
 
 export const PAYMENT_HELP = {

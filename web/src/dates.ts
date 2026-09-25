@@ -17,6 +17,12 @@ export function weekStartIso(date: string): string {
   return todayIso(new Date(year, month - 1, day - daysSinceStart));
 }
 
+/** The local calendar date of a moment such as a row's updatedAt, or blank when it is blank or unreadable. */
+export function localIsoDate(timestamp: string): string {
+  const moment = new Date(timestamp);
+  return Number.isNaN(moment.getTime()) ? '' : todayIso(moment);
+}
+
 export function isIsoDate(value: string): boolean {
   const match = ISO_DATE.exec(value);
   if (!match) return false;
