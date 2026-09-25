@@ -272,7 +272,7 @@ function theScreens(): Child[] {
         b('Log a payment'),
         ' to record money from them, press ',
         b('Edit pledge'),
-        ' to correct their pledge, or tap one of their payments to correct or delete it. The card stays on that donor even if you change the phone number you searched for.',
+        ' to correct their pledge, or tap one of their payments to correct or delete it. If you change the phone number on their pledge, the card keeps showing them.',
       ),
     ),
     topic(
@@ -372,6 +372,7 @@ function howTo(): Child[] {
     topic(
       'Edit a pledge or payment',
       steps(['Find the row on Pledges or Payments (use the search box).'], ['Tap the row. The form opens with its current values.'], ['Change what you need and press ', b('Save'), '.']),
+      note('You can also start from a donor’s card on ', b('Find donor'), ': press ', b('Edit pledge'), ', or tap one of their payments.'),
     ),
     topic(
       'Delete a pledge or payment',
