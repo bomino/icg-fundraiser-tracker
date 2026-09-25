@@ -58,7 +58,8 @@ export function openPledgeForm(options: PledgeFormOptions, restore?: FormRestore
   const contact = h('div', { class: 'toolbar' }, call, text);
   const updateContact = () => {
     const number = dialNumber(fields.phone.input.value);
-    contact.hidden = number === '';
+    // Edits only: a new pledge's donor is usually standing there, and the links would sit in the Tab path from Phone to Name.
+    contact.hidden = !existing || number === '';
     call.href = `tel:${number}`;
     text.href = `sms:${number}`;
   };

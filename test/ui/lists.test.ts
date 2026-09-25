@@ -382,13 +382,13 @@ describe('pledge form', () => {
     expect(link('Text').closest('[hidden]')).not.toBeNull();
   });
 
-  it('hides Call and Text on a new pledge until a phone number is typed', () => {
-    openPledgeForm({ pledges, onSave: vi.fn(), reportError: vi.fn() });
-    const call = Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === 'Call') as HTMLAnchorElement;
-    expect(call.closest('[hidden]')).not.toBeNull();
+  it('keeps Call and Text off a new pledge, even once a phone number is filled in or typed', () => {
+    openPledgeForm({ pledges, phone: '555 0101', onSave: vi.fn(), reportError: vi.fn() });
+    const link = (name: string) => Array.from(document.querySelectorAll<HTMLAnchorElement>('dialog[open] a')).find((a) => a.textContent === name) as HTMLAnchorElement;
+    expect(link('Call').closest('[hidden]')).not.toBeNull();
     type(document.querySelector('input[name=phone]') as HTMLInputElement, '555 0102');
-    expect(call.closest('[hidden]')).toBeNull();
-    expect(call.getAttribute('href')).toBe('tel:5550102');
+    expect(link('Call').closest('[hidden]')).not.toBeNull();
+    expect(link('Text').closest('[hidden]')).not.toBeNull();
   });
 
   it('rejects an amount that is not a number', () => {

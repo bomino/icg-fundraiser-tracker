@@ -209,7 +209,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
   - Entry fields only.
   - Payment method is a `<select>` from Settings.
   - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed. When the reason is `⚠ phone not in Pledges` and the list was loaded over 2 minutes ago, it adds that a donor who pledged with another volunteer will match once the list refreshes, so the payment should be saved and no second pledge added.
-  - In the Pledges dialog, **Call** (`tel:`) and **Text** (`sms:`) links under the phone field reach the number as typed, built from its digits and `+` only and hidden while it has none. The list rows get no such link, because each row is a button that opens this dialog.
+  - In the edit-pledge dialog, **Call** (`tel:`) and **Text** (`sms:`) links under the phone field reach the number as typed, built from its digits and `+` only and hidden while it has none. The list rows get no such link, because each row is a button that opens this dialog, and neither does Add pledge: that donor is usually present, and the links would sit in the Tab path from Phone to Name.
   - Help text under each field reuses the workbook's header tooltips.
   - Delete lives inside the edit dialog and asks for confirmation.
 - **Export:** SheetJS builds a workbook with a Pledges sheet (entries plus derived columns), a Payments sheet and a Summary sheet. It's a backup and treasurer copy, not a round-trip format.
