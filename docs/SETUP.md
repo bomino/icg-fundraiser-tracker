@@ -37,7 +37,7 @@ When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ →
 2. Push this folder to it. `.gitignore` keeps the `.xlsx` and `.docx` files out.
 3. In the repository, go to **Settings → Pages → Source: GitHub Actions**.
 4. **Settings → Secrets and variables → Actions → Variables**: add `VITE_SCRIPT_URL` (from step 3) and `VITE_GOOGLE_CLIENT_ID` (from step 2).
-5. **Actions → Test and deploy → Run workflow**. When it finishes, the site is at `https://<user>.github.io/<repo>/`.
+5. **Actions → Test and deploy → Run workflow**. When it finishes, the site is at `https://<user>.github.io/<repo>/`. If the run shows as failed, open it: when only the **e2e** job (the browser tests) failed, the **deploy** job still published the site.
 
 ## Local development
 
