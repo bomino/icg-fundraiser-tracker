@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../web/src/api';
-import { createAuth, decodeJwtPayload, isFresh } from '../web/src/auth';
+import { createAuth, decodeJwtPayload, isFresh, isSignedOutUrl, signInAgainUrl, signedOutUrl } from '../web/src/auth';
 
 const encode = (payload: object) => `h.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.s`;
 
@@ -15,6 +15,7 @@ function stubGoogleAccounts() {
   const renderButton = vi.fn((parent: HTMLElement) => {
     parent.appendChild(document.createElement('div'));
   });
+  const disableAutoSelect = vi.fn();
   vi.stubGlobal('google', {
     accounts: {
       id: {
@@ -23,11 +24,18 @@ function stubGoogleAccounts() {
         }),
         renderButton,
         prompt,
-        disableAutoSelect: vi.fn(),
+        disableAutoSelect,
       },
     },
   });
-  return { renderButton, prompt, emitCredential: (credential: string) => callback?.({ credential }) };
+  return { renderButton, prompt, disableAutoSelect, emitCredential: (credential: string) => callback?.({ credential }) };
+}
+
+// jsdom cannot navigate, and its own location cannot be spied on.
+function stubLocation(href: string) {
+  const location = { href, replace: vi.fn(), reload: vi.fn() };
+  vi.stubGlobal('location', location);
+  return location;
 }
 
 describe('decodeJwtPayload', () => {
@@ -53,9 +61,59 @@ describe('isFresh', () => {
   });
 });
 
+describe('the signed-out page', () => {
+  it('is this page flagged, with the route dropped so signing in again opens the Summary', () => {
+    expect(signedOutUrl('https://example.org/tracker/#pledges')).toBe('https://example.org/tracker/?signedout');
+    expect(isSignedOutUrl('https://example.org/tracker/?signedout')).toBe(true);
+    expect(isSignedOutUrl('https://example.org/tracker/#pledges')).toBe(false);
+  });
+
+  it('keeps demo mode, so Sign in again returns to it', () => {
+    const signedOut = signedOutUrl('http://localhost:5173/?demo#payments');
+    expect(isSignedOutUrl(signedOut)).toBe(true);
+    const again = new URL(signInAgainUrl(signedOut));
+    expect(again.searchParams.has('demo')).toBe(true);
+    expect(isSignedOutUrl(again.href)).toBe(false);
+  });
+
+  it('drops the flag when signing in again', () => {
+    expect(signInAgainUrl('https://example.org/tracker/?signedout')).toBe('https://example.org/tracker/');
+  });
+});
+
 describe('createAuth', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    sessionStorage.clear();
+  });
+
+  it('signs out onto the signed-out page, replacing this one so Back does not return to it, and forgets the token', async () => {
+    const { renderButton, disableAutoSelect, emitCredential } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+    const first = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    emitCredential(encode({ exp: Math.floor(Date.now() / 1000) + 3600 }));
+    await first;
+    const location = stubLocation('https://example.org/tracker/#pledges');
+
+    auth.signOut();
+
+    expect(disableAutoSelect).toHaveBeenCalledTimes(1);
+    expect(location.replace).toHaveBeenCalledWith('https://example.org/tracker/?signedout');
+    expect(location.reload).not.toHaveBeenCalled();
+    expect(auth.hasFreshToken()).toBe(false);
+    host.remove();
+  });
+
+  it('goes straight back to Google’s account chooser when switching to a different account', () => {
+    const { disableAutoSelect } = stubGoogleAccounts();
+    const location = stubLocation('https://example.org/tracker/');
+    createAuth('client-id', document.createElement('div')).signOut({ switchAccount: true });
+    expect(disableAutoSelect).toHaveBeenCalledTimes(1);
+    expect(location.reload).toHaveBeenCalledTimes(1);
+    expect(location.replace).not.toHaveBeenCalled();
   });
 
   it('clears the sign-in button before re-rendering it on a token refresh', async () => {
@@ -77,6 +135,55 @@ describe('createAuth', () => {
 
   const nowSeconds = () => Math.floor(Date.now() / 1000);
   const signInDialog = (host: HTMLElement) => host.querySelector('dialog') as HTMLDialogElement;
+
+  async function signIn({ renderButton, emitCredential }: ReturnType<typeof stubGoogleAccounts>) {
+    const auth = createAuth('client-id', document.createElement('div'));
+    const pending = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalled());
+    const credential = encode({ exp: nowSeconds() + 3600 });
+    emitCredential(credential);
+    await pending;
+    return { auth, credential };
+  }
+
+  it('keeps a sign-in for a reload of the same tab, so the reloaded page loads without asking again', async () => {
+    const google = stubGoogleAccounts();
+    const { credential } = await signIn(google);
+
+    const reloaded = createAuth('client-id', document.createElement('div'));
+
+    expect(reloaded.hasFreshToken()).toBe(true);
+    await expect(reloaded.getToken(false)).resolves.toBe(credential);
+    expect(google.renderButton).toHaveBeenCalledTimes(1);
+    expect(google.prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a kept sign-in that has run out or cannot be read, and asks again', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { renderButton } = stubGoogleAccounts();
+
+    for (const kept of [encode({ exp: nowSeconds() + 30 }), 'not-a-token']) {
+      sessionStorage.setItem('icg-id-token', kept);
+      const auth = createAuth('client-id', document.createElement('div'));
+      expect(auth.hasFreshToken()).toBe(false);
+      void auth.getToken(false);
+    }
+
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    warn.mockRestore();
+  });
+
+  it.each([
+    ['Sign out', undefined],
+    ['Use a different account', { switchAccount: true }],
+  ])('forgets the kept sign-in on %s, so the next page cannot come straight back as this account', async (_action, options) => {
+    const { auth } = await signIn(stubGoogleAccounts());
+    stubLocation('https://example.org/tracker/');
+
+    auth.signOut(options);
+
+    expect(createAuth('client-id', document.createElement('div')).hasFreshToken()).toBe(false);
+  });
 
   it('shows the sign-in panel in its own modal dialog so it stacks above an open form', async () => {
     const { renderButton } = stubGoogleAccounts();

@@ -4,12 +4,12 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import { ApiError, createApi, type Api } from './api';
-import { createAuth, type Auth } from './auth';
+import { SignInLoadError, createAuth, isSignedOutUrl, signInAgainUrl, signedOutUrl, type Auth } from './auth';
 import { todayIso } from './dates';
 import { createStore } from './store';
 import { mountApp } from './ui/app';
 import { messageOf } from './ui/errors';
-import { renderLoading, renderMessageScreen } from './ui/screens';
+import { renderLoading, renderMessageScreen, renderSignedOut } from './ui/screens';
 
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -19,7 +19,7 @@ function requireElement(id: string): HTMLElement {
 
 async function boot(root: HTMLElement, api: Api, auth: Auth) {
   const store = createStore(api, () => todayIso());
-  renderLoading(root);
+  const stopLoading = renderLoading(root);
   try {
     await store.load();
     mountApp(root, { store, auth });
@@ -28,11 +28,16 @@ async function boot(root: HTMLElement, api: Api, auth: Auth) {
       renderMessageScreen(root, {
         title: 'Not on the volunteer list',
         body: `${err.message} Ask the organiser to add your Google account, or sign in with a different one.`,
-        action: { label: 'Use a different account', run: () => auth.signOut() },
+        action: { label: 'Use a different account', run: () => auth.signOut({ switchAccount: true }) },
       });
       return;
     }
-    renderMessageScreen(root, { title: 'Could not load the tracker', body: messageOf(err), action: { label: 'Try again', run: () => window.location.reload() } });
+    // In place, so the sign-in this page already holds is reused; only a sign-in script that
+    // never arrived needs the reload that fetches it again.
+    const tryAgain = err instanceof SignInLoadError ? () => window.location.reload() : () => void boot(root, api, auth);
+    renderMessageScreen(root, { title: 'Could not load the tracker', body: messageOf(err), action: { label: 'Try again', run: tryAgain } });
+  } finally {
+    stopLoading();
   }
 }
 
@@ -46,10 +51,9 @@ async function startDemo(root: HTMLElement) {
     refreshIfStale: () => undefined,
     hasFreshToken: () => true,
     suppressPrompts: () => () => undefined,
-    signOut() {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('demo');
-      window.location.assign(url.href);
+    signOut(options) {
+      if (options?.switchAccount) window.location.reload();
+      else window.location.replace(signedOutUrl(window.location.href));
     },
   };
   await boot(root, createDemoApi(undefined, { big }), auth);
@@ -57,6 +61,10 @@ async function startDemo(root: HTMLElement) {
 
 async function start() {
   const root = requireElement('app');
+  if (isSignedOutUrl(window.location.href)) {
+    renderSignedOut(root, () => window.location.replace(signInAgainUrl(window.location.href)));
+    return;
+  }
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('demo')) {
     await startDemo(root);
     return;

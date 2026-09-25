@@ -2,12 +2,15 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OFFLINE_WAIT_MS } from '../../web/src/api';
 import type { Auth } from '../../web/src/auth';
-import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
+import { FOLLOW_UP_AFTER_DAYS, HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
-import { mountApp, parseRoute } from '../../web/src/ui/app';
+import { AUTO_REFRESH_AFTER_MS, mountApp, parseRoute } from '../../web/src/ui/app';
+import { DISPLAY_STALE_AFTER_MS } from '../../web/src/ui/displayView';
 import { PAYMENT_HELP, PLEDGE_HELP } from '../../web/src/ui/help';
 import { HELP_SECTIONS, QUOTED_MESSAGES, createHelpView } from '../../web/src/ui/helpView';
+import { TABLE_PAGE_SIZE } from '../../web/src/ui/table';
 import { SITE_API_VERSION, SITE_COMMIT } from '../../web/src/version';
 import { SETTINGS, TODAY, pledge } from '../support/factories';
 
@@ -148,6 +151,35 @@ describe('createHelpView', () => {
     const text = createHelpView().textContent ?? '';
     expect(text).toContain(SITE_COMMIT === '' ? 'This copy of the app is a local build' : `This copy of the app was built from commit ${SITE_COMMIT}`);
     expect(text).toContain(`const API_VERSION = ${SITE_API_VERSION};`);
+  });
+
+  // The guide writes these figures as plain prose, so nothing else fails when the code's value changes.
+  it('gives the same day, row, minute and second figures the app uses', () => {
+    const text = createHelpView().textContent ?? '';
+    expect(text).toContain(`last ${FOLLOW_UP_AFTER_DAYS} days`);
+    expect(text).toContain(`first ${TABLE_PAGE_SIZE} rows`);
+    // Each minutes figure is tied to its own sentence, or one constant changing to the other's value would still pass.
+    expect(text).toContain(`after ${DISPLAY_STALE_AFTER_MS / 60_000} minutes a small note says`);
+    expect(text).toContain(`come back to it after ${AUTO_REFRESH_AFTER_MS / 60_000} minutes`);
+    expect(text).toContain(`a save waits up to ${OFFLINE_WAIT_MS / 1000} seconds for it`);
+  });
+
+  const topicOf = (view: HTMLElement, title: string) =>
+    Array.from(view.querySelectorAll<HTMLElement>('.help-topic')).find((topic) => topic.querySelector('h3')?.textContent === title) as HTMLElement;
+
+  // Sign out cannot end the volunteer's Google session, which lets the next person on a shared computer back in with one tap.
+  it('does not promise that Sign out alone keeps the next person on a shared computer out', () => {
+    const text = topicOf(createHelpView(), 'Signing out').textContent ?? '';
+    expect(text).not.toContain('so the next person cannot see donor details');
+    expect(text).toContain('does not sign you out of Google');
+    expect(text).toContain('Guest or private window');
+  });
+
+  // Volunteers follow steps in the order written, and full screen hides the window's close button.
+  it('starts the projector steps in a Guest or private window and ends them by leaving full screen, signing out and closing it', () => {
+    const steps = Array.from(topicOf(createHelpView(), 'Show the fundraiser on the projector').querySelectorAll('.help-steps > li'), (step) => step.textContent ?? '');
+    expect(steps[0]).toContain('Guest or private window');
+    expect(steps.at(-1)).toMatch(/F11.*Exit.*Sign out.*close the window/);
   });
 
   it('describes the form fields with the same help the forms show', () => {

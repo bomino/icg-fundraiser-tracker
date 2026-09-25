@@ -8,7 +8,30 @@ export interface Auth {
   hasFreshToken(): boolean;
   /** Until the returned release runs, a request that needs sign-in fails instead of opening the dialog. */
   suppressPrompts(): () => void;
-  signOut(): void;
+  /** Lands on the signed-out page; `switchAccount` instead goes straight back to Google's account chooser. */
+  signOut(options?: { switchAccount?: boolean }): void;
+}
+
+// A page of its own, checked before Google sign-in is set up, so nothing on it can offer the next
+// person on a shared computer "Continue as <volunteer>".
+const SIGNED_OUT_FLAG = 'signedout';
+
+/** Drops the route too, so signing in again opens the Summary. */
+export function signedOutUrl(href: string): string {
+  const url = new URL(href);
+  url.hash = '';
+  url.search = url.search ? `${url.search}&${SIGNED_OUT_FLAG}` : SIGNED_OUT_FLAG;
+  return url.href;
+}
+
+export function isSignedOutUrl(href: string): boolean {
+  return new URL(href).searchParams.has(SIGNED_OUT_FLAG);
+}
+
+export function signInAgainUrl(href: string): string {
+  const url = new URL(href);
+  url.searchParams.delete(SIGNED_OUT_FLAG);
+  return url.href;
 }
 
 const EXPIRY_MARGIN_SECONDS = 60;
@@ -20,6 +43,10 @@ const DISMISSAL_COOLDOWN_MS = 60 * 1000;
 // back without prompting when the load it gates asks for it a moment later.
 const UNATTENDED_LOAD_MARGIN_SECONDS = 120;
 const GIS_LOAD_TIMEOUT_MS = 15000;
+// sessionStorage, not localStorage: a reload of this tab (the reload button, a phone restoring a tab
+// it discarded) skips the sign-in dialog and Google's round trip for the rest of the token's hour,
+// yet the copy dies with the tab, so a new tab on a shared computer never opens already signed in.
+const KEPT_TOKEN_KEY = 'icg-id-token';
 
 export function decodeJwtPayload(token: string): Record<string, unknown> {
   const part = token.split('.')[1];
@@ -35,16 +62,50 @@ export function isFresh(token: string | null, nowSeconds: number, marginSeconds 
   return Number.isFinite(exp) && exp - marginSeconds > nowSeconds;
 }
 
+/** Google's sign-in script never arrived; only a reload of the page fetches it again. */
+export class SignInLoadError extends Error {
+  constructor() {
+    super('Google sign-in did not load. Check your connection and reload the page.');
+    this.name = 'SignInLoadError';
+  }
+}
+
 function waitForGoogle(): Promise<void> {
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const poll = () => {
       if (typeof google !== 'undefined' && google.accounts?.id) resolve();
-      else if (Date.now() - started > GIS_LOAD_TIMEOUT_MS) reject(new Error('Google sign-in did not load. Check your connection and reload the page.'));
+      else if (Date.now() - started > GIS_LOAD_TIMEOUT_MS) reject(new SignInLoadError());
       else setTimeout(poll, 50);
     };
     poll();
   });
+}
+
+function keptToken(): string | null {
+  try {
+    const kept = sessionStorage.getItem(KEPT_TOKEN_KEY);
+    return isFresh(kept, Date.now() / 1000) ? kept : null;
+  } catch (err) {
+    console.warn('The sign-in kept for this tab could not be read; asking again.', err);
+    return null;
+  }
+}
+
+function keepToken(credential: string) {
+  try {
+    sessionStorage.setItem(KEPT_TOKEN_KEY, credential);
+  } catch (err) {
+    console.warn('The sign-in could not be kept for this tab; a reload will ask again.', err);
+  }
+}
+
+function forgetKeptToken() {
+  try {
+    sessionStorage.removeItem(KEPT_TOKEN_KEY);
+  } catch (err) {
+    console.warn('The sign-in kept for this tab could not be removed.', err);
+  }
 }
 
 interface Waiter {
@@ -53,7 +114,7 @@ interface Waiter {
 }
 
 export function createAuth(clientId: string, host: HTMLElement): Auth {
-  let token: string | null = null;
+  let token = keptToken();
   let waiting: Waiter[] = [];
   let initialised = false;
   // Browsers deliver the close event as a later task. `closing` only carries bookkeeping for that
@@ -116,6 +177,7 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
       use_fedcm_for_prompt: true,
       callback: (response) => {
         token = response.credential;
+        keepToken(response.credential);
         const resolved = waiting;
         waiting = [];
         resolved.forEach((waiter) => waiter.resolve(response.credential));
@@ -161,10 +223,15 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
         suppressions -= 1;
       };
     },
-    signOut() {
+    signOut(options) {
       if (typeof google !== 'undefined') google.accounts.id.disableAutoSelect();
       token = null;
-      window.location.reload();
+      // Before navigating, or the next page signs straight back in: after Use a different account,
+      // as the very account the volunteer list just rejected.
+      forgetKeptToken();
+      // Replace, not assign, so Back does not step straight back into the page just left and prompt.
+      if (options?.switchAccount) window.location.reload();
+      else window.location.replace(signedOutUrl(window.location.href));
     },
   };
 }

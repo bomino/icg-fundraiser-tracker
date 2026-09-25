@@ -13,8 +13,9 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **Status chips and Needs follow-up** on Pledges: filter to Pending/Partial/Paid/Overpaid, or to Pending/Partial donors with no activity in 30+ days, biggest balance first. A **date range** filter on Payments.
 - **A possible-duplicate-payments check** (app-only, on top of the six core data-health checks) flags payments that share a phone number, amount and date.
 - **Friday display**: a full-screen, name-free projector view of progress toward the goal, titled with the drive's name from the Sheet's Settings tab, that never interrupts an announcement with a sign-in prompt.
+- **Sign out for shared computers**: Sign out lands on a signed-out page rather than a fresh sign-in prompt, and tells a volunteer on a shared computer to close their Guest or private window or sign out of Google too, since the app can't end their Google session itself.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
-- **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
+- **Resilient saves**: a save is retried automatically if Google's servers hiccup, the sheet is busy with other saves, or the connection drops for a moment; a stalled request times out instead of hanging; a retry that actually landed is recognised rather than resurfaced as an error; and Sign out, or closing the tab on a computer, asks first while a change is still saving.
 - **Change history**: every edit or delete first copies the old row, with who changed it and when, to a history tab in the Sheet, so the organiser can bring back a row deleted by mistake without rolling back anyone else's work.
 - **Starting the next drive**: a menu in the Sheet keeps a finished drive's records in tabs named for it and empties the live tabs for the next one, keeping their column names.
 - **Safe corrections in the Sheet**: a fix the organiser types straight into a pledge or payment marks the row as changed, so a volunteer holding an older copy is asked to reload instead of saving over it.

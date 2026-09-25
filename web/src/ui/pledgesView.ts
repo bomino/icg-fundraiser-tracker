@@ -82,7 +82,8 @@ export function createPledgesView(deps: ListViewDeps) {
       return d.status === statusChip;
     };
     const tableSlot = h('div');
-    const showing = h('div');
+    // The region stays put while drawTable swaps the line inside it, so a screen reader hears each new count.
+    const showing = h('div', { role: 'status' });
     const drawTable = () => {
       const rows = state.computed.pledges.filter(
         (d) => (!filter || filter.ids.has(d.pledge.id)) && matchesChip(d) && matchesQuery(query, [d.pledge.phone, d.pledge.name, d.pledge.notes], d.key),
@@ -121,7 +122,7 @@ export function createPledgesView(deps: ListViewDeps) {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
-    const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add pledge');
+    const add = h('button', { type: 'button', class: 'btn btn-primary', 'data-focus-key': 'pledges-add' }, 'Add pledge');
     add.addEventListener('click', () => openEditor());
     const chipRow = h(
       'div',

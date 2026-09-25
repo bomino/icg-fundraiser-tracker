@@ -152,12 +152,14 @@ textarea.input { resize: vertical; }
 @media (max-width: 720px) { .modal { padding: var(--space-lg); } .modal-actions { bottom: calc(-1 * var(--space-lg)); margin-bottom: calc(-1 * var(--space-lg)); padding-bottom: var(--space-lg); } }
 
 /* Toasts, banners, chips */
-.toasts { position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%); display: grid; gap: var(--space-sm); z-index: 50; width: min(480px, calc(100vw - 32px)); }
-/* A dismissed or expired toast hands focus back to the page area, which is a landmark, not a control. */
+/* A failed save's toast stays until it is dealt with, so an outage can stack several; past half the screen they scroll rather than cover the list. */
+/* The live regions stay in the page even when empty, since one that appears together with its message is often not announced;
+   the empty stack still takes up a strip above the page, so only the toasts themselves take taps. */
+.toasts { position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%); display: grid; gap: var(--space-sm); z-index: 50; width: min(480px, calc(100vw - 32px)); max-height: 50vh; overflow-y: auto; pointer-events: none; }
+/* A dismissed toast hands focus back to the page area, which is a landmark, not a control. */
 #main:focus { outline: none; }
 .toast-region { display: grid; gap: var(--space-sm); }
-.toast-region:empty { display: none; }
-.toast { padding: var(--space-md); border-radius: var(--radius-sm); background: var(--color-surface); border: 1px solid var(--color-rule); box-shadow: var(--shadow-lift); }
+.toast { padding: var(--space-md); border-radius: var(--radius-sm); background: var(--color-surface); border: 1px solid var(--color-rule); box-shadow: var(--shadow-lift); pointer-events: auto; }
 .toast-info { border-color: var(--color-emerald); color: var(--color-emerald); }
 .toast-error { border-color: var(--color-danger); color: var(--color-danger); }
 .toast-with-action { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }

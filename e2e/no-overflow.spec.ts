@@ -11,3 +11,9 @@ for (const tab of TABS) {
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(361);
   });
 }
+
+test('pulling the page down on a phone does not reload it', async ({ page }) => {
+  await openApp(page, 'pledges');
+  const overscroll = await page.evaluate(() => [document.documentElement, document.body].map((element) => getComputedStyle(element).overscrollBehaviorY));
+  expect(overscroll).toEqual(['contain', 'contain']);
+});

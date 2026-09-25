@@ -20,7 +20,7 @@ const stat = (label: string, value: string | number) => h('div', {}, h('p', { cl
 
 function healthItem(check: HealthCheck, deps: SummaryDeps): HTMLElement {
   const count = check.ids.length;
-  const action = count > 0 ? h('button', { type: 'button', class: 'btn btn-ghost' }, `Show ${count}`) : h('span', { class: 'numeric-lg ink-soft' }, '0');
+  const action = count > 0 ? h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': `health:${check.id}` }, `Show ${count}`) : h('span', { class: 'numeric-lg ink-soft' }, '0');
   if (action instanceof HTMLButtonElement) action.addEventListener('click', () => deps.showList(check.target, { label: check.label, ids: new Set(check.ids) }));
   return h('li', { 'data-health': check.id, class: count > 0 ? 'is-flagged' : undefined }, h('span', {}, check.label), action);
 }
@@ -71,7 +71,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   // The visible percentage's floored tenths, so a screen reader never hears 100 before the goal is met.
   const announcedPercent = Math.min(Math.max(Math.round(flooredGoalFraction(totals.receivedCents, totals.goalCents ?? 0) * 1000), 0), 1000) / 10;
 
-  const editGoal = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Edit goal');
+  const editGoal = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'summary-edit-goal' }, 'Edit goal');
   editGoal.addEventListener('click', () => openGoalForm(state.settings.goal, (goal) => deps.store.setGoal(goal), deps.reportError));
   const download = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Download .xlsx');
   download.addEventListener('click', () => {

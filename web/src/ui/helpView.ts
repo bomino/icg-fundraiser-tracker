@@ -22,6 +22,7 @@ const SAID = {
   notOnListTitle: 'Not on the volunteer list',
   differentAccount: 'Use a different account',
   couldNotLoad: 'Could not load the tracker',
+  stillLoading: 'Still loading — the shared sheet can take up to 20 seconds. Please keep this page open.',
   notSetUp: 'Not set up yet',
   notConfigured: 'The server is not configured',
   unexpectedPage: 'The tracker sent back an unexpected page.',
@@ -43,6 +44,10 @@ const SAID = {
   displayStale: 'Figures may be out of date — tap to reconnect',
   saving: 'Saving…',
   saved: 'Saved.',
+  signOutWhileSaving: 'A change is still saving. Signing out now could lose it. Sign out anyway?',
+  signedOut: 'You are signed out',
+  signInAgain: 'Sign in again',
+  signOutOfGoogle: 'Sign out of Google on this computer',
   couldNotSave: "Couldn't save",
   couldNotDelete: "Couldn't delete",
   trackerMenu: 'Fundraiser tracker',
@@ -111,7 +116,7 @@ const PROBLEMS: readonly Problem[] = [
   {
     message: [said(SAID.offline)],
     meaning: ['Your phone or computer has lost its internet connection. This shows as a strip under the top bar.'],
-    action: ['Wait for the connection to come back. If a save failed meanwhile, press ', b('Reopen'), ' on its message and ', b('Save'), ' again. You can still read the screens.'],
+    action: ['Wait for the connection to come back — a save waits up to 20 seconds for it by itself. If a save failed meanwhile, press ', b('Reopen'), ' on its message and ', b('Save'), ' again. You can still read the screens.'],
   },
   {
     message: [said(SAID.serverBehind)],
@@ -125,7 +130,7 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.network)],
-    meaning: ['The save did not reach the shared sheet, usually because the connection dropped.'],
+    meaning: ['The save did not reach the shared sheet, usually because the connection dropped or was too slow. The tracker had already tried again by itself.'],
     action: ['Check your connection, then press ', b('Reopen'), ' on the message. The form comes back with everything you typed; press ', b('Save'), ' again.'],
   },
   {
@@ -135,8 +140,8 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [said(SAID.busy)],
-    meaning: ['Several volunteers saved at the same moment, and the tracker handles one save at a time.'],
-    action: ['Wait a few seconds, press ', b('Reopen'), ' on the message, then ', b('Save'), ' again. Nothing was lost.'],
+    meaning: ['Many volunteers saved at the same moment, and the tracker handles one save at a time. It had already tried again by itself before showing this.'],
+    action: ['Wait a few seconds, press ', b('Reopen'), ' on the message, then ', b('Save'), ' again. Nothing was lost. If it keeps happening, tell the organiser.'],
   },
   {
     message: [said(SAID.serverError)],
@@ -165,8 +170,14 @@ const PROBLEMS: readonly Problem[] = [
   },
   {
     message: [b(SAID.notOnListTitle), ' — ', said(`your-email@example.com ${SAID.notOnList}`)],
-    meaning: ['You signed in with a Google account that the organiser has not added to the volunteer list.'],
-    action: ['Ask the organiser to add that email address, or press ', b(SAID.differentAccount), ' and sign in with the account they did add.'],
+    meaning: ['You signed in with a Google account that is not on the organiser’s volunteer list: it was never added, or it has been taken off.'],
+    action: [
+      'Ask the organiser to add that email address, or press ',
+      b(SAID.differentAccount),
+      ' and sign in with the account they did add. If this replaced the tracker while you were using it, ask the organiser to add you back, then press ',
+      b('Try again'),
+      '.',
+    ],
   },
   {
     message: [b(SAID.couldNotLoad)],
@@ -219,9 +230,10 @@ function gettingStarted(): Child[] {
       steps(
         ['Open the tracker’s web address.'],
         ['Press the ', b('Sign in with Google'), ' button and choose your Google account.'],
-        ['The Summary opens. Your email address shows at the top of the page on a computer.'],
+        ['The Summary opens. If that takes more than a few seconds, you see ', said(SAID.stillLoading), ' Your email address shows at the top of the page on a computer.'],
       ),
       p('Only people on the organiser’s volunteer list can open the tracker. If you see ', b(SAID.notOnListTitle), ', see ', b('When something goes wrong'), '.'),
+      p('If you reload the page, you stay signed in for up to an hour, but only in that same tab. In a new tab or window you sign in again.'),
     ),
     topic(
       'Put it on your phone’s home screen',
@@ -237,7 +249,19 @@ function gettingStarted(): Child[] {
     ),
     topic(
       'Signing out',
-      p('On a shared or borrowed device, press ', b('Sign out'), ' when you finish, so the next person cannot see donor details. On your own phone you can stay signed in.'),
+      p('Press ', b('Sign out'), ' at the top of the page when you finish. The tracker then shows ', said(SAID.signedOut), ', with a ', b(SAID.signInAgain), ' button. On your own phone you can stay signed in.'),
+      p('Sign out closes the tracker, but it does not sign you out of Google. On a shared or borrowed computer, the next person to open the tracker in that browser could get back in as you with one tap and see every donor’s details. So on a masjid computer, or any computer other people use:'),
+      bullets(
+        [
+          b('Best'),
+          ' — use a Guest or private window (Incognito in Chrome, InPrivate in Edge). To open one, press Ctrl+Shift+N, or ⌘+Shift+N on a Mac (in Firefox, P instead of N), then open the tracker in it. When you finish, press ',
+          b('Sign out'),
+          ' and close the window: closing it signs Google out too. If you opened more than one private window, close them all.',
+        ],
+        ['If you did not use one, press ', b(SAID.signOutOfGoogle), ' on the signed-out screen. Only do this on a shared computer: it also signs that browser out of Gmail and every other Google service.'],
+      ),
+      p('If something you just saved is still on its way to the shared sheet, the tracker first asks ', said(SAID.signOutWhileSaving), ' Press ', b('Cancel'), ', wait a few seconds, then press ', b('Sign out'), ' again. If the change could not be saved, its message appears once you press Cancel, so you can deal with it first.'),
+      note('On a computer, closing or reloading the page while a change is still saving asks first too. A phone usually does not ask, so on a phone wait a few seconds after your last change, until no row shows ', said(SAID.saving), ', before you close the page.'),
     ),
   ];
 }
@@ -252,7 +276,7 @@ function theScreens(): Child[] {
         [b('The four totals'), ' — Total pledged, Total received, Balance outstanding, and Overpaid / credit. ', b('Understanding the numbers'), ' explains each one.'],
         [b('Donors'), ' — how many donors have pledged, and how many are Fully paid, Partial, Pending or Overpaid.'],
         [b('Reconciliation'), ' — Payments logged (every payment typed in) next to Unmatched payments (money not counted toward any pledge). Unmatched should be $0.00; the card turns amber when it is not.'],
-        [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found. A note under the checks says when the shared sheet has rows that are not counted because they have no id; only the organiser can fix those.'],
+        [b('Data health'), ' — checks for common mistakes. ', said(SAID.healthIntro), ' ', b(HEALTH_LABELS.possibleDuplicatePayments), ' is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found. A note under the checks says when the shared sheet has rows that are not counted because they have no id; only the organiser can fix those.'],
         [b('Collected by payment method'), ' — a chart and table of money by Cash, Card and so on. Payments with no method appear as ', b('No method recorded'), '. The last row, ', said(SAID.methodTotal), ', should equal Payments logged.'],
         [b('Download .xlsx'), ' — saves the pledges, payments and totals as an Excel file: a readable record for the treasurer.'],
         [b('Friday display'), ' — a full-screen view of the fundraiser for the projector. See ', b('Show the fundraiser on the projector'), ' in How to….'],
@@ -300,30 +324,9 @@ function theScreens(): Child[] {
       bullets(
         ['The search box on Pledges and Payments looks through phone numbers, names and notes (and the method, on Payments). Part of a phone number works too. Clear the box to see everything again.'],
         ['Tap a column heading to sort by it. Tap it again to reverse the order.'],
-        [
-          'On Pledges, the ',
-          b('Pending'),
-          ', ',
-          b('Partial'),
-          ', ',
-          b('Paid'),
-          ' and ',
-          b('Overpaid'),
-          ' chips filter to that status. ',
-          b('Needs follow-up'),
-          ' finds Pending or Partial donors with no pledge or payment activity in the last 30 days, biggest balance first.',
-        ],
-        [
-          'On Payments, ',
-          b('From'),
-          ' and ',
-          b('To'),
-          ' filter to payments received in that range; either can stay blank. Payments with no date drop out once a bound is set. ',
-          b('Clear dates'),
-          ' removes the range.',
-        ],
+        ['The status chips on Pledges and the date range on Payments are explained under ', b('Pledges'), ' and ', b('Payments'), ' above.'],
         ['Search, the status chips (Pledges) and the date range (Payments) all narrow the list together. A “Showing N of M” line appears whenever any of them is doing something.'],
-        ['A long list only shows the first 100 rows at a time, with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row back within the first 100 even if you have not pressed Show more.'],
+        ['A long list only shows the first 100 rows at a time, with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row onto the screen even if you have not pressed Show more.'],
         ['Tapping ', b('Show'), ' next to a Data-health check on Summary clears any active status chips or date range first, so the flagged rows it found are never hidden behind a filter left over from before.'],
       ),
     ),
@@ -438,9 +441,11 @@ function howTo(): Child[] {
     topic(
       'Show the fundraiser on the projector',
       steps(
-        ['Sign in on the computer connected to the projector.'],
+        ['On the computer connected to the projector, open a Guest or private window: press Ctrl+Shift+N on most computers. See ', b('Signing out'), ' in Getting started for why.'],
+        ['Open the tracker in that window and sign in.'],
         ['On ', b('Summary'), ', press ', b('Friday display'), '.'],
         ['Make the browser full screen (F11 on most computers).'],
+        ['When the announcement is over, press F11 to leave full screen, then press ', b('Exit'), ', then ', b('Sign out'), ', then close the window.'],
       ),
       p('The screen shows the drive’s name (or just “Fundraiser” until the organiser sets one), the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
       p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
@@ -526,8 +531,8 @@ function warningsAndHealth(): Child[] {
       ),
     ),
     topic(
-      'The seven data-health checks',
-      p('The first six should read 0. When one does not, tap ', b('Show'), ' to see the rows, then fix them as described below. The last, ', b(HEALTH_LABELS.possibleDuplicatePayments), ', can be a false alarm — see below.'),
+      'The data-health checks',
+      p('All except ', b(HEALTH_LABELS.possibleDuplicatePayments), ' should read 0. That one can be a false alarm, as its entry below explains. When a check reads more than 0, tap ', b('Show'), ' to see the rows, then fix them as described below.'),
       h(
         'dl',
         { class: 'help-terms' },
@@ -547,7 +552,7 @@ function workingTogether(): Child[] {
       ['Several volunteers can use the tracker at the same time, on any mix of phones and computers.'],
       ['Every save goes straight to the shared sheet. There is no separate “publish” step.'],
       ['You see other volunteers’ changes when you press ', b('Refresh'), ' at the top of the page. The tracker also refreshes by itself when you come back to it after 2 minutes or more away.'],
-      ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the tracker quietly retries on its own — you do not need to do anything unless you actually see an error message.'],
+      ['The form closes as soon as you press Save, and the row shows ', said(SAID.saving), ' for a few seconds while it reaches the shared sheet — longer on a slow connection. You can carry on with the next entry meanwhile. If Google’s servers hiccup, the sheet is busy with other volunteers’ saves, or the connection drops for a moment, the tracker quietly tries again on its own — you do not need to do anything unless you actually see an error message.'],
     ),
     topic(
       'When two people change the same row',
@@ -561,8 +566,8 @@ function workingTogether(): Child[] {
 
 function whenSomethingGoesWrong(): Child[] {
   return [
-    p('Most problems are a dropped connection. When a save fails, a red message appears at the bottom of the screen, starting ', said(`${SAID.couldNotSave} …`), ' and saying what was being saved — the donor’s name (or phone number) for a pledge, “the payment from” and the phone number for a payment, or “the goal” — followed by one of the messages below. The row goes back to how it was.'),
-    p('Press ', b('Reopen'), ' on that message: the form comes back with everything you typed, and you can press ', b('Save'), ' again; saving it this way never adds the row twice. Press Reopen before the message goes: it stays for 30 seconds (longer while you have another form open), or until you press ', b('Dismiss'), '. If it has gone, check the list first — do not add the row again from scratch without looking, or it may end up there twice.'),
+    p('Most problems are a dropped connection. When a save fails, a red message appears at the bottom of the screen, starting ', said(`${SAID.couldNotSave} …`), ' and saying what was being saved — the donor’s name (or phone number) for a pledge, “the payment from” and the phone number for a payment, or “the goal” — followed by one of the messages below. The row goes back to how it was. If you are already typing in another form, the message appears as soon as you close that form.'),
+    p('Press ', b('Reopen'), ' on that message: the form comes back with everything you typed, and you can press ', b('Save'), ' again; saving it this way never adds the row twice. The message does not go away on its own: it holds the only copy of what you typed, so it stays until you press Reopen or ', b('Dismiss'), '. Dismiss throws that copy away — press it only if you no longer need the entry. If the message has gone (for example, because the page was closed or reloaded), check the list first — do not add the row again from scratch without looking, or it may end up there twice.'),
     p('A delete that fails shows ', said(`${SAID.couldNotDelete} …`), ' and the row comes back. Open it and delete it again.'),
     problemTable(),
     topic(
@@ -578,8 +583,19 @@ function forTheOrganiser(): Child[] {
     p('These tasks happen in the Google Sheet behind the tracker, not in the app.'),
     topic(
       'Volunteers',
-      p('Add each volunteer’s Google email address to the ', b('Allowlist'), ' tab, one per row, in the first column. To remove someone, delete their row. The change takes effect the next time they do anything in the tracker.'),
+      p(
+        'Add each volunteer’s Google email address to the ',
+        b('Allowlist'),
+        ' tab, one per row, in the first column. To remove someone, delete their row. The tracker then turns them away the next time their page refreshes or saves, and a refresh clears the page to ',
+        b(SAID.notOnListTitle),
+        '. A page they already have open keeps showing what it last loaded, ',
+        b('Download .xlsx'),
+        ' included, until it refreshes, is reloaded or is closed. Nothing can take back a copy they downloaded before. If you remove someone by mistake, add their row back and ask them to press ',
+        b('Try again'),
+        '.',
+      ),
       p('To remember whose address is whose, you can type each volunteer’s name in the second column, next to their email. The tracker reads only the first column.'),
+      p('If a volunteer’s phone is lost, remove them from the Allowlist and also sign their Google account out of that phone: in their Google Account, go to ', b('Security → Your devices'), ', choose the phone and sign out.'),
     ),
     topic(
       'Payment methods, the goal and the drive’s name',

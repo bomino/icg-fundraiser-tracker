@@ -202,6 +202,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 
 **Screens**
 - **Top bar:** app name, the signed-in email, and sign-out. The tabs are Summary, Pledges, Payments and Find donor. The last view used is remembered in `localStorage`.
+- **Signed out:** Sign out lands on its own page, "You are signed out", instead of asking for sign-in again. The app can't end the volunteer's Google session, so an immediate prompt would offer the next person on a shared computer "Continue as <volunteer>". The page says so, links to Google sign-out labelled for shared computers only (it also signs the browser out of Gmail), and has a "Sign in again" button. "Use a different account" on the not-on-the-list screen still goes straight to Google's account chooser. The Help guide recommends a Guest or private window on shared and projector computers, closed after signing out.
 - **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links (followed by a neutral note when `load` reports rows with no id, which no health check can see), the method breakdown, and a "Download .xlsx" export.
 - **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
   - Derived columns are read-only and styled differently.
@@ -224,11 +225,13 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - Spreadsheet-formula injection: any value starting with `=`, `+`, `-` or `@` is written to the Sheet with a leading `'`. Phones starting with `+` are stored with the `'` prefix and read back without it.
 
 **Errors and state**
-- A first-load skeleton.
+- A first-load skeleton. After 5 s its line changes to "Still loading — the shared sheet can take up to 20 seconds. Please keep this page open.", so a slow first load isn't mistaken for a hang and reloaded.
 - Saves are optimistic: the table updates at once, is rolled back on failure, and a toast shows the error.
+- While a save, delete or goal change is still in flight, Sign out asks "A change is still saving. Signing out now could lose it. Sign out anyway?", and closing or reloading the tab triggers the browser's own leave-page question, because a page that has gone can't show the failure. Phones mostly don't ask (iOS ignores the leave-page question), so the Help guide tells volunteers there to wait until "Saving…" clears.
 - `CONFLICT` shows a dialog, "Someone else changed this row since you opened it", with a Reload option. A reload always re-runs `load`.
 - `UNAUTHENTICATED` triggers a silent Google re-prompt, then the sign-in screen.
-- `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser."
+- The Google ID token is kept in the tab's `sessionStorage` while it is fresh, so reloading the same tab within the token's hour loads without the sign-in dialog. A new tab signs in again, and Sign out removes the kept token before it leaves the page. "Could not load the tracker" offers Try again, which loads again in place rather than reloading the page, unless Google's sign-in script never arrived. Pull-to-refresh is turned off (`overscroll-behavior-y: contain`); the Refresh button reloads the data.
+- `FORBIDDEN` shows a screen: "`<email>` isn't on the volunteer list — ask the organiser." At startup it offers Use a different account. A `FORBIDDEN` from Refresh or the auto-refresh on return (someone taken off the Allowlist while their page was open) closes any open form and replaces the page with the same screen, offering Try again, which reloads the page. A `FORBIDDEN` on a save stays an error toast with Reopen, and the Friday display keeps its figures, so a mistaken Allowlist edit neither discards unsaved entries nor reaches the projector.
 - A network failure or `navigator.onLine === false` shows a banner. The app makes no attempt to work offline.
 - A site and `Code.gs` deployed out of step show a banner after any load. The site is built for the `API_VERSION` in its own copy of `Code.gs` and compares it with `load`'s `apiVersion`. A missing or lower server version reads "The tracker's server is out of date. Organiser: redeploy Code.gs as a new version (see setup guide).", a higher one "The tracker was updated. Reload this page to get the latest version." Neither blocks saving, and the server never rejects a request over its version. Added 2026-09-25.
 

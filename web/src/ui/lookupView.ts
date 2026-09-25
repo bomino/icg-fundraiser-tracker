@@ -31,7 +31,7 @@ function donorCard(donor: DerivedPledge, payments: DerivedPayment[], onLogPaymen
   // Same rule as the pledge dialog: no phone means there is nowhere for the payment to match to.
   let logPayment: HTMLButtonElement | null = null;
   if (donor.key !== '') {
-    logPayment = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Log a payment');
+    logPayment = h('button', { type: 'button', class: 'btn btn-secondary', 'data-focus-key': 'lookup-log-payment' }, 'Log a payment');
     logPayment.addEventListener('click', onLogPayment);
   }
   return h(
@@ -51,6 +51,12 @@ export function createLookupView(deps: ListViewDeps) {
 
   return function render(state: State): HTMLElement {
     const results = h('div', { class: 'view' });
+    // The results themselves are not a live region, or a screen reader would read out the whole donor
+    // card on every keystroke; this line, hidden from sight, tells it in a few words what they show.
+    const found = h('p', { class: 'visually-hidden', role: 'status' });
+    const announce = (text: string) => {
+      if (found.textContent !== text) found.textContent = text;
+    };
     const openPaymentFor = (donor: DerivedPledge) => {
       // One id per opened form: a Save retried after a lost response must name the same row.
       const paymentId = makeId();
@@ -66,20 +72,24 @@ export function createLookupView(deps: ListViewDeps) {
       const computed = state.computed;
       const text = query.trim();
       if (text === '') {
+        announce('');
         results.replaceChildren(h('p', { class: 'meta' }, 'Type a phone number (dashes, spaces, brackets, dots and plus signs do not matter) or part of a name.'));
         return;
       }
       const chosen = chosenId ? (computed.pledges.find((d) => d.pledge.id === chosenId) ?? null) : null;
       const donor = chosen ?? (/\d/.test(text) ? findByPhone(computed, text) : null);
       if (donor) {
+        announce(`Found ${donor.pledge.name || '(no name)'}`);
         results.replaceChildren(donorCard(donor, paymentsForKey(computed, donor.key), () => openPaymentFor(donor)));
         return;
       }
       const matches = findByName(computed, text);
       if (matches.length === 0) {
+        announce('Not found.');
         results.replaceChildren(h('p', { class: 'empty' }, 'Not found.'));
         return;
       }
+      announce(matches.length === 1 ? '1 donor matches' : `${matches.length} donors match`);
       results.replaceChildren(
         h(
           'ul',
@@ -109,6 +119,7 @@ export function createLookupView(deps: ListViewDeps) {
       h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Donor lookup'), h('h1', { class: 'display-md' }, 'Find a donor'))),
       h('label', { for: 'lookup-input', class: 'label' }, 'Search'),
       input,
+      found,
       results,
     );
   };

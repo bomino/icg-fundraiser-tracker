@@ -64,7 +64,8 @@ export function createPaymentsView(deps: ListViewDeps) {
       return true;
     };
     const tableSlot = h('div');
-    const showing = h('div');
+    // The region stays put while drawTable swaps the line inside it, so a screen reader hears each new count.
+    const showing = h('div', { role: 'status' });
     const drawTable = () => {
       const rows = state.computed.payments.filter(
         (d) =>
@@ -131,7 +132,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       dateToInput.value = '';
       redrawDateControls();
     });
-    const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Log a payment');
+    const add = h('button', { type: 'button', class: 'btn btn-primary', 'data-focus-key': 'payments-add' }, 'Log a payment');
     add.addEventListener('click', () => openEditor());
     drawTable();
     const totals = state.computed.totals;

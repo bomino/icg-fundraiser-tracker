@@ -42,9 +42,12 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     const blank = matchKey(phone) === '';
     const warning = !blank && donor.startsWith(WARNING_MARK);
     preview.className = warning ? 'hint hint-warning' : 'hint';
-    if (blank) preview.textContent = 'Type the phone number to find the donor.';
-    else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.`;
-    else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}`;
+    const text =
+      blank ? 'Type the phone number to find the donor.'
+      : warning ? `${donor} — this payment will not be counted until that is fixed.`
+      : `Donor: ${donor || '(no name on the pledge)'}`;
+    // Every partial number gives the same warning; rewriting it on each digit could have a screen reader repeat it.
+    if (preview.textContent !== text) preview.textContent = text;
   };
   fields.phone.input.addEventListener('input', updatePreview);
   updatePreview();

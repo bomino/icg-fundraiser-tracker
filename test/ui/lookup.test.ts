@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compute } from '../../web/src/engine';
 import type { Api } from '../../web/src/api';
@@ -46,6 +48,34 @@ describe('find donor', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, '999');
     expect(view.textContent).toContain('Not found');
+  });
+
+  it('tells a screen reader what each search found in a short status line, not by reading out the whole card', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    const status = view.querySelector('[role=status]') as HTMLElement;
+    expect(status.textContent).toBe('');
+    search(view, 'aisha');
+    expect(status.textContent).toBe('2 donors match');
+    search(view, 'aisha k');
+    expect(status.textContent).toBe('1 donor matches');
+    (view.querySelector('.match') as HTMLButtonElement).click();
+    expect(status.textContent).toBe('Found Aisha Khan');
+    search(view, '(555) 010 0101');
+    expect(status.textContent).toBe('Found <b>Aisha</b>');
+    search(view, '999');
+    expect(status.textContent).toBe('Not found.');
+    search(view, '');
+    expect(status.textContent).toBe('');
+    expect(view.querySelectorAll('[role=status]')).toHaveLength(1);
+    expect(status.classList.contains('visually-hidden')).toBe(true);
+  });
+
+  it('hides the status line from sight only, since the results already say the same on screen', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'base.css'), 'utf8');
+    const rule = /\.visually-hidden \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toContain('position: absolute;');
+    expect(rule).toContain('clip: rect(0 0 0 0);');
+    expect(rule).not.toContain('display: none');
   });
 
   it('hides the Log a payment button on the donor card when the donor has no phone', () => {

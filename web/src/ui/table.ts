@@ -125,9 +125,14 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
   return h('div', { class: 'table-pager' }, table, showMore);
 }
 
-/** Escapes an id for use in a CSS attribute selector; ids here are UUIDs, so this never actually needs to escape anything, but a stray id character should not throw. */
-function escapeForSelector(id: string): string {
+/** Escapes an id or focus key for use in a CSS attribute selector; ids here are UUIDs, so this rarely needs to escape anything, but a stray character should not throw. */
+export function escapeForSelector(id: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
+}
+
+/** A row's open button, found by the row's id, since every redraw replaces the button itself. */
+export function rowOpenButton(rowId: string, within: ParentNode = document): HTMLButtonElement | null {
+  return within.querySelector<HTMLButtonElement>(`tr[data-id="${escapeForSelector(rowId)}"] .row-open`);
 }
 
 /**
@@ -137,7 +142,7 @@ function escapeForSelector(id: string): string {
  * fallback if that row can't be found: the new "Show more" button, then the table itself.
  */
 function focusAfterShowMore(revealedRowId: string | undefined): void {
-  const nextButton = revealedRowId !== undefined ? document.querySelector<HTMLButtonElement>(`tr[data-id="${escapeForSelector(revealedRowId)}"] .row-open`) : null;
+  const nextButton = revealedRowId !== undefined ? rowOpenButton(revealedRowId) : null;
   if (nextButton) {
     nextButton.focus();
     return;

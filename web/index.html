@@ -21,6 +21,9 @@
         document.documentElement.dataset.theme = theme;
       })();
     </script>
+    <!-- Opens the first API call's connections while sign-in runs: the POST to script.google.com and Google's redirect to script.googleusercontent.com for the answer. crossorigin matches api.ts's fetch, which sends no credentials; the browser keeps those connections apart from credentialed ones, so a hint without it would go unused. -->
+    <link rel="preconnect" href="https://script.google.com" crossorigin />
+    <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin />
     <script src="https://accounts.google.com/gsi/client" async></script>
     <script type="module" src="/src/main.ts"></script>
   </head>

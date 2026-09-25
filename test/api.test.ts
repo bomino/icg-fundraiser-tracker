@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from '../web/src/api';
 
 const URL = 'https://script.google.com/macros/s/abc/exec';
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+const loadOk = () => json({ ok: true, data: { pledges: [], payments: [], settings: { goal: 1, paymentMethods: [] }, me: 'a@b.c' } });
 const draft = { phone: '1', name: 'A', datePledged: '', amountPledged: 5, notes: '' };
+const OFFLINE_MESSAGE = 'Could not reach the tracker. Check your connection and try again.';
 
 describe('createApi', () => {
   it('posts text/plain JSON so the browser skips the CORS preflight', async () => {
@@ -15,6 +19,17 @@ describe('createApi', () => {
     expect(init.method).toBe('POST');
     expect(init.headers).toEqual({ 'Content-Type': 'text/plain;charset=utf-8' });
     expect(JSON.parse(String(init.body))).toEqual({ idToken: 'tok', op: 'load', payload: {} });
+  });
+
+  it('sends no credentials, so it reuses the connections index.html opens to Apps Script during sign-in', async () => {
+    const fetchImpl = vi.fn(async () => loadOk());
+    await createApi(URL, async () => 'tok', fetchImpl).load();
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(['omit', 'same-origin']).toContain(init.credentials ?? 'same-origin');
+    const html = readFileSync(join(process.cwd(), 'web', 'index.html'), 'utf8');
+    for (const host of ['script.google.com', 'script.googleusercontent.com']) {
+      expect(html).toContain(`<link rel="preconnect" href="https://${host}" crossorigin />`);
+    }
   });
 
   it('sends id and version when editing, and only the client-chosen id when adding', async () => {
@@ -59,22 +74,80 @@ describe('createApi', () => {
   });
 
   describe('when fetch itself fails', () => {
+    const sleep = vi.fn(async (_ms: number) => {});
+    beforeEach(() => {
+      sleep.mockClear();
+    });
     afterEach(() => {
       vi.unstubAllGlobals();
     });
-    const failing = () => createApi(URL, async () => 'tok', async () => { throw new TypeError('Failed to fetch'); });
+    const failing = () => createApi(URL, async () => 'tok', async () => { throw new TypeError('Failed to fetch'); }, sleep);
 
     it('blames the connection when the device is offline', async () => {
+      vi.stubGlobal('window', new EventTarget());
       vi.stubGlobal('navigator', { onLine: false });
-      await expect(failing().load()).rejects.toMatchObject({ code: 'NETWORK', message: 'Could not reach the tracker. Check your connection and try again.' });
+      await expect(failing().load()).rejects.toMatchObject({ code: 'NETWORK', message: OFFLINE_MESSAGE });
     });
 
-    it('also points at the deployment access setting when the device is online', async () => {
+    it('also points at the deployment access setting when the device is online, after only the short pauses', async () => {
       vi.stubGlobal('navigator', { onLine: true });
       await expect(failing().load()).rejects.toMatchObject({
         code: 'NETWORK',
-        message: 'Could not reach the tracker. Check your connection and try again. If this keeps happening, the Apps Script deployment may not allow access to "Anyone".',
+        message: `${OFFLINE_MESSAGE} If this keeps happening, the Apps Script deployment may not allow access to "Anyone".`,
       });
+      expect(sleep.mock.calls).toEqual([[600], [1500]]);
+    });
+  });
+
+  describe('waiting for a dropped connection to come back', () => {
+    let events: EventTarget;
+    beforeEach(() => {
+      events = new EventTarget();
+      vi.stubGlobal('window', events);
+      vi.stubGlobal('navigator', { onLine: false });
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    // Saves that fail while offline must not pile up listeners, whichever way their wait ended.
+    const watchListeners = () => {
+      const added = vi.spyOn(events, 'addEventListener');
+      const removed = vi.spyOn(events, 'removeEventListener');
+      return () => {
+        expect(added.mock.calls.map(([type]) => type)).toEqual(['online']);
+        expect(removed.mock.calls).toEqual(added.mock.calls);
+      };
+    };
+
+    it('holds the next try until the device is back online', async () => {
+      const expectListenerRemoved = watchListeners();
+      const sleep = vi.fn((_ms: number) => new Promise<void>(() => {}));
+      let calls = 0;
+      const fetchImpl = vi.fn(async () => {
+        calls++;
+        if (calls === 1) throw new TypeError('Failed to fetch');
+        return loadOk();
+      });
+      const loaded = createApi(URL, async () => 'tok', fetchImpl, sleep).load();
+      await vi.waitFor(() => expect(sleep).toHaveBeenCalledWith(20_000));
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      vi.stubGlobal('navigator', { onLine: true });
+      events.dispatchEvent(new Event('online'));
+      await expect(loaded).resolves.toMatchObject({ me: 'a@b.c' });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expectListenerRemoved();
+    });
+
+    it('gives up once the connection has stayed away for 20 seconds', async () => {
+      const expectListenerRemoved = watchListeners();
+      const sleep = vi.fn(async (_ms: number) => {});
+      const fetchImpl = vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      });
+      await expect(createApi(URL, async () => 'tok', fetchImpl, sleep).load()).rejects.toMatchObject({ code: 'NETWORK', message: OFFLINE_MESSAGE });
+      expect(sleep.mock.calls).toEqual([[20_000]]);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expectListenerRemoved();
     });
   });
 
@@ -87,8 +160,6 @@ describe('createApi', () => {
   });
 
   describe("retrying Google's transient echo failures", () => {
-    const loadOk = () => json({ ok: true, data: { pledges: [], payments: [], settings: { goal: 1, paymentMethods: [] }, me: 'a@b.c' } });
-
     it('retries a 404 once and returns the eventual success', async () => {
       const sleep = vi.fn(async () => {});
       const responses = [new Response('', { status: 404 }), loadOk()];
@@ -152,6 +223,85 @@ describe('createApi', () => {
       const api = createApi(URL, getToken, fetchImpl, vi.fn(async () => {}));
       await expect(api.setGoal(5)).resolves.toEqual({ goal: 5, paymentMethods: [] });
       expect(getToken.mock.calls).toEqual([[false], [true]]);
+    });
+  });
+
+  describe('retrying a BUSY answer, which means nothing was written', () => {
+    const busy = () => json({ ok: false, error: { code: 'BUSY', message: 'The tracker is busy. Try again in a moment.' } });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('tries again after a pause of 1 to 3 seconds and returns the eventual success', async () => {
+      const sleep = vi.fn(async (_ms: number) => {});
+      const responses = [busy(), loadOk()];
+      const fetchImpl = vi.fn(async () => responses.shift() as Response);
+      await expect(createApi(URL, async () => 'tok', fetchImpl, sleep).load()).resolves.toMatchObject({ me: 'a@b.c' });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(sleep.mock.calls[0][0]).toBeGreaterThanOrEqual(1000);
+      expect(sleep.mock.calls[0][0]).toBeLessThanOrEqual(3000);
+    });
+
+    it('varies each pause so volunteers who collided do not collide again, and gives up after two more tries', async () => {
+      vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0.5);
+      const sleep = vi.fn(async (_ms: number) => {});
+      const fetchImpl = vi.fn(async () => busy());
+      await expect(createApi(URL, async () => 'tok', fetchImpl, sleep).load()).rejects.toMatchObject({ code: 'BUSY', message: 'The tracker is busy. Try again in a moment.' });
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      expect(sleep.mock.calls).toEqual([[1000], [2000]]);
+    });
+
+    it('does not retry any other error answer', async () => {
+      const sleep = vi.fn(async (_ms: number) => {});
+      const fetchImpl = vi.fn(async () => json({ ok: false, error: { code: 'BAD_REQUEST', message: 'bad', field: 'phone' } }));
+      await expect(createApi(URL, async () => 'tok', fetchImpl, sleep).savePledge(draft, { id: 'new-id' })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(sleep).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('giving up on a stalled request', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+    const aborted = () => new DOMException('This operation was aborted', 'AbortError');
+    // Real fetch rejects, and a real body read errors, when the request's signal aborts.
+    const stalled = (_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(aborted())));
+    const stalledBody = async (_url: RequestInfo | URL, init?: RequestInit) =>
+      new Response(new ReadableStream({ start: (stream) => init?.signal?.addEventListener('abort', () => stream.error(aborted())) }), { status: 200 });
+    const noPause = async () => {};
+
+    it('abandons an attempt after 45 seconds and tries once more', async () => {
+      const fetchImpl = vi.fn(stalled).mockImplementationOnce(stalled).mockImplementationOnce(async () => loadOk());
+      const loaded = createApi(URL, async () => 'tok', fetchImpl, noPause).load();
+      await vi.advanceTimersByTimeAsync(44_999);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(loaded).resolves.toMatchObject({ me: 'a@b.c' });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('reports a request that stalls twice as a lost connection, not as a deployment problem', async () => {
+      vi.stubGlobal('navigator', { onLine: true });
+      const fetchImpl = vi.fn(stalled);
+      const failed = createApi(URL, async () => 'tok', fetchImpl, noPause).load().catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(await failed).toMatchObject({ code: 'NETWORK', message: OFFLINE_MESSAGE });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps the clock running while the answer is read, and does not mistake a stalled answer for an unexpected page', async () => {
+      const fetchImpl = vi.fn(stalledBody);
+      const failed = createApi(URL, async () => 'tok', fetchImpl, noPause).load().catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(await failed).toMatchObject({ code: 'NETWORK', message: OFFLINE_MESSAGE });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
     });
   });
 
