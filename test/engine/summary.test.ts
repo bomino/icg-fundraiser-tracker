@@ -236,6 +236,12 @@ describe('nearMatches', () => {
     expect(ids([pledge({ phone: '551234' })], '0551234')).toEqual([]);
   });
 
+  it('looks only at numbers of 7 digits or more', () => {
+    expect(ids([pledge({ id: 'seven', phone: '555-1234' })], '555-1235')).toEqual(['seven']);
+    expect(ids([pledge({ phone: '55-1234' })], '55-1235')).toEqual([]);
+    expect(ids([pledge({ phone: '55-1234 home' })], '551234')).toEqual([]);
+  });
+
   it('compares digits only, ignoring the letters a match key keeps', () => {
     expect(ids([pledge({ id: 'cell', phone: '555-010-0101 cell' })], '555 010 0101')).toEqual(['cell']);
     expect(ids([pledge({ id: 'home', phone: '555-1234 home' })], '5551234')).toEqual(['home']);

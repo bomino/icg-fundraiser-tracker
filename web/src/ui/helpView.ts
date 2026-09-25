@@ -368,7 +368,7 @@ function howTo(): Child[] {
         ['Notes', PAYMENT_HELP.notes],
       ),
       note(
-        'If a number on no pledge is close to one that is — one digit different, two digits side by side swapped, or the same number with a country code or a leading 0 on only one of them — a question appears under the warning, for example ',
+        'If a number on no pledge is close to one that is — one digit different, two digits side by side swapped, or the same 10-digit number with a country code or a leading 0 in front of only one of them — a question appears under the warning, for example ',
         said(`${SAID.isThisFrom} Aisha Rahman (555-010-0101)?`),
         ' Check the name with the donor or on the envelope first: two different donors can have numbers one digit apart. If it is them, press ',
         b(SAID.useTheirNumber),
@@ -478,7 +478,7 @@ function howTo(): Child[] {
         ],
         ['Press ', b('Save'), '. The row turns normal and the money counts again.'],
       ),
-      note('Not sure of the right number? Type its last 4 digits into the search box on ', b('Pledges'), '. The donor shows up even when the rest of the number was typed differently.'),
+      note('Not sure whose payment it is? Type the last 4 digits of the payment’s phone number into the search box on ', b('Pledges'), '. The donor shows up even when the rest of the number was typed differently.'),
       note('If it is the pledge’s number that was typed wrong, correct the pledge instead — see ', b('Correct a donor’s phone number'), '. Using the pledge’s number here would copy the mistake onto the payment.'),
       p(
         'If the phone number was right but the donor has no pledge yet, add a pledge for them with that number instead, and press ',
