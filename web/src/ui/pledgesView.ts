@@ -11,7 +11,7 @@ import { filterChip, showingLine, toggleChip, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import { openPledgeForm } from './pledgeForm';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
-import { nextSort, renderTable, sortRows, sortSelect, TABLE_PAGE_SIZE, type Column, type SortOption, type SortState } from './table';
+import { nextSort, renderTable, sortRows, sortSelect, tablePageSize, type Column, type SortOption, type SortState } from './table';
 
 export interface ListViewDeps {
   store: Store;
@@ -50,7 +50,7 @@ export function createPledgesView(deps: ListViewDeps) {
   let sort: SortState | null = null;
   let statusChip: string = ALL_CHIP;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
-  let visibleCount = TABLE_PAGE_SIZE;
+  let visibleCount = tablePageSize();
   let lastFilter: ListFilter | null = null;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
@@ -58,7 +58,7 @@ export function createPledgesView(deps: ListViewDeps) {
     // store re-renders pass the same one, so a search typed inside a drill-down survives them.
     if (filter !== lastFilter) {
       // A drill-down filter arriving or clearing changes which rows match, same as a new search - start back at page 1.
-      visibleCount = TABLE_PAGE_SIZE;
+      visibleCount = tablePageSize();
       lastFilter = filter;
       // A leftover search or status chip would hide the very rows the filter just arrived to show.
       if (filter) {
@@ -133,7 +133,7 @@ export function createPledgesView(deps: ListViewDeps) {
           empty: filter || query || statusChip !== ALL_CHIP ? 'No pledges match.' : 'No pledges yet. Use “Add pledge” to record the first one.',
           visibleCount,
           onShowMore: () => {
-            visibleCount += TABLE_PAGE_SIZE;
+            visibleCount += tablePageSize();
             drawTable();
           },
         }),
@@ -146,7 +146,7 @@ export function createPledgesView(deps: ListViewDeps) {
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;
-      visibleCount = TABLE_PAGE_SIZE;
+      visibleCount = tablePageSize();
       clearTimeout(searchTimer);
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
@@ -158,7 +158,7 @@ export function createPledgesView(deps: ListViewDeps) {
       ...STATUS_CHIPS.map((label) =>
         toggleChip(label, statusChip === label, () => {
           statusChip = label;
-          visibleCount = TABLE_PAGE_SIZE;
+          visibleCount = tablePageSize();
           drawTable();
           chipRow.querySelectorAll('.chip-toggle').forEach((el, i) => el.setAttribute('aria-pressed', String(STATUS_CHIPS[i] === statusChip)));
         }),

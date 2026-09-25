@@ -302,7 +302,7 @@ function theScreens(): Child[] {
           ' removes the range.',
         ],
         ['Search, the status chips (Pledges) and the date range (Payments) all narrow the list together. A “Showing N of M” line appears whenever any of them is doing something.'],
-        ['A long list only shows the first 100 rows at a time, with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row back within the first 100 even if you have not pressed Show more.'],
+        ['A long list only shows the first 100 rows at a time (25 on a phone, so the list opens quickly), with a ', b('Show more (N left)'), ' button underneath to reveal the rest. Search, sort and the filters above always look through every row, not just the ones on screen — narrowing the list can bring a row back onto the first page even if you have not pressed Show more.'],
         ['Tapping ', b('Show'), ' next to a Data-health check on Summary clears any search, status chips or date range first, so the flagged rows it found are never hidden behind a filter left over from before.'],
       ),
     ),

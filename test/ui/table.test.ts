@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { nextSort, renderTable, sortRows, sortSelect, TABLE_PAGE_SIZE, type Column, type SortOption } from '../../web/src/ui/table';
+import { nextSort, renderTable, sortRows, sortSelect, tablePageSize, type Column, type SortOption } from '../../web/src/ui/table';
 import { matchesQuery } from '../../web/src/ui/search';
 
 afterEach(() => document.body.replaceChildren());
@@ -137,14 +137,14 @@ describe('table', () => {
     });
 
     it('caps the DOM rows at visibleCount and reports the remainder in "Show more (N left)"', () => {
-      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: vi.fn() });
-      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
-      expect(wrap.querySelector('.show-more')?.textContent).toBe(`Show more (${250 - TABLE_PAGE_SIZE} left)`);
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize(), onShowMore: vi.fn() });
+      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(tablePageSize());
+      expect(wrap.querySelector('.show-more')?.textContent).toBe(`Show more (${250 - tablePageSize()} left)`);
     });
 
     it('calls onShowMore when the button is clicked, without renderTable managing the count itself', () => {
       const onShowMore = vi.fn();
-      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore });
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize(), onShowMore });
       (wrap.querySelector('.show-more') as HTMLButtonElement).click();
       expect(onShowMore).toHaveBeenCalledTimes(1);
     });
@@ -161,20 +161,20 @@ describe('table', () => {
 
     it('pages the already sorted and filtered rows, not the other way round: page 1 holds the first 100 of the SORTED order', () => {
       const sorted = sortRows(many, columns, { key: 'amount', direction: 'desc' });
-      const wrap = renderTable({ columns, rows: sorted, sort: { key: 'amount', direction: 'desc' }, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: vi.fn() });
+      const wrap = renderTable({ columns, rows: sorted, sort: { key: 'amount', direction: 'desc' }, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize(), onShowMore: vi.fn() });
       const ids = [...wrap.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
       expect(ids[0]).toBe('p249');
-      expect(ids).toHaveLength(TABLE_PAGE_SIZE);
+      expect(ids).toHaveLength(tablePageSize());
     });
 
     it('shows no "Show more" button when visibleCount is under the row count but no onShowMore is given', () => {
-      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE });
-      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
+      const wrap = renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: tablePageSize() });
+      expect(wrap.querySelectorAll('tbody tr')).toHaveLength(tablePageSize());
       expect(wrap.querySelector('.show-more')).toBeNull();
     });
 
     it('moves focus to the newly revealed row\'s open button, so a keyboard/screen-reader user keeps their place', () => {
-      let visibleCount = TABLE_PAGE_SIZE;
+      let visibleCount = tablePageSize();
       const draw = () => {
         document.body.replaceChildren(
           renderTable({
@@ -187,7 +187,7 @@ describe('table', () => {
             empty: 'none',
             visibleCount,
             onShowMore: () => {
-              visibleCount += TABLE_PAGE_SIZE;
+              visibleCount += tablePageSize();
               draw();
             },
           }),
@@ -207,7 +207,7 @@ describe('table', () => {
       // A pathological onShowMore that redraws without growing visibleCount - row 101 never appears.
       const rerenderWithoutGrowing = () => {
         document.body.replaceChildren(
-          renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: rerenderWithoutGrowing }),
+          renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, onOpen: vi.fn(), empty: 'none', visibleCount: tablePageSize(), onShowMore: rerenderWithoutGrowing }),
         );
       };
       rerenderWithoutGrowing();
@@ -215,6 +215,26 @@ describe('table', () => {
       expect(document.querySelector('tr[data-id="p100"]')).toBeNull();
       expect(document.activeElement).toBe(document.querySelector('.show-more'));
     });
+  });
+});
+
+describe('tablePageSize', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const screenWidth = (phone: boolean) => vi.stubGlobal('matchMedia', (query: string) => ({ matches: phone && query === '(max-width: 720px)' }));
+
+  it('pages 25 rows at a time at the width where each row becomes a stacked card', () => {
+    screenWidth(true);
+    expect(tablePageSize()).toBe(25);
+  });
+
+  it('pages 100 rows at a time on a wider screen', () => {
+    screenWidth(false);
+    expect(tablePageSize()).toBe(100);
+  });
+
+  it('pages 100 rows at a time where matchMedia does not exist', () => {
+    expect(typeof matchMedia).toBe('undefined');
+    expect(tablePageSize()).toBe(100);
   });
 });
 

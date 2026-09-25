@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, type Api } from '../../web/src/api';
 import { compute } from '../../web/src/engine';
 import { createStore, type State, type Store } from '../../web/src/store';
@@ -9,7 +9,7 @@ import { openPaymentForm } from '../../web/src/ui/paymentForm';
 import { openPledgeForm } from '../../web/src/ui/pledgeForm';
 import { createPaymentsView } from '../../web/src/ui/paymentsView';
 import { createPledgesView } from '../../web/src/ui/pledgesView';
-import { TABLE_PAGE_SIZE } from '../../web/src/ui/table';
+import { tablePageSize } from '../../web/src/ui/table';
 import { METHODS, SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 afterEach(() => document.body.replaceChildren());
@@ -397,16 +397,16 @@ describe('pledges view: paging at event scale', () => {
   it('shows only the first page and a "Show more (N left)" button for an event-scale pledge list', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
     document.body.append(view);
-    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE);
-    expect(showMore(view).textContent).toBe(`Show more (${240 - TABLE_PAGE_SIZE} left)`);
+    expect(ids(view)).toHaveLength(tablePageSize());
+    expect(showMore(view).textContent).toBe(`Show more (${240 - tablePageSize()} left)`);
   });
 
   it('reveals another page per click, until every row is shown and the button disappears', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
     document.body.append(view);
     showMore(view).click();
-    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE * 2);
-    expect(showMore(view).textContent).toBe(`Show more (${240 - TABLE_PAGE_SIZE * 2} left)`);
+    expect(ids(view)).toHaveLength(tablePageSize() * 2);
+    expect(showMore(view).textContent).toBe(`Show more (${240 - tablePageSize() * 2} left)`);
     showMore(view).click();
     expect(ids(view)).toHaveLength(240);
     expect(view.querySelector('.show-more')).toBeNull();
@@ -416,14 +416,14 @@ describe('pledges view: paging at event scale', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(manyState, null, () => undefined);
     document.body.append(view);
     showMore(view).click();
-    expect(ids(view)).toHaveLength(TABLE_PAGE_SIZE * 2);
+    expect(ids(view)).toHaveLength(tablePageSize() * 2);
     const search = view.querySelector('input[type=search]') as HTMLInputElement;
     vi.useFakeTimers();
     type(search, 'Donor 1');
     vi.advanceTimersByTime(150);
     vi.useRealTimers();
     // "Donor 1", "Donor 10"-"Donor 19", "Donor 100"-"Donor 199" all match - more than one page's worth - so the reset is visible as a "Show more" button again, not the full match set.
-    expect(ids(view).length).toBe(TABLE_PAGE_SIZE);
+    expect(ids(view).length).toBe(tablePageSize());
     expect(view.querySelector('.show-more')).not.toBeNull();
   });
 
@@ -439,12 +439,63 @@ describe('pledges view: paging at event scale', () => {
     showMore(unfiltered).click(); // visibleCount now 200, well past where the filter's 120 rows would fit on one page
 
     document.body.replaceChildren(view(manyState, filter, () => undefined));
-    expect(ids(document.body)).toHaveLength(TABLE_PAGE_SIZE);
+    expect(ids(document.body)).toHaveLength(tablePageSize());
     expect(document.querySelector('tr[data-id="big5"]')).toBeNull();
-    expect(showMore(document.body).textContent).toBe(`Show more (${120 - TABLE_PAGE_SIZE} left)`);
+    expect(showMore(document.body).textContent).toBe(`Show more (${120 - tablePageSize()} left)`);
 
     showMore(document.body).click();
     expect(document.querySelector('tr[data-id="big5"]')).not.toBeNull();
+  });
+});
+
+describe('paging on a phone-width screen', () => {
+  const phonePledges = Array.from({ length: 60 }, (_, i) => pledge({ id: `phone${i}`, phone: `555-600-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
+  const phonePayments = Array.from({ length: 60 }, (_, i) => payment({ id: `phone-payment${i}`, phone: `555-600-${String(i).padStart(4, '0')}`, amountReceived: 10, dateReceived: '2026-01-01' }));
+  const phoneState: State = { pledges: phonePledges, payments: phonePayments, settings: SETTINGS, me: 'me@example.com', computed: compute(phonePledges, phonePayments, SETTINGS, TODAY) };
+  const rowCount = () => document.querySelectorAll('tbody tr').length;
+  const showMore = () => document.querySelector('.show-more') as HTMLButtonElement;
+  const chip = (label: string) => Array.from(document.querySelectorAll('.chip-toggle')).find((b) => b.textContent === label) as HTMLButtonElement;
+  const typeSearch = (text: string) => {
+    vi.useFakeTimers();
+    type(document.querySelector('input[type=search]') as HTMLInputElement, text);
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+  };
+  beforeEach(() => vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(max-width: 720px)' })));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('draws the pledge list 25 cards at a time, and every way of narrowing it starts back at 25', () => {
+    const render = createPledgesView({ store, reportError: vi.fn() });
+    document.body.append(render(phoneState, null, () => undefined));
+    expect(rowCount()).toBe(25);
+    expect(showMore().textContent).toBe('Show more (35 left)');
+    showMore().click();
+    expect(rowCount()).toBe(50);
+    typeSearch('Donor');
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    chip('Partial').click();
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    document.body.replaceChildren(render(phoneState, { label: 'Flagged for review', ids: new Set(phonePledges.map((p) => p.id)) }, () => undefined));
+    expect(rowCount()).toBe(25);
+  });
+
+  it('draws the payment list 25 cards at a time, and every way of narrowing it starts back at 25', () => {
+    const render = createPaymentsView({ store, reportError: vi.fn() });
+    document.body.append(render(phoneState, null, () => undefined));
+    expect(rowCount()).toBe(25);
+    expect(showMore().textContent).toBe('Show more (35 left)');
+    showMore().click();
+    expect(rowCount()).toBe(50);
+    typeSearch('555-600');
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    type(document.querySelector('input[type=date][data-focus-key="payments-date-from"]') as HTMLInputElement, '2026-01-01');
+    expect(rowCount()).toBe(25);
+    showMore().click();
+    document.body.replaceChildren(render(phoneState, { label: 'Flagged for review', ids: new Set(phonePayments.map((p) => p.id)) }, () => undefined));
+    expect(rowCount()).toBe(25);
   });
 });
 
@@ -646,8 +697,8 @@ describe('instant save from the lists', () => {
 });
 
 describe('a new row in a list longer than one page', () => {
-  const longPledges = Array.from({ length: TABLE_PAGE_SIZE + 50 }, (_, i) => pledge({ id: `old-pledge${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
-  const longPayments = Array.from({ length: TABLE_PAGE_SIZE + 50 }, (_, i) => payment({ id: `old-payment${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, amountReceived: 10, dateReceived: '2026-01-01' }));
+  const longPledges = Array.from({ length: tablePageSize() + 50 }, (_, i) => pledge({ id: `old-pledge${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, name: `Donor ${i}`, amountPledged: 100 }));
+  const longPayments = Array.from({ length: tablePageSize() + 50 }, (_, i) => payment({ id: `old-payment${i}`, phone: `555-500-${String(i).padStart(4, '0')}`, amountReceived: 10, dateReceived: '2026-01-01' }));
   // The server never answers, so each new row stays in flight for the whole test.
   const unansweredStore = async () => {
     const api = {

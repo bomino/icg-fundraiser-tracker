@@ -10,7 +10,7 @@ import { filterChip, showingLine, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
-import { nextSort, renderTable, sortRows, sortSelect, TABLE_PAGE_SIZE, type Column, type SortOption, type SortState } from './table';
+import { nextSort, renderTable, sortRows, sortSelect, tablePageSize, type Column, type SortOption, type SortState } from './table';
 
 const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'phone', label: 'Phone Number', value: (d) => d.payment.phone },
@@ -35,7 +35,7 @@ export function createPaymentsView(deps: ListViewDeps) {
   let dateFrom = '';
   let dateTo = '';
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
-  let visibleCount = TABLE_PAGE_SIZE;
+  let visibleCount = tablePageSize();
   let lastFilter: ListFilter | null = null;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
@@ -43,7 +43,7 @@ export function createPaymentsView(deps: ListViewDeps) {
     // store re-renders pass the same one, so a search typed inside a drill-down survives them.
     if (filter !== lastFilter) {
       // A drill-down filter arriving or clearing changes which rows match, same as a new search - start back at page 1.
-      visibleCount = TABLE_PAGE_SIZE;
+      visibleCount = tablePageSize();
       lastFilter = filter;
       // A leftover search or date range would hide the very rows the filter just arrived to show.
       if (filter) {
@@ -110,7 +110,7 @@ export function createPaymentsView(deps: ListViewDeps) {
           empty: filter || query || dateFilterActive() ? 'No payments match.' : 'No payments yet. Use “Log a payment” when money comes in.',
           visibleCount,
           onShowMore: () => {
-            visibleCount += TABLE_PAGE_SIZE;
+            visibleCount += tablePageSize();
             drawTable();
           },
         }),
@@ -123,7 +123,7 @@ export function createPaymentsView(deps: ListViewDeps) {
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;
-      visibleCount = TABLE_PAGE_SIZE;
+      visibleCount = tablePageSize();
       clearTimeout(searchTimer);
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
@@ -135,7 +135,7 @@ export function createPaymentsView(deps: ListViewDeps) {
     const dateRange = h('div', { class: 'date-range' }, h('label', { class: 'meta' }, 'From', dateFromInput), h('label', { class: 'meta' }, 'To', dateToInput));
     const redrawDateControls = () => {
       clearDates.hidden = !dateFilterActive();
-      visibleCount = TABLE_PAGE_SIZE;
+      visibleCount = tablePageSize();
       drawTable();
     };
     dateFromInput.addEventListener('input', () => {

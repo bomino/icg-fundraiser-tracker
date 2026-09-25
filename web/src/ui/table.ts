@@ -39,6 +39,19 @@ export interface TableOptions<R> {
 
 /** Event-scale tables (~1,500+ rows) render 15,000+ DOM cells at once without this; see task-7-report.md. */
 export const TABLE_PAGE_SIZE = 100;
+/**
+ * At phone width every row is a stacked card, which is far slower to lay out than a table row: a page of 100 cards
+ * blew the 100 ms redraw budget on a throttled phone. Shorter pages, not content-visibility, because that shifts
+ * the scroll position after every redraw and jitters on iOS 18-26, which lack scroll anchoring.
+ */
+export const PHONE_TABLE_PAGE_SIZE = 25;
+/** The width at and below which components.css stacks each row into a card; change the two together. */
+const PHONE_WIDTH_QUERY = '(max-width: 720px)';
+
+export function tablePageSize(): number {
+  // jsdom, which the unit tests run in, has no matchMedia.
+  return typeof matchMedia === 'function' && matchMedia(PHONE_WIDTH_QUERY).matches ? PHONE_TABLE_PAGE_SIZE : TABLE_PAGE_SIZE;
+}
 
 /** A third tap on the same heading returns null - the list's own default order - so newly added rows come back to the top without a reload. */
 export function nextSort(current: SortState | null, key: string): SortState | null {
