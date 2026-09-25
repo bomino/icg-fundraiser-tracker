@@ -59,6 +59,11 @@ describe('isFresh', () => {
     expect(isFresh(token, 600, 300)).toBe(true);
     expect(isFresh(token, 701, 300)).toBe(false);
   });
+  it('treats a token it cannot read as stale rather than failing', () => {
+    for (const garbled of ['not-a-jwt', 'h.@@@.s', `h.${Buffer.from('not json').toString('base64url')}.s`]) {
+      expect(isFresh(garbled, 0)).toBe(false);
+    }
+  });
 });
 
 describe('the signed-out page', () => {
@@ -185,6 +190,27 @@ describe('createAuth', () => {
     expect(auth.hasFreshToken()).toBe(false);
     void auth.getToken(false);
     await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+  });
+
+  // Otherwise every later call failed with a bare "Malformed sign-in token." and no way back but a reload.
+  it('asks for sign-in again when Google hands back a sign-in it cannot read', async () => {
+    const { renderButton, emitCredential } = stubGoogleAccounts();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const auth = createAuth('client-id', host);
+    const first = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    emitCredential('not-a-jwt');
+    await first;
+
+    expect(auth.hasFreshToken()).toBe(false);
+    expect(() => auth.refreshIfStale()).not.toThrow();
+    const again = auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    const credential = encode({ exp: nowSeconds() + 3600 });
+    emitCredential(credential);
+    await expect(again).resolves.toBe(credential);
+    host.remove();
   });
 
   it.each([

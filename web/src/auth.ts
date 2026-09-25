@@ -58,7 +58,14 @@ export function decodeJwtPayload(token: string): Record<string, unknown> {
 
 export function isFresh(token: string | null, nowSeconds: number, marginSeconds = EXPIRY_MARGIN_SECONDS): boolean {
   if (!token) return false;
-  const exp = Number(decodeJwtPayload(token).exp);
+  let exp: number;
+  try {
+    exp = Number(decodeJwtPayload(token).exp);
+  } catch {
+    // Stale, not an error: getToken then asks for a new sign-in, where a throw would fail every call on this
+    // token with a bare "Malformed sign-in token." until the page was reloaded.
+    return false;
+  }
   return Number.isFinite(exp) && exp - marginSeconds > nowSeconds;
 }
 

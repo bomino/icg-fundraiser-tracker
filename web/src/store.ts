@@ -107,6 +107,17 @@ export function createStore(api: Api, today: () => string): Store {
     }
   }
 
+  // Before a change is sent, a view failing to draw it still fails the change, loudly, and it is rolled back. Its
+  // toast shows only the error's message, so the error itself is logged for tracing the render bug.
+  function publishBeforeSend(next: Base) {
+    try {
+      publish(next);
+    } catch (err) {
+      console.error('A view failed to draw a change, so the change was not sent.', err);
+      throw err;
+    }
+  }
+
   function loaded(): Base {
     if (!current) throw new Error('The tracker has not finished loading.');
     return base(current);
@@ -148,7 +159,7 @@ export function createStore(api: Api, today: () => string): Store {
     let outcome: Outcome<T>;
     try {
       outcome = await attempt(() => {
-        publish(collection.with(loaded(), withRow(collection.get(loaded()), provisional)));
+        publishBeforeSend(collection.with(loaded(), withRow(collection.get(loaded()), provisional)));
         return send();
       });
     } finally {
@@ -178,7 +189,7 @@ export function createStore(api: Api, today: () => string): Store {
       return withoutRow(fresh, onto);
     });
     const outcome = await attempt(() => {
-      publish(withoutRow(loaded(), loaded()));
+      publishBeforeSend(withoutRow(loaded(), loaded()));
       return send();
     });
     // NOT_FOUND: the row is already gone on the server, which is what the user asked for.
@@ -248,7 +259,7 @@ export function createStore(api: Api, today: () => string): Store {
         return { ...onto, settings: { ...onto.settings, goal } };
       });
       const outcome = await attempt(() => {
-        publish({ ...loaded(), settings: { ...previous, goal } });
+        publishBeforeSend({ ...loaded(), settings: { ...previous, goal } });
         return api.setGoal(goal);
       });
       // Only touch the goal if it is still what this call set: a later change wins.

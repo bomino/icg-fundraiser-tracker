@@ -40,6 +40,8 @@ const loadedMinutesAgo = (minutes: number) => {
   const loadedAt = Date.now() - minutes * 60_000;
   return () => loadedAt;
 };
+// A payment form follows the store while open; these fakes never publish.
+const neverPublishes = { state: () => null, subscribe: () => () => undefined };
 // What the print stylesheet leaves on paper, and what the screen shows without the print-only parts.
 const without = (view: HTMLElement, selector: string) => {
   const copy = view.cloneNode(true) as HTMLElement;
@@ -269,7 +271,7 @@ describe('find donor', () => {
   it('logs a payment from the donor card, calling store.savePayment with the phone', () => {
     // Typed so `.mock.calls[0][0]` below is not indexed into an inferred empty tuple.
     const savePayment = vi.fn(async (_draft: PaymentDraft) => undefined);
-    const store = { savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store;
+    const store = { ...neverPublishes, savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store;
     document.body.append(createLookupView({ store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     const logPayment = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
@@ -289,7 +291,7 @@ describe('find donor', () => {
   it('retries a failed payment logged from the donor card under the same id', async () => {
     // #given a payment logged from the card whose save fails with a lost connection
     const savePayment = vi.fn<Store['savePayment']>(async () => { throw new ApiError('NETWORK', 'Could not reach the tracker. Check your connection and try again.'); });
-    document.body.append(createLookupView({ store: { savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
+    document.body.append(createLookupView({ store: { ...neverPublishes, savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     button('Log a payment').click();
     type('amountReceived', '25');
@@ -345,7 +347,7 @@ describe('find donor', () => {
 
   it('opens a payment from the donor card history to edit it', async () => {
     const savePayment = vi.fn<Store['savePayment']>(async () => undefined);
-    document.body.append(createLookupView({ store: { savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
+    document.body.append(createLookupView({ store: { ...neverPublishes, savePayment, lastLoadedAt: loadedMinutesAgo(0) } as unknown as Store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     (document.querySelector('.lookup-card tbody tr .row-open') as HTMLButtonElement).click();
     expect(dialogTitle()).toBe('Edit payment');
@@ -380,7 +382,7 @@ describe('find donor', () => {
   });
 
   it('opens Log a payment from the donor card knowing how old the list is', () => {
-    document.body.append(createLookupView({ store: { lastLoadedAt: loadedMinutesAgo(5) } as unknown as Store, reportError: vi.fn() })(state));
+    document.body.append(createLookupView({ store: { ...neverPublishes, lastLoadedAt: loadedMinutesAgo(5) } as unknown as Store, reportError: vi.fn() })(state));
     search(document.body, '(555) 010 0101');
     button('Log a payment').click();
     type('phone', '555 999 0000');

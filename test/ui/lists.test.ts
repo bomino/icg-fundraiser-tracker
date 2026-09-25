@@ -22,7 +22,7 @@ const pledges = [
 ];
 const payments = [payment({ id: 'y1', phone: '555-999-0000', amountReceived: 35, dateReceived: '2099-01-01' })];
 const state: State = { pledges, payments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, payments, SETTINGS, TODAY) };
-const store = { state: () => state, savePledge: vi.fn(async () => undefined), savePayment: vi.fn(async () => undefined), deletePledge: vi.fn(), deletePayment: vi.fn(), lastLoadedAt: () => Date.now() } as unknown as Store;
+const store = { state: () => state, subscribe: () => () => undefined, savePledge: vi.fn(async () => undefined), savePayment: vi.fn(async () => undefined), deletePledge: vi.fn(), deletePayment: vi.fn(), lastLoadedAt: () => Date.now() } as unknown as Store;
 const type = (input: HTMLInputElement, value: string) => {
   input.value = value;
   input.dispatchEvent(new Event('input'));
@@ -51,6 +51,7 @@ const pickSort = (view: HTMLElement, label: string) => {
 const STALE_LOAD_MS = 5 * 60_000;
 const SAVE_ANYWAY = 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.';
 const NOT_PLEDGED_YET = "If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment.";
+const PLEDGE_TAKEN_BACK = "This number's pledge has just been taken off your list, most likely because it could not be saved. Do not add it again: press Cancel, then press Reopen on the red message.";
 
 describe('pledges view', () => {
   it('marks duplicates red and in words, and filters by search without losing the box', () => {
@@ -123,6 +124,35 @@ describe('pledges view', () => {
     expect((document.querySelector('dialog[open] [name=phone]') as HTMLInputElement).value).toBe('555 777 0001');
     expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toBe('Donor: Zara · owes $50.00 of $50.00');
     expect(document.activeElement).toBe(document.querySelector('dialog[open] [name=amountReceived]'));
+  });
+
+  it('warns in the open payment form when that new pledge then fails to save, leaving the typing alone', async () => {
+    // #given a pledge saved with "Save and log a payment", its save still waiting for an answer
+    let failPledge: (err: unknown) => void = () => undefined;
+    const api = {
+      load: async () => ({ pledges, payments, settings: SETTINGS, me: 'me@example.com' }),
+      savePledge: () => new Promise((_resolve, reject) => { failPledge = reject; }),
+    } as unknown as Api;
+    const liveStore = createStore(api, () => TODAY);
+    await liveStore.load();
+    document.body.append(createPledgesView({ store: liveStore, reportError: vi.fn() })(liveStore.state() as State, null, () => undefined));
+    (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Add pledge') as HTMLButtonElement).click();
+    type(document.querySelector('dialog[open] [name=phone]') as HTMLInputElement, '555 777 0001');
+    type(document.querySelector('dialog[open] [name=name]') as HTMLInputElement, 'Zara');
+    type(document.querySelector('dialog[open] [name=amountPledged]') as HTMLInputElement, '50');
+    (Array.from(document.querySelectorAll('dialog[open] button')).find((b) => b.textContent === 'Save and log a payment') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(openModalTitles()).toEqual(['Log a payment']));
+    const preview = document.querySelector('dialog[open] [data-role=donor-preview]') as HTMLElement;
+    expect(preview.textContent).toBe('Donor: Zara · owes $50.00 of $50.00');
+    const amount = document.querySelector('dialog[open] [name=amountReceived]') as HTMLInputElement;
+    type(amount, '2');
+    // #when the pledge's save fails and the store takes the pledge back out
+    failPledge(new ApiError('BUSY', 'The tracker is busy. Try again.'));
+    // #then the volunteer sees, before saving, that this payment would not be counted, and carries on typing where they were
+    await vi.waitFor(() => expect(preview.textContent).toBe(`${WARN_NOT_IN_PLEDGES} — this payment will not be counted until that is fixed. ${PLEDGE_TAKEN_BACK}`));
+    expect(preview.classList.contains('hint-warning')).toBe(true);
+    expect(document.activeElement).toBe(amount);
+    expect(amount.value).toBe('2');
   });
 
   it('lists the most recently added pledge first until a heading is tapped, and a third tap goes back to that order', () => {
@@ -359,6 +389,34 @@ describe('payments view', () => {
     (Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement).click();
     type(document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement, '555 999 0000');
     expect(document.querySelector('dialog[open] [data-role=donor-preview]')?.textContent).toContain(SAVE_ANYWAY);
+  });
+});
+
+// Every store publish rebuilds the list. The copy it replaces must not go on to redraw itself when its search
+// timer fires, since the new copy has already drawn the current search.
+describe('a search typed just before the list is redrawn', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const twoPayments = [...payments, payment({ id: 'y2', phone: '555-010-0103', amountReceived: 20, dateReceived: '2026-01-01' })];
+  const withTwoPayments: State = { ...state, payments: twoPayments, computed: compute(pledges, twoPayments, SETTINGS, TODAY) };
+
+  it.each([
+    ['Pledges', createPledgesView, 'chen', ['p3']],
+    ['Payments', createPaymentsView, '999', ['y1']],
+  ] as const)('%s draws the search in the new copy at once and leaves the replaced one alone', (_list, createView, query, matching) => {
+    vi.useFakeTimers();
+    const render = createView({ store, reportError: vi.fn() });
+    const replaced = render(withTwoPayments, null, () => undefined);
+    document.body.append(replaced);
+    const tableBefore = replaced.querySelector('table');
+    type(replaced.querySelector('input[type=search]') as HTMLInputElement, query);
+    vi.advanceTimersByTime(50);
+
+    document.body.replaceChildren(render(withTwoPayments, null, () => undefined));
+    expect([...document.body.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'))).toEqual(matching);
+    vi.advanceTimersByTime(200);
+
+    expect(replaced.querySelector('table')).toBe(tableBefore);
   });
 });
 
@@ -819,6 +877,83 @@ describe('payment form', () => {
     const suggestions = document.querySelector('dialog[open] [data-role=near-matches]') as HTMLElement;
     expect(suggestions.hidden).toBe(false);
     expect(suggestions.textContent).toContain('Is this from Chen Wei (555-010-0103)?');
+  });
+
+  // The pledges a form opens with can change under it: a save that fails is taken back out, and a reload brings in others'.
+  describe('following the store while open', () => {
+    function followedStore(opensOn: State | null = null, loadedAt = Date.now()) {
+      const listeners = new Set<(next: State) => void>();
+      const followed = {
+        state: () => opensOn,
+        subscribe: (listener: (next: State) => void) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+        lastLoadedAt: () => loadedAt,
+      };
+      return { followed, listeners, publish: (next: State) => listeners.forEach((listener) => listener(next)) };
+    }
+    const stateOf = (donors: typeof pledges): State => ({ ...state, pledges: donors, computed: compute(donors, payments, SETTINGS, TODAY) });
+    const preview = () => document.querySelector('dialog[open] [data-role=donor-preview]') as HTMLElement;
+
+    it('re-checks the donor when the store publishes', () => {
+      const { followed, publish } = followedStore();
+      openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, store: followed, onSave: vi.fn(), reportError: vi.fn() });
+      expect(preview().textContent).toBe('Donor: Chen Wei · owes $300.00 of $300.00');
+      publish(stateOf(pledges.filter((p) => p.id !== 'p3')));
+      expect(preview().textContent).toContain(`${WARN_NOT_IN_PLEDGES} — this payment will not be counted until that is fixed.`);
+    });
+
+    // That pledge was on this device's list a moment ago, so it is not with another volunteer, and adding it again
+    // could enter it twice; its own Reopen retries it under the same id.
+    it('says to Reopen a pledge taken off the list under it, not to save anyway or add a pledge', () => {
+      const { followed, publish } = followedStore(null, Date.now() - STALE_LOAD_MS);
+      openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, store: followed, onSave: vi.fn(), reportError: vi.fn() });
+      publish(stateOf(pledges.filter((p) => p.id !== 'p3')));
+      expect(preview().textContent).toBe(`${WARN_NOT_IN_PLEDGES} — this payment will not be counted until that is fixed. ${PLEDGE_TAKEN_BACK}`);
+
+      type(document.querySelector('dialog[open] [name=phone]') as HTMLInputElement, '123');
+      expect(preview().textContent).toBe(`${WARN_NOT_IN_PLEDGES} — this payment will not be counted until that is fixed. ${SAVE_ANYWAY} ${NOT_PLEDGED_YET}`);
+    });
+
+    // A Reopen's other options date from the form whose save failed, which still listed the pledge.
+    it('checks the donor against the store as it opens', () => {
+      const { followed } = followedStore(stateOf(pledges.filter((p) => p.id !== 'p3')));
+      openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, store: followed, onSave: vi.fn(), reportError: vi.fn() });
+      expect(preview().textContent).toBe(`${WARN_NOT_IN_PLEDGES} — this payment will not be counted until that is fixed. ${PLEDGE_TAKEN_BACK}`);
+    });
+
+    it('keeps focus on a suggested donor’s button through a publish that suggests the same donor', () => {
+      const { followed, publish } = followedStore();
+      openPaymentForm({ phone: '555-010-0130', methods: METHODS, pledges, computed: state.computed, store: followed, onSave: vi.fn(), reportError: vi.fn() });
+      const use = document.querySelector('dialog[open] [data-role=near-matches] button') as HTMLButtonElement;
+      use.focus();
+      publish(stateOf(pledges.map((p) => ({ ...p }))));
+      expect(use.isConnected).toBe(true);
+      expect(document.activeElement).toBe(use);
+    });
+
+    it('stops following once it closes, and before its own save is drawn', async () => {
+      const { followed, listeners } = followedStore();
+      let followingAtSave: number | null = null;
+      const onSave = vi.fn(async () => {
+        followingAtSave = listeners.size;
+      });
+      openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, store: followed, onSave, reportError: vi.fn() });
+      expect(listeners.size).toBe(1);
+      type(document.querySelector('dialog[open] [name=amountReceived]') as HTMLInputElement, '20');
+      (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      expect(onSave).toHaveBeenCalledTimes(1);
+      // Otherwise the payment being saved would be drawn as "already logged" in the form as it closes.
+      expect(followingAtSave).toBe(0);
+
+      openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, computed: state.computed, store: followed, onSave, reportError: vi.fn() });
+      expect(listeners.size).toBe(1);
+      pressFormCancel();
+      await vi.waitFor(() => expect(listeners.size).toBe(0));
+    });
   });
 
   it('asks for the phone number while the phone holds only punctuation', () => {

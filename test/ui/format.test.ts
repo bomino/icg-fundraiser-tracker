@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flooredGoalFraction, formatCents, formatClock, formatDate, formatDateTime, formatFlooredPercent, formatPercent, formatWholeDollars, parseAmount } from '../../web/src/format';
+import { flooredGoalFraction, flooredGoalPercent, formatCents, formatClock, formatDate, formatDateTime, formatFlooredPercent, formatPercent, formatWholeDollars, parseAmount } from '../../web/src/format';
 
 describe('format', () => {
   it('shows money in accounting format, with credits in brackets', () => {
@@ -32,6 +32,13 @@ describe('format', () => {
     expect(flooredGoalFraction(9996, 10000)).toBe(0.999);
     expect(formatFlooredPercent(9996, 10000)).toBe('99.9%');
     expect(formatFlooredPercent(100, 0)).toBe('0%');
+  });
+  it('gives a progressbar the percentage it shows, capped at 100', () => {
+    expect(flooredGoalPercent(2900, 10000)).toBe(29);
+    expect(flooredGoalPercent(9996, 10000)).toBe(99.9);
+    expect(flooredGoalPercent(25000, 10000)).toBe(100);
+    expect(flooredGoalPercent(-500, 10000)).toBe(0);
+    expect(flooredGoalPercent(100, 0)).toBe(0);
   });
   it('parses what volunteers type', () => {
     expect(parseAmount(' $1,250.50 ')).toBe(1250.5);

@@ -132,6 +132,20 @@ describe('Friday display', () => {
     exitAgain();
   });
 
+  // 0.29 * 100 is 28.999… in floating point, so a bar announced from the raw fraction said 28 under "29%".
+  it('announces the same floored percentage to screen readers as it shows', () => {
+    const { store } = fakeStore();
+    const goal100 = { ...settings, goal: 100 };
+    for (const [received, shown] of [[29, '29'], [99.96, '99.9']] as const) {
+      const paid = [payment({ id: 'y1', phone: '555-010-0101', dateReceived: TODAY, amountReceived: received, method: 'Cash' })];
+      vi.spyOn(store, 'state').mockReturnValue({ pledges, payments: paid, settings: goal100, me: 'me', computed: compute(pledges, paid, goal100, TODAY) });
+      const exit = mountDisplay(root, { store, auth: fakeAuth(true).auth, reconnect: vi.fn(async () => undefined) });
+      expect(root.querySelector('.friday-percent')?.textContent).toBe(`${shown}%`);
+      expect(root.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow')).toBe(shown);
+      exit();
+    }
+  });
+
   it('is titled with the campaign name from Settings, or Fundraiser while that is blank', () => {
     const { store } = fakeStore();
     const named = { ...settings, campaignName: 'Masjid Expansion 2026' };

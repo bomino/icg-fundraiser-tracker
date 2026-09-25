@@ -211,7 +211,7 @@ The two errors known to quote the token never reach the log: the body is parsed 
 
 Save and Delete close the dialog at once and finish in the background (`runForm` in `web/src/ui/form.ts`), because an Apps Script round-trip takes 1–16 s. The store's optimistic update shows the change immediately.
 
-A row whose save is in flight, create *or* edit, is `isPending`: a per-id count in `store.ts`, incremented once and decremented exactly once in a `finally`, so overlapping saves of one row don't unmark it early and a throwing view can't leave it stuck. `renderTable`'s `pending` option fades it, labels it "Saving…" and refuses to open it, because an edit opened then would carry an `updatedAt` about to be replaced. Once a save has reached the server, a view that throws while redrawing is logged (`publishSettled`), never reported as a failed save.
+A row whose save is in flight, create *or* edit, is `isPending`: a per-id count in `store.ts`, incremented once and decremented exactly once in a `finally`, so overlapping saves of one row don't unmark it early and a throwing view can't leave it stuck. `renderTable`'s `pending` option fades it, labels it "Saving…" and refuses to open it, because an edit opened then would carry an `updatedAt` about to be replaced. Once a save has reached the server, a view that throws while redrawing is logged (`publishSettled`), never reported as a failed save. Before it is sent, a view that throws while drawing the change fails that change loudly: it is never sent, it is rolled back, and it is reported like any failed save, as are a delete or goal change that meets the same throw. Its toast shows only the error's message, so `publishBeforeSend` logs the error itself first, for tracing the render bug.
 
 New rows are appended (`withRow` in `store.ts`, `appendRow` in `Code.gs`). The store publishes optimistic rows synchronously, which several forms rely on (see "Save and log a payment", "Save and add another" and "The payment form's hints").
 
@@ -233,7 +233,7 @@ A `BUSY` answer (the server's `LOCK_WAIT_MS` lock wait ran out before anything w
 
 Each attempt has a 45 s `AbortController` timer (not `AbortSignal.timeout`, which iOS 15 lacks) that stays armed until `response.json()` finishes; an abort is checked before the "unexpected page" `INTERNAL` error, so a stalled answer isn't blamed on the deployment. A timeout becomes `NETWORK` without the "Anyone" hint and is retried at most once, so a stalled request gives up after about 90 s instead of leaving a row on "Saving…", Refresh on "Refreshing…" or the boot skeleton up for minutes. The boot skeleton (`renderLoading`) changes to a "Still loading…" note after 5 s, and `boot()` cancels that timer once loading ends.
 
-On any *update*, a `CONFLICT` whose `current` record already matches the draft being sent (`pledgeMatchesDraft`/`paymentMatchesDraft`, applied in `saveExisting`) is treated as success, not resurfaced as an error. The check exists for a retry whose first request landed but whose response was lost. Nothing tracks whether a retry actually happened, though, so a first attempt that finds another volunteer already saved the same values also counts as saved. Both wrap `draftMatches`, which walks every key the draft carries (amounts compared to the cent), never a hand-kept field list: a field missed there would let a CONFLICT that differs only in that field count as saved, dropping the volunteer's change without a word.
+On any *update*, a `CONFLICT` whose `current` record is the row being saved (its `id`, checked on its own because a draft carries none) and already matches the draft being sent (`pledgeMatchesDraft`/`paymentMatchesDraft`, applied in `saveExisting`) is treated as success, not resurfaced as an error. The check exists for a retry whose first request landed but whose response was lost. Nothing tracks whether a retry actually happened, though, so a first attempt that finds another volunteer already saved the same values also counts as saved. Both wrap `draftMatches`, which walks every key the draft carries (amounts compared to the cent), never a hand-kept field list: a field missed there would let a CONFLICT that differs only in that field count as saved, dropping the volunteer's change without a word.
 
 Creates are safe to retry as-is (idempotent by the client-chosen UUID; see "Client-named rows"). A delete is safe because `store.ts`'s `remove` treats `NOT_FOUND` as success (the row is gone, as asked), so keep that. `setSetting` just rewrites the same value.
 
@@ -260,6 +260,8 @@ There is deliberately no "wait, then sign out" option: a save that failed while 
 ### The sign-in dialog
 
 Sign-in is its own modal `<dialog>` (`web/src/auth.ts`). A form dialog makes the rest of the page inert, so a sign-in requested while one is open must open *after* it in the top layer. (Saves now finish in the background, so a mid-save sign-in usually opens with no form dialog at all.) Dismissing it rejects every waiting `getToken` with `UNAUTHENTICATED` "Sign-in was cancelled." (the API does not retry that), and `refreshIfStale()` renews a token within 5 minutes of expiry on any click in `main` and when the tab becomes visible.
+
+A token the client cannot decode counts as expired: `isFresh` returns false rather than throwing, so `getToken` asks for a new sign-in, and `hasFreshToken()` and `refreshIfStale()` never throw. Google always issues a JWT, so this guards a credential garbled on the way; without it every later call failed with a bare "Malformed sign-in token." until a reload.
 
 ### Token persistence
 
@@ -299,6 +301,8 @@ Every store publish rebuilds `<main>`, so `render()` puts focus back on whatever
 
 Inputs also keep their text and caret. Any new control in a list, the Summary or Find donor needs a key too, or each save that lands while a volunteer is on it throws them back to the top of the page.
 
+The lists' search redraw is debounced (`SEARCH_DEBOUNCE_MS`), and a timer still pending belongs to the copy a re-render replaces, so Pledges' and Payments' `render()` cancels it first: the new copy draws the current search at once, and the old timer would only redraw a detached table.
+
 Help is built once and handed back unchanged, so `render()` leaves it in place rather than putting it back, which would drop the focus of a section heading or Contents link. A heading press redraws only the table, not through `render()`, so `renderTable` itself moves focus to the redrawn heading when the pressed one had it.
 
 ### Focus after a save or delete
@@ -321,9 +325,9 @@ The `cancel` path is best-effort: Chrome makes a close request non-cancelable wh
 
 A new pledge can be saved and paid in one step (`openPledgeForm`'s secondary action in `web/src/ui/pledgeForm.ts`), for a donor who pledges and pays at once or a walk-in who never pledged. **Save and log a payment** is hidden until the phone box has a phone (`matchKey` not blank; a payment needs one). It submits through the ordinary Save path (`form.requestSubmit()`), and only if that closed the dialog does the dialog's `close` handler call `onLogPayment(phone)`. A failed check keeps the form open and clears the request, so the payment form never stacks on it and never opens on a later Cancel.
 
-Pledges' **Add pledge** and Find donor's **Add a pledge** both offer it (at the door, a donor nobody can find is usually pledging and paying at once), and each builds that form from `deps.store.state()`, not the render-time state: the store publishes the new pledge's optimistic row synchronously, so the donor preview finds it at once. If the pledge's save then fails, the payment still saves and shows `⚠ phone not in Pledges` until the pledge's **Reopen** is used.
+Pledges' **Add pledge** and Find donor's **Add a pledge** both offer it (at the door, a donor nobody can find is usually pledging and paying at once), and each builds that form from `deps.store.state()`, not the render-time state: the store publishes the new pledge's optimistic row synchronously, so the donor preview finds it at once. If the pledge's save then fails while the payment form is open, the store takes the pledge back out and the form's donor line turns to `⚠ phone not in Pledges` before the payment is saved, and says to Cancel and use the pledge's **Reopen** rather than add the pledge again (see "The payment form's hints"); Help adds Save and log a payment after the Reopen. A payment saved anyway shows `⚠ phone not in Pledges` until the pledge's **Reopen** is used.
 
-The payment form's `⚠ phone not in Pledges` preview points walk-in donors to this button only on a *new* payment: on an existing one it would enter the same money a second time. A payment form opened with a phone (Pledges, Find donor, or this path) and not as a Reopen puts focus in Amount received; a Reopen keeps its own rule (focus on the field with the error).
+The payment form's `⚠ phone not in Pledges` preview points walk-in donors to this button only on a *new* payment: on an existing one it would enter the same money a second time. Nor does it for a number whose pledge was on the form's list while it was open (see "Following the store"). A payment form opened with a phone (Pledges, Find donor, or this path) and not as a Reopen puts focus in Amount received; a Reopen keeps its own rule (focus on the field with the error).
 
 ### Save and add another
 
@@ -338,6 +342,8 @@ Nothing is remembered between runs, deliberately (no `localStorage` "last method
 ### The payment form's hints
 
 The payment form says when a payment is already logged, and what the donor still owes (`web/src/ui/paymentForm.ts`, from the required `computed` option: `state.computed`, taken from the same state as its `pledges`). Both are advisory: Save stays enabled.
+
+**Following the store.** These hints, and the suggested donor below, follow the store while the form is open (the `store` option, which every opener passes). The form reads `store.state()` as it opens, because a Reopen's other options date from the form whose save failed, and re-checks on every publish, so a save that settles or fails, or a reload that lands, reaches the form before Save. Above all, a pledge from Save and log a payment whose save fails is taken back out, and the donor line turns to the ⚠. For a number any pledge on the form's list has held (`listedKeys`: its `pledges` option and every state it has followed), that ⚠ says the pledge was just taken off the list, most likely because it could not be saved, and to press Cancel and then Reopen on the red message, in place of the stale-list and walk-in advice: that pledge is not with another volunteer, and adding it again could enter it twice, where its Reopen retries it under the same id. Only the notes are redrawn, each only when its text changes, and the suggested-donor buttons only when the suggestions do, so no box, cursor or focus moves under the volunteer. It stops following as its own save starts, since that save's optimistic row would read as already logged in the closing form, and when it closes.
 
 **Already logged.** An amber `role=status` note under Amount received appears when another payment has the same `duplicatePaymentKey` (match key, cents, date; exported from `summary.ts`, the exact grouping of the Possible duplicate payments check, so the two can never disagree). It is rechecked on phone, date and amount input and rewrites its text only when it changes, since a status region may re-announce every rewrite. It never matches the payment being edited, and on an edit it says press Delete, not Cancel, because Cancel would keep both copies. It sees only this device's state: a payment still saving is there (the store publishes optimistic rows synchronously, so a repeat in a Save and add another run or from Find donor is caught), but a failed save the store rolled back (even one that reached the sheet) or another volunteer's entry is not, until a reload. That is why Help's "check the list first" stays. Two real same-day installments of one amount also trigger it, the same accepted false alarm as the health check.
 
@@ -383,7 +389,7 @@ An action toast never expires: it stays until **Reopen** or **Dismiss** is press
 
 A confirmation is neither delayed nor held, since it would be stale by then. While a dialog is open it is also added, as a line of its own, to that dialog's visually hidden `role=status` region, which `openDialog` builds empty with every dialog, because the inert toast region would not announce it. Without that, a screen-reader volunteer in a Save and add another run heard "Saved." only for the last entry.
 
-The stack is the first child of `<body>` (`position: fixed`, so only the DOM order changes), so a keyboard reaches Reopen before the page's up to 100 row buttons. Dismissing returns focus to `#main` via a temporary `tabindex` removed on blur; `#main:focus` draws no outline. The 500 ms readiness poll runs only for actions with a `ready` check.
+The stack is the first child of `<body>` (`position: fixed`, so only the DOM order changes), so a keyboard reaches Reopen before the page's up to 100 row buttons. Dismissing returns focus to `#main` via a temporary `tabindex` removed on blur, or at once if `#main` does not take the focus, since no blur would follow; `#main:focus` draws no outline. The 500 ms readiness poll runs only for actions with a `ready` check.
 
 ## Lists, sorting, paging, filters, downloads
 
@@ -421,7 +427,7 @@ That line is the app's only period figure, deliberately: a separate weekly modul
 
 ### Stale lists
 
-A stale list is named where it invites a duplicate pledge. Every donor check reads the volunteer's own last load, so a pledge another volunteer just added looks missing. Once that load is over 2 minutes old (`staleListAge` in `web/src/ui/staleList.ts`), Find donor's "No donor found." adds how long ago the list was loaded and asks for a Refresh before adding a pledge, and the payment form's `⚠ phone not in Pledges` preview (given `pledgesLoadedAt` by every opener) says to save the payment anyway and not add a second pledge, ahead of the walk-in advice to use Save and log a payment, so that warning is read first.
+A stale list is named where it invites a duplicate pledge. Every donor check reads the volunteer's own last load, so a pledge another volunteer just added looks missing. Once that load is over 2 minutes old (`staleListAge` in `web/src/ui/staleList.ts`), Find donor's "No donor found." adds how long ago the list was loaded and asks for a Refresh before adding a pledge, and the payment form's `⚠ phone not in Pledges` preview (given `pledgesLoadedAt` by every opener) says to save the payment anyway and not add a second pledge, ahead of the walk-in advice to use Save and log a payment, so that warning is read first. Neither is given for a number whose pledge was on the form's list while it was open (see "Following the store").
 
 A server-side duplicate-phone check on create was deliberately deferred until the "Donors listed more than once" health check shows duplicates in real use: it would thread a warning through `store.save()`, `runForm`'s shared "Saved." toast and the retried-create path in `upsert_`.
 
@@ -479,7 +485,7 @@ The Summary view reads "Updated Sep 24, 2026, 2:01 PM" on screen and on paper; i
 
 ### Goal figures
 
-Goal figures are rounded down, never to nearest (`flooredGoalFraction`/`formatWholeDollars` in `web/src/format.ts`): the percentage to 0.1% on the Summary, the display and the export, and the display's money to whole dollars, so nothing claims the goal early. Use these helpers for any new goal figure.
+Goal figures are rounded down, never to nearest (`flooredGoalFraction`/`formatWholeDollars` in `web/src/format.ts`): the percentage to 0.1% on the Summary, the display and the export, and the display's money to whole dollars, so nothing claims the goal early. The Summary's and the display's progress bars announce that same floored percentage as `aria-valuenow` (`flooredGoalPercent`), never one worked from the raw `goalFraction`, where float error can drop a point (0.29 × 100 is 28.999…). Use these helpers for any new goal figure.
 
 ### The donor statement
 
@@ -505,8 +511,12 @@ While the display is showing, toasts are hidden, and CONFLICT questions wait (`w
 
 Styling comes only from `web/src/styles/tokens.css` (from `DESIGN.md`). No other file contains colour literals, with two unavoidable exceptions:
 
-- `web/index.html`'s two `theme-color` metas and `web/public/manifest.webmanifest`'s `background_color`/`theme_color` cannot reference CSS variables, so they hold copies of `--color-bg` (light `#fbf9f3`, dark `#15110a`). Change the metas and manifest together with `--color-bg`.
+- `web/index.html`'s two `theme-color` metas, `THEME_COLOR` in `web/src/theme.ts` and `web/public/manifest.webmanifest`'s `background_color`/`theme_color` cannot reference CSS variables, so they hold copies of `--color-bg` (light `#fbf9f3`, dark `#15110a`). Change the metas, `THEME_COLOR` and the manifest together with `--color-bg`; `test/theme.test.ts` fails when the metas or `THEME_COLOR` drift from the token, but nothing checks the manifest.
 - The icon artwork (`web/public/icons/icg-monogram.svg`, the favicon, and `icg-monogram-maskable.svg`) hard-codes `--color-bg` `#fbf9f3`, `--color-ink` `#1a2e1f` and the original gold `#a87c0a`, which now survives in `tokens.css` only as `--chart-2` (`--color-gold` was darkened to `#926c09` for text contrast). If you change the icon colours, re-rasterise the PNGs beside the SVGs (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `apple-touch-icon-180.png`). The repo has no script that does this.
+
+The browser bar follows the app's theme, not only the device's. Each `theme-color` meta carries a `prefers-color-scheme` media query, which alone would leave the Android Chrome address bar, or an installed app's title bar, on the device's setting above a page in the other theme. So a chosen theme gives both metas its colour: `index.html`'s boot script does it for a choice saved on an earlier visit, reading the colour from the matching meta so it keeps no copy of its own, and `toggleTheme` does it from `THEME_COLOR` for a choice made now. With no choice saved, the metas are left alone and their media queries follow the device, as the page does.
+
+The manifest stays light only: there is no widely supported way for `background_color`/`theme_color` to vary by colour scheme. So an installed app's splash screen is cream for a dark-mode volunteer; once the page loads, its metas decide the title bar.
 
 ### Forced colours and the method ring
 

@@ -60,11 +60,19 @@ function region(kind: 'info' | 'error'): HTMLElement {
 function returnFocusToPage() {
   const main = document.getElementById('main');
   if (!main) return;
-  if (!main.hasAttribute('tabindex')) {
-    main.setAttribute('tabindex', '-1');
-    main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
+  if (main.hasAttribute('tabindex')) {
+    main.focus();
+    return;
   }
+  const dropTabindex = () => main.removeAttribute('tabindex');
+  main.setAttribute('tabindex', '-1');
+  main.addEventListener('blur', dropTabindex, { once: true });
   main.focus();
+  // A page area that could not take focus gets no blur to take the tabindex away.
+  if (document.activeElement !== main) {
+    main.removeEventListener('blur', dropTabindex);
+    dropTabindex();
+  }
 }
 
 // A form opened over a toast makes it inert and draws the volunteer's eye away from it; expiring then

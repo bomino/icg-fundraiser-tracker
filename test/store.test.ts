@@ -473,6 +473,32 @@ describe('store', () => {
     expect(isPending(aisha)).toBe(false);
   });
 
+  // The change still fails loudly and is rolled back, but its toast shows only the error's message.
+  it('logs a view that throws while drawing a change before it is sent, so the render bug can be traced', async () => {
+    const api = fakeApi();
+    const sends = [vi.spyOn(api, 'savePledge'), vi.spyOn(api, 'deletePayment'), vi.spyOn(api, 'setGoal')];
+    const store = createStore(api, () => TODAY);
+    await store.load();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const renderBug = new Error('render failed');
+    let throwNext = false;
+    store.subscribe(() => {
+      if (!throwNext) return;
+      throwNext = false;
+      throw renderBug;
+    });
+    const payment = store.state()?.payments[0] as Payment;
+    for (const change of [() => store.savePledge({ ...draftOf(aisha), name: 'Changed' }, aisha), () => store.deletePayment(payment), () => store.setGoal(99)]) {
+      throwNext = true;
+      await expect(change()).rejects.toBe(renderBug);
+    }
+    expect(error).toHaveBeenCalledTimes(3);
+    for (const args of error.mock.calls) expect(args).toContain(renderBug);
+    for (const send of sends) expect(send).not.toHaveBeenCalled();
+    expect(store.state()).toMatchObject({ pledges: [{ name: 'Aisha' }], payments: [payment], settings: { goal: SETTINGS.goal } });
+    error.mockRestore();
+  });
+
   it('treats a save as done when only the redraw after it throws, and unmarks the row exactly once', async () => {
     // #given an earlier save of the row still in flight, and a later one that the server accepts at once
     const earlier = deferred<Pledge>();

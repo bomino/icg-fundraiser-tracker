@@ -55,6 +55,8 @@ export function createPaymentsView(deps: ListViewDeps) {
   let lastFilter: ListFilter | null = null;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
+    // A search still waiting to redraw belongs to the copy this render replaces; this one draws the query at once.
+    clearTimeout(searchTimer);
     // Compared by identity, not label: each Data-health Show builds a new filter (even for the check just used), while
     // store re-renders pass the same one, so a search typed inside a drill-down survives them.
     if (filter !== lastFilter) {
@@ -75,6 +77,7 @@ export function createPaymentsView(deps: ListViewDeps) {
         pledges: state.pledges,
         computed: state.computed,
         pledgesLoadedAt: deps.store.lastLoadedAt(),
+        store: deps.store,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onDelete: (current) => deps.store.deletePayment(current),
         latest: () => deps.store.state()?.payments.find((p) => p.id === existing.id),
@@ -92,6 +95,7 @@ export function createPaymentsView(deps: ListViewDeps) {
         pledges: current.pledges,
         computed: current.computed,
         pledgesLoadedAt: deps.store.lastLoadedAt(),
+        store: deps.store,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onAddAnother: logPayment,
         reportError: deps.reportError,

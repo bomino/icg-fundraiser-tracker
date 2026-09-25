@@ -239,12 +239,13 @@ export function createApi(
   // A retried update can come back CONFLICT purely because the first attempt's echo was lost
   // after it landed: the server's updatedAt already moved, so the version check fails even though
   // the row holds exactly what the volunteer asked for. Recognise that case and treat it as saved
-  // instead of surfacing an error that would just make them resave the same values.
-  async function saveExisting<D extends object, T>(op: string, draft: D, row: Versioned, matches: (current: unknown, draft: D) => current is T): Promise<T> {
+  // instead of surfacing an error that would just make them resave the same values. A draft carries no
+  // id, so the id is checked on its own: another row's record must never stand in for this one.
+  async function saveExisting<D extends object, T extends { id: string }>(op: string, draft: D, row: Versioned, matches: (current: unknown, draft: D) => current is T): Promise<T> {
     try {
       return await call<T>(op, withRow(draft, row));
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'CONFLICT' && matches(err.current, draft)) return err.current;
+      if (err instanceof ApiError && err.code === 'CONFLICT' && matches(err.current, draft) && err.current.id === row.id) return err.current;
       throw err;
     }
   }

@@ -41,6 +41,14 @@ export function formatFlooredPercent(receivedCents: number, goalCents: number): 
   return formatPercent(flooredGoalFraction(receivedCents, goalCents));
 }
 
+/**
+ * The shown percentage as a number, 0 to 100 in tenths, for a goal progressbar's aria-valuenow: so a
+ * screen reader hears what formatFlooredPercent shows, never a point less to float error or 100 early.
+ */
+export function flooredGoalPercent(receivedCents: number, goalCents: number): number {
+  return Math.min(Math.max(Math.round(flooredGoalFraction(receivedCents, goalCents) * 1000), 0), 1000) / 10;
+}
+
 export function formatDate(iso: string): string {
   if (iso === '') return '';
   const [year, month, day] = iso.split('-').map(Number);

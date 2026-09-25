@@ -104,6 +104,7 @@ export function createLookupView(deps: ListViewDeps) {
         pledges: current.pledges,
         computed: current.computed,
         pledgesLoadedAt: deps.store.lastLoadedAt(),
+        store: deps.store,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         reportError: deps.reportError,
       });
@@ -131,6 +132,7 @@ export function createLookupView(deps: ListViewDeps) {
         pledges: state.pledges,
         computed: state.computed,
         pledgesLoadedAt: deps.store.lastLoadedAt(),
+        store: deps.store,
         onSave: (draft, row) => deps.store.savePayment(draft, row),
         onDelete: (current) => deps.store.deletePayment(current),
         latest: () => deps.store.state()?.payments.find((p) => p.id === payment.id),
