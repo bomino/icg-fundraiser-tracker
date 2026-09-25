@@ -8,6 +8,7 @@ import { mountDisplay } from './displayView';
 import { createErrorReporter } from './errors';
 import { downloadWorkbook } from './export';
 import type { ListFilter } from './filter';
+import { findFocusSpot, focusSpotOf, type FocusSpot } from './focus';
 import { createHelpView } from './helpView';
 import { createLookupView } from './lookupView';
 import { destroyMethodChart, drawMethodChart } from './methodChart';
@@ -60,6 +61,13 @@ export interface AppDeps {
   auth: Auth;
 }
 
+// tabindex -1 lets the heading take focus without becoming a tab stop.
+function focusHeading(container: ParentNode) {
+  const heading = container.querySelector<HTMLElement>('h1');
+  heading?.setAttribute('tabindex', '-1');
+  heading?.focus();
+}
+
 // DESIGN.md's projector link; rewritten to #display so that Exit, and a reload after it, leave the mode.
 function adoptDisplayParam() {
   const url = new URL(location.href);
@@ -72,6 +80,8 @@ function adoptDisplayParam() {
 export function mountApp(root: HTMLElement, deps: AppDeps): void {
   mountToasts();
   let listFilter: { view: ViewName; filter: ListFilter } | null = null;
+  // Set by a Summary "Show N", whose button goes with the Summary; a Sections tab keeps its own focus.
+  let focusListHeading = false;
   let exitDisplay: (() => void) | null = null;
   let shellShown = false;
   // Chart.js and its theme listener would otherwise only get torn down on Summary's *next* draw,
@@ -119,9 +129,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     });
     // The control that had focus went with the old page, and no alert toast says why it changed, so a
     // screen reader hears nothing unless focus lands on the new screen.
-    const heading = root.querySelector<HTMLElement>('h1');
-    heading?.setAttribute('tabindex', '-1');
-    heading?.focus();
+    focusHeading(root);
   };
   const reload = async () => {
     refresh.disabled = true;
@@ -181,18 +189,22 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     main,
   ];
 
-  // Store publishes rebuild the whole view; without this a volunteer typing a search loses the box mid-word.
-  function focusedSearch() {
+  // Store publishes rebuild the whole view; without this a volunteer loses their place each time a save
+  // lands: a search box mid-word, or the row or button they had tabbed to.
+  function focusedSpot() {
     const active = document.activeElement;
-    if (!(active instanceof HTMLInputElement) || !main.contains(active) || !active.dataset.focusKey) return null;
-    return { key: active.dataset.focusKey, start: active.selectionStart, end: active.selectionEnd };
+    const spot = active && main.contains(active) ? focusSpotOf(active) : null;
+    if (!spot) return null;
+    const input = active instanceof HTMLInputElement ? active : null;
+    return { spot, start: input?.selectionStart ?? null, end: input?.selectionEnd ?? null };
   }
 
-  function restoreFocus(focus: { key: string; start: number | null; end: number | null }) {
-    const input = main.querySelector<HTMLInputElement>(`input[data-focus-key="${focus.key}"]`);
-    if (!input) return;
-    input.focus();
-    if (focus.start !== null && focus.end !== null) input.setSelectionRange(focus.start, focus.end);
+  function restoreFocus(focus: { spot: FocusSpot; start: number | null; end: number | null }) {
+    const target = findFocusSpot(focus.spot, main);
+    if (!target) return;
+    // Its old copy had focus right there a moment ago; taking focus back must not scroll the page.
+    target.focus({ preventScroll: true });
+    if (target instanceof HTMLInputElement && focus.start !== null && focus.end !== null) target.setSelectionRange(focus.start, focus.end);
   }
 
   function render() {
@@ -233,10 +245,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
           drawChart: drawMethodChart,
           showList: (target, targetFilter) => {
             listFilter = { view: target, filter: targetFilter };
+            focusListHeading = true;
             location.hash = target;
           },
         });
-    const focus = focusedSearch();
+    const focus = focusedSpot();
     main.replaceChildren(content);
     if (focus) restoreFocus(focus);
     rememberView(view);
@@ -245,6 +258,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
   window.addEventListener('hashchange', () => {
     render();
     window.scrollTo({ top: 0 });
+    if (!focusListHeading) return;
+    focusListHeading = false;
+    focusHeading(main);
   });
   deps.store.subscribe(render);
   adoptDisplayParam();

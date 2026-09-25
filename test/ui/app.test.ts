@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '../../web/src/api';
+import { ApiError, type Api } from '../../web/src/api';
 import { createAuth, type Auth } from '../../web/src/auth';
 import { compute } from '../../web/src/engine';
-import type { State, Store } from '../../web/src/store';
+import { createStore, type State, type Store } from '../../web/src/store';
+import type { Payment, Pledge } from '../../web/src/types';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
 import { renderMessageScreen } from '../../web/src/ui/screens';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 const pledges = [pledge({ id: 'p1', phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 100 })];
 
-function fakeStore() {
-  let state: State = { pledges, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, [], SETTINGS, TODAY) };
+function fakeStore(paymentRows: Payment[] = []) {
+  let state: State = { pledges, payments: paymentRows, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, paymentRows, SETTINGS, TODAY) };
   const listeners = new Set<(state: State) => void>();
   const publish = () => listeners.forEach((listener) => listener(state));
   const store = {
@@ -32,6 +33,29 @@ function fakeStore() {
 
 function fakeAuth() {
   return { getToken: vi.fn(async () => 'tok'), refreshIfStale: vi.fn(), hasFreshToken: vi.fn(() => false), suppressPrompts: vi.fn(() => vi.fn()), signOut: vi.fn() } satisfies Auth;
+}
+
+// Module-level so afterEach can answer what a failed test left waiting: the store marks a row as saving
+// in a module-level map, and a save never answered would leave it unopenable in every later test.
+const unansweredWrites: Array<() => void> = [];
+const answerAll = () => unansweredWrites.splice(0).forEach((answer) => answer());
+
+// A real store, so Save and Delete redraw the page before their dialog closes, over an Api whose every
+// write waits for the test to answer it, as a slow Apps Script round-trip does.
+async function slowStore(pledgeRows: Pledge[] = pledges) {
+  const later = <T>(value: T) => new Promise<T>((resolve) => unansweredWrites.push(() => resolve(value)));
+  const saved = { updatedAt: 'v2', updatedBy: 'me@example.com' };
+  const api: Api = {
+    load: async () => ({ pledges: pledgeRows, payments: [], settings: SETTINGS, me: 'me@example.com' }),
+    savePledge: (draft, row) => later({ ...draft, id: row.id, ...saved }),
+    savePayment: (draft, row) => later({ ...draft, id: row.id, ...saved }),
+    deletePledge: () => later(undefined),
+    deletePayment: () => later(undefined),
+    setGoal: (goal) => later({ ...SETTINGS, goal }),
+  };
+  const store = createStore(api, () => TODAY);
+  await store.load();
+  return store;
 }
 
 const navButton = (root: HTMLElement, label: string) => Array.from(root.querySelectorAll<HTMLButtonElement>('.nav-actions button')).find((button) => button.textContent === label) as HTMLButtonElement;
@@ -127,6 +151,7 @@ describe('mountApp', () => {
     untrackDocument = trackListeners(document);
   });
   afterEach(() => {
+    answerAll();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     document.body.replaceChildren();
@@ -454,6 +479,172 @@ describe('mountApp', () => {
       focused: true,
       value: 'aish',
       caret: [1, 2],
+    });
+  });
+
+  // A keyboard volunteer entering a stack of cards must not be thrown back to the top of the page each time.
+  describe('keeping keyboard focus in place', () => {
+    const rowButton = (id: string) => root.querySelector<HTMLButtonElement>(`tr[data-id="${id}"] .row-open`);
+    const mainButton = (label: string) => Array.from(root.querySelectorAll<HTMLButtonElement>('main button')).find((button) => button.textContent === label) as HTMLButtonElement;
+    const topDialogButton = (label: string) => {
+      const dialogs = document.querySelectorAll('dialog[open]');
+      return Array.from(dialogs[dialogs.length - 1].querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent === label) as HTMLButtonElement;
+    };
+    const fill = (name: string, value: string) => {
+      const input = document.querySelector(`dialog[open] [name=${name}]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    const submitDialog = () => (document.querySelector('dialog[open] form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    // What a browser's showModal does and jsdom's shim does not: focus moves into the dialog, so the
+    // redraw that Save causes underneath it cannot put focus back by itself.
+    const focusIntoDialog = () => (document.querySelector('dialog[open] input') as HTMLInputElement).focus();
+    const openWithKeyboard = (button: HTMLElement) => {
+      button.focus();
+      button.click();
+      focusIntoDialog();
+    };
+
+    it('keeps focus on a row, and on a button such as Add pledge, when a store publish redraws the list', () => {
+      const { store, publish } = fakeStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      const row = rowButton('p1') as HTMLButtonElement;
+      row.focus();
+
+      publish();
+
+      expect(rowButton('p1')).not.toBe(row);
+      expect(document.activeElement).toBe(rowButton('p1'));
+      const add = mainButton('Add pledge');
+      add.focus();
+      publish();
+      expect(mainButton('Add pledge')).not.toBe(add);
+      expect(document.activeElement).toBe(mainButton('Add pledge'));
+    });
+
+    it('returns focus to the row that was opened once Save has redrawn it, and keeps it there when the save settles', async () => {
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      openWithKeyboard(rowButton('p1') as HTMLButtonElement);
+      fill('amountPledged', '150');
+
+      submitDialog();
+
+      expect(document.querySelector('dialog')).toBeNull();
+      expect(rowButton('p1')?.getAttribute('aria-label')).toBe('555-010-0101 — Saving…');
+      expect(document.activeElement).toBe(rowButton('p1'));
+      answerAll();
+      await vi.waitFor(() => expect(rowButton('p1')?.getAttribute('aria-label')).toBe('Open 555-010-0101'));
+      expect(document.activeElement).toBe(rowButton('p1'));
+    });
+
+    it('returns focus to Add pledge once a new pledge is saved, and keeps it there when the save settles', async () => {
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      openWithKeyboard(mainButton('Add pledge'));
+      fill('phone', '555-010-0199');
+      fill('name', 'Zara Ali');
+
+      submitDialog();
+
+      expect(root.querySelector('.row-pending')).not.toBeNull();
+      expect(document.activeElement).toBe(mainButton('Add pledge'));
+      answerAll();
+      await vi.waitFor(() => expect(root.querySelector('.row-pending')).toBeNull());
+      expect(document.activeElement).toBe(mainButton('Add pledge'));
+    });
+
+    it('moves focus to the table once a deleted row has gone, and leaves it in the form while the delete question is open', async () => {
+      const store = await slowStore([...pledges, pledge({ id: 'p2', phone: '555-010-0102', name: 'Bilal Khan', amountPledged: 50 })]);
+      mountApp(root, { store, auth: fakeAuth() });
+      openWithKeyboard(rowButton('p2') as HTMLButtonElement);
+      const inForm = document.activeElement;
+
+      topDialogButton('Delete').click();
+      topDialogButton('Cancel').click();
+      await vi.waitFor(() => expect(document.querySelectorAll('dialog[open]')).toHaveLength(1));
+      expect(document.activeElement).toBe(inForm);
+      topDialogButton('Delete').click();
+      topDialogButton('Delete').click();
+
+      await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
+      expect(rowButton('p2')).toBeNull();
+      expect(document.activeElement).toBe(root.querySelector('.table-wrap'));
+    });
+
+    it('returns focus to the pledge after a payment logged from its form is saved', async () => {
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      // No focusIntoDialog here: closing the pledge form hands focus back to the row, which is still there.
+      const row = rowButton('p1') as HTMLButtonElement;
+      row.focus();
+      row.click();
+      topDialogButton('Log a payment').click();
+      focusIntoDialog();
+      fill('amountReceived', '20');
+      fill('method', 'Cash');
+
+      submitDialog();
+
+      expect(document.querySelector('dialog')).toBeNull();
+      expect(document.activeElement).toBe(rowButton('p1'));
+    });
+
+    it('returns focus to Edit goal once the goal is saved', async () => {
+      history.replaceState(null, '', '#summary');
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      openWithKeyboard(mainButton('Edit goal'));
+      fill('goal', '20000');
+
+      submitDialog();
+
+      expect(root.textContent).toContain('received of $20,000.00');
+      expect(document.activeElement).toBe(mainButton('Edit goal'));
+    });
+
+    it('returns focus to the donor card’s Log a payment once the payment is saved', async () => {
+      history.replaceState(null, '', '#find');
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      const search = root.querySelector('#lookup-input') as HTMLInputElement;
+      search.value = '555-010-0101';
+      search.dispatchEvent(new Event('input'));
+      openWithKeyboard(mainButton('Log a payment'));
+      fill('amountReceived', '20');
+      fill('method', 'Cash');
+
+      submitDialog();
+
+      expect(document.activeElement).toBe(mainButton('Log a payment'));
+    });
+
+    it('keeps a focused Show N through a redraw, and moves focus to the list’s heading once Show N opens it', async () => {
+      history.replaceState(null, '', '#summary');
+      const { store, publish } = fakeStore([payment({ id: 'y1', phone: '555-999-0000', amountReceived: 5, method: 'Cash' })]);
+      mountApp(root, { store, auth: fakeAuth() });
+      const show = () => root.querySelector('[data-health=notMatched] button') as HTMLButtonElement;
+      const before = show();
+      before.focus();
+      publish();
+      expect(show()).not.toBe(before);
+      expect(document.activeElement).toBe(show());
+
+      show().click();
+
+      await vi.waitFor(() => expect(root.querySelector('main h1')?.textContent).toBe('Payments'));
+      expect(document.activeElement).toBe(root.querySelector('main h1'));
+    });
+
+    it('leaves focus on a Sections tab that changes the view', async () => {
+      mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+      const tab = root.querySelector('nav.tabs a[href="#payments"]') as HTMLAnchorElement;
+      tab.focus();
+
+      tab.click();
+
+      await vi.waitFor(() => expect(root.querySelector('main h1')?.textContent).toBe('Payments'));
+      expect(document.activeElement).toBe(tab);
     });
   });
 });

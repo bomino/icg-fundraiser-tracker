@@ -122,7 +122,7 @@ export function createPledgesView(deps: ListViewDeps) {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(drawTable, SEARCH_DEBOUNCE_MS);
     });
-    const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Add pledge');
+    const add = h('button', { type: 'button', class: 'btn btn-primary', 'data-focus-key': 'pledges-add' }, 'Add pledge');
     add.addEventListener('click', () => openEditor());
     const chipRow = h(
       'div',

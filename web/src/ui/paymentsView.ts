@@ -132,7 +132,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       dateToInput.value = '';
       redrawDateControls();
     });
-    const add = h('button', { type: 'button', class: 'btn btn-primary' }, 'Log a payment');
+    const add = h('button', { type: 'button', class: 'btn btn-primary', 'data-focus-key': 'payments-add' }, 'Log a payment');
     add.addEventListener('click', () => openEditor());
     drawTable();
     const totals = state.computed.totals;
