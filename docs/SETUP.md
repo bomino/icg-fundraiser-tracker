@@ -9,7 +9,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 3. Replace the contents of `Code.gs` with `apps-script/Code.gs` from this repo.
 4. Open **Project Settings**, tick **Show "appsscript.json" manifest file in editor**, then replace that file with `apps-script/appsscript.json`.
 5. Back in the editor, pick `setup` from the function list and press **Run**. Approve the permissions. The Sheet now has the **Pledges**, **Payments**, **Settings** and **Allowlist** tabs, and your own email is on the Allowlist. It also has **Pledges history** and **Payments history**, where the app keeps the old copy of every row a volunteer edits or deletes (see [Data safety routine](#data-safety-routine)).
-6. Add each volunteer's Google email to the **Allowlist** tab, one per row. To remove access later, delete their row. It takes effect on their next click.
+6. Add each volunteer's Google email to the **Allowlist** tab, one per row, in column A. To remember whose address is whose, you can type the heading `name` in cell B1 and each volunteer's name next to their email: the app reads only column A. To remove access later, delete their row. It takes effect on their next click.
 7. Don't format the Pledges or Payments data columns as **Plain text** in the Sheet UI. The app forces text (ids, phone numbers, dates) by writing a leading apostrophe on every value; a Plain text column stores that apostrophe as a literal character instead of hiding it, which corrupts ids and phone numbers. Leave the columns on Automatic.
 8. Add pledges and payments through the app, not by typing into the **Pledges** or **Payments** tabs. The app ignores any row with an empty `id` in column A, so a row typed straight into the Sheet without one won't appear or count anywhere. The app never fills one in, so a totals or notes row you add under the data stays out of every figure.
    - The **Summary** says how many of those rows look like real entries (a phone number, and on Payments an amount too), in a note under Data health. The note appears once both `Code.gs` and the site are updated.
@@ -21,9 +21,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 
 1. Go to <https://console.cloud.google.com/>, create a project (for example `icg-fundraiser`), and select it.
 2. **APIs & Services → OAuth consent screen**: choose **External** and fill in the app name and your support email. Under **Audience**, press **Publish app**. With only the basic sign-in scopes this needs no Google review, and it lets any allowlisted volunteer sign in.
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type **Web application**. Under **Authorized JavaScript origins** add:
-   - `https://<your-github-username>.github.io`
-   - `http://localhost:5173` and `http://localhost` (Google's sign-in setup guide asks for both when testing locally)
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type **Web application**. Under **Authorized JavaScript origins** add only your site's address, `https://<your-github-username>.github.io`. Leave out `localhost` addresses: they would let a page running on someone's own computer sign in to the live tracker with their account. Local work uses demo mode instead (see [Local development](#local-development)).
 4. Copy the **Client ID**. It ends in `.apps.googleusercontent.com`.
 5. In Apps Script, go to **Project Settings → Script properties → Add**: name `CLIENT_ID`, value = that Client ID.
 
@@ -47,14 +45,20 @@ The app checks this for you. Each `Code.gs` has a line near the top like `const 
 
 ## Local development
 
-Create `.env.local` (git-ignored) in the repo root:
+Run `npm install`, then `npm run dev`, and open <http://localhost:5173/?demo>. Demo mode shows every screen with made-up donors, needs no Google sign-in, and never touches the Sheet.
 
-```
-VITE_SCRIPT_URL=https://script.google.com/macros/s/…/exec
-VITE_GOOGLE_CLIENT_ID=….apps.googleusercontent.com
-```
+Run the local site against the real Sheet only when a change can't be checked in demo mode. It works on live donor data, so undo the setup as soon as you're done:
 
-Then run `npm install`, then `npm run dev`, and open <http://localhost:5173>.
+1. Create `.env.local` (git-ignored) in the repo root:
+
+   ```
+   VITE_SCRIPT_URL=https://script.google.com/macros/s/…/exec
+   VITE_GOOGLE_CLIENT_ID=….apps.googleusercontent.com
+   ```
+
+2. Add `http://localhost:5173` and `http://localhost` to the sign-in client's **Authorized JavaScript origins** (step 2.3). Google's sign-in setup guide asks for both when testing locally.
+3. Run `npm run dev` and open <http://localhost:5173>.
+4. When you're done, remove both `localhost` origins again.
 
 ## Data safety routine
 
@@ -68,6 +72,25 @@ The Sheet is the only copy of the fundraiser's records — there is no separate 
 2. **Download a copy monthly, and after each event.** On **Summary**, press **Download .xlsx**, and keep the file somewhere safe — a laptop, a shared drive — outside the Sheet itself.
 3. **Share the Sheet with a second trusted person as an Editor** (not just Viewer), so access to the fundraiser's records is never locked to one person's Google account.
 4. **Never delete the Sheet or its Apps Script project.** It is the tracker's only database; deleting either takes every pledge and payment with it.
+
+## When the drive ends
+
+The tracker runs one drive at a time. When a drive is over, do these as the organiser:
+
+1. **Keep a final copy.** On **Summary**, press **Download .xlsx**. In the Sheet, also use **File → Make a copy**. Keep both somewhere safe.
+2. **Cut the Allowlist down to yourself.** Everyone on it can still open the tracker, and download every donor's phone number, for as long as their row is there. Delete every row but your own.
+3. **Archive the deployment only if the tracker won't be used again.** **Deploy → Manage deployments → Archive** turns the tracker off for everyone, you included, and its `/exec` URL never works again: another drive would need a new deployment and a new `VITE_SCRIPT_URL` (steps 3 and 4.4). If there may be another drive, leave it deployed. With only you on the Allowlist, it refuses everyone else.
+4. **Decide when donors' phone numbers are deleted**, and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy from step 1, and every `.xlsx` downloaded during the drive. If the tracker isn't being reused, that can be the whole Sheet.
+
+### Starting the next drive
+
+Keep the same Sheet and deployment, so the site and its address carry on working. Do this when no one is using the tracker, since a save made halfway through can be lost:
+
+1. For each of the **Pledges**, **Payments**, **Pledges history** and **Payments history** tabs, right-click the tab's name, choose **Duplicate**, and rename the copy (**Copy of Pledges**) with the drive's year, such as `Pledges 2026`. The app reads only the tabs named exactly `Pledges` and `Payments`, and keeps history only in `Pledges history` and `Payments history`, so it ignores the copies.
+2. In each of those four original tabs, click the **2** at the left of row 2, hold **Shift** and click the number of the last row, then press **Delete** on the keyboard. That empties the rows. Never clear or delete row 1: the app reads the column names there, and stops loading and saving without them.
+3. Set the new goal: **Edit goal** on the Summary, or the `goal` row on the **Settings** tab.
+4. Put the new drive's volunteers back on the **Allowlist**.
+5. Ask every volunteer to press **Refresh**, or reload the page, before adding anything. A page left open still shows the old drive until it reloads.
 
 ## Troubleshooting
 

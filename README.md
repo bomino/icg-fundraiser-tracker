@@ -22,7 +22,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 
 ```bash
 npm install
-npm run dev      # local app (needs .env.local)
+npm run dev      # local app: open /?demo (see Demo mode below)
 npm run check    # typecheck + tests + build
 ```
 
@@ -30,7 +30,7 @@ Requires Node 22.22.2+ on the 22 line, 24.15+, or 26+ (the `jsdom` dev dependenc
 
 ## Demo mode
 
-To look at every screen without a Google account or a deployed Apps Script backend, run `npm run dev` and open <http://localhost:5173/?demo>. It loads an in-memory API seeded with made-up donors and skips Google sign-in entirely. Demo mode is dev-only: the code behind it is excluded from production builds.
+To look at every screen without a Google account or a deployed Apps Script backend, run `npm run dev` and open <http://localhost:5173/?demo>. It loads an in-memory API seeded with made-up donors and skips Google sign-in entirely. Demo mode is dev-only: the code behind it is excluded from production builds. Running the local app against the real Sheet is covered under Local development in [docs/SETUP.md](docs/SETUP.md#local-development).
 
 ## Browser smoke tests
 

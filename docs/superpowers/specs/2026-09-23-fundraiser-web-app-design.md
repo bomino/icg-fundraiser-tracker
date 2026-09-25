@@ -55,7 +55,7 @@ Row 1 holds the headers and data starts at row 2. There are no formulas anywhere
 | `Pledges` | `id` · `phone` · `name` · `datePledged` · `amountPledged` · `notes` · `updatedAt` · `updatedBy` |
 | `Payments` | `id` · `phone` · `dateReceived` · `amountReceived` · `method` · `notes` · `updatedAt` · `updatedBy` |
 | `Settings` | key/value rows: `goal` (default 10000), `paymentMethods` (default `Cash,Bank Transfer,Card,Check,Online,Other`) |
-| `Allowlist` | `email` (one per row, compared case-insensitively) |
+| `Allowlist` | `email` (one per row, compared case-insensitively); the organiser may keep a `name` in column B, which is never read |
 | `Pledges history` / `Payments history` | the `Pledges`/`Payments` columns, then `changedAt` · `changedBy` · `action` (`edit` or `delete`) |
 
 - `id` is a UUID chosen by the client (`crypto.randomUUID()`) — the server only validates its shape. A create is therefore idempotent by id: a Save retried after a lost response cannot add a duplicate.
@@ -266,7 +266,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 1. Create the Sheet.
 2. Paste in `Code.gs` and run `setup()`.
 3. Add emails to Allowlist.
-4. Create a Google Cloud OAuth *Web* client ID, with the Pages origin as an authorized JavaScript origin.
+4. Create a Google Cloud OAuth *Web* client ID, with the Pages origin as its only authorized JavaScript origin. Local work uses demo mode; `localhost` origins are added only for a session run against the real Sheet, and removed afterwards (clarified 2026-09-25).
 5. Set the Script property `CLIENT_ID`.
 6. Deploy as a web app: execute as me, access "Anyone".
 7. Set the `VITE_SCRIPT_URL` and `VITE_GOOGLE_CLIENT_ID` repo variables and enable Pages from Actions.
@@ -276,6 +276,8 @@ The Vite `base` is set to the repo name. Vite also reads `API_VERSION` from `app
 Before uploading the site, the build job checks the two repo variables on every run except a pull request's: `VITE_SCRIPT_URL` must be an Apps Script `/exec` URL (the `/macros/s/…` form or a Workspace account's `/a/macros/<domain>/s/…`), and `VITE_GOOGLE_CLIENT_ID` must end in `.apps.googleusercontent.com` with no whitespace. Otherwise the run fails, naming the variable and the `SETUP.md` step, and the live site is left as it was. Added 2026-09-25.
 
 **Privacy:** the repo, CI logs and the build contain no donor data. Fixtures use `555-01xx` numbers and made-up names. The Sheet stays private to the owner; only the Apps Script, running as the owner, touches it.
+
+**End of a drive:** `SETUP.md` also covers closing a drive: a final copy, cutting the Allowlist down to the organiser (everyone on it can load every donor's phone number for as long as their row stays), archiving the deployment only if the tracker won't be reused (archiving kills the `/exec` URL), and a date for deleting donor phone numbers. The next drive reuses the same Sheet: the organiser duplicates `Pledges`, `Payments` and both history tabs under a new name, which the app never reads, then clears the originals from row 2 down, never row 1. Still one drive at a time (§9). Added 2026-09-25.
 
 ## 9. Out of scope
 

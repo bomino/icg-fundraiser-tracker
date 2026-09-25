@@ -576,7 +576,8 @@ function forTheOrganiser(): Child[] {
     p('These tasks happen in the Google Sheet behind the tracker, not in the app.'),
     topic(
       'Volunteers',
-      p('Add each volunteer’s Google email address to the ', b('Allowlist'), ' tab, one per row. To remove someone, delete their row. The change takes effect the next time they do anything in the tracker.'),
+      p('Add each volunteer’s Google email address to the ', b('Allowlist'), ' tab, one per row, in the first column. To remove someone, delete their row. The change takes effect the next time they do anything in the tracker.'),
+      p('To remember whose address is whose, you can type each volunteer’s name in the second column, next to their email. The tracker reads only the first column.'),
     ),
     topic(
       'Payment methods and the goal',
@@ -676,6 +677,51 @@ function forTheOrganiser(): Child[] {
         ],
         [b('Never delete the Sheet or its Apps Script project'), ' — that is the tracker’s only database; deleting either takes every pledge and payment with it.'],
       ),
+    ),
+    topic(
+      'When the drive ends',
+      p('The tracker runs one drive at a time. When a drive is over:'),
+      steps(
+        [b('Keep a final copy'), ' — on ', b('Summary'), ', press ', b('Download .xlsx'), '. In the sheet, also use ', b('File → Make a copy'), '.'],
+        [
+          b('Take everyone else off the Allowlist'),
+          ' — everyone on it can still open the tracker and see every donor’s phone number, for as long as their row is there. Delete every row except your own.',
+        ],
+        [
+          b('Switch the tracker off only if it will never be used again'),
+          ' — in Apps Script, ',
+          b('Deploy → Manage deployments → Archive'),
+          '. Its web address then stops working for good, so another drive would need the tracker set up again. If there may be another drive, leave it on: with only you on the Allowlist, nobody else can get in.',
+        ],
+        [
+          b('Decide when donors’ phone numbers are deleted'),
+          ' — and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy of the sheet, and every downloaded .xlsx file.',
+        ],
+      ),
+    ),
+    topic(
+      'Starting the next drive',
+      p('Keep the same sheet, so the tracker’s web address carries on working. Do this when no one is using the tracker, since a save made halfway through can be lost.'),
+      steps(
+        [
+          'For each of the ',
+          b('Pledges'),
+          ', ',
+          b('Payments'),
+          ', ',
+          b('Pledges history'),
+          ' and ',
+          b('Payments history'),
+          ' tabs, right-click the tab’s name, choose ',
+          b('Duplicate'),
+          ', and rename the copy with the drive’s year, such as Pledges 2026. The tracker only uses the tabs with exactly those four names, so it ignores the copies.',
+        ],
+        ['In each of the four original tabs, click the 2 at the left of row 2, hold Shift and click the number of the last row, then press Delete on the keyboard. That empties the rows.'],
+        ['Set the new goal with ', b('Edit goal'), ' on the Summary.'],
+        ['Put the new drive’s volunteers back on the Allowlist.'],
+        ['Ask every volunteer to press ', b('Refresh'), ' before adding anything. A page left open still shows the old drive until it reloads.'],
+      ),
+      note('Never clear or delete row 1, the row of column names. Without it, the tracker stops loading and saving.'),
     ),
     topic(
       'Setup and troubleshooting',
