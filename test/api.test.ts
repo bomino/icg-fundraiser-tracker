@@ -328,6 +328,14 @@ describe('createApi', () => {
       await expect(api.savePledge(pledgeDraft, { id: 'p1', updatedAt: 'v1' })).resolves.toEqual(almostEqual);
     });
 
+    // Drafts carry no id, so matching values alone would put another row's record in place of this one.
+    it('still throws when the matching record sent back is another row', async () => {
+      const pledgeApi = createApi(URL, async () => 'tok', conflictOn({ ...currentPledge, id: 'OTHER' }));
+      await expect(pledgeApi.savePledge(pledgeDraft, { id: 'p1', updatedAt: 'v1' })).rejects.toMatchObject({ code: 'CONFLICT' });
+      const paymentApi = createApi(URL, async () => 'tok', conflictOn({ ...currentPayment, id: 'OTHER' }));
+      await expect(paymentApi.savePayment(paymentDraft, { id: 'pay1', updatedAt: 'v1' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
     it('still throws when the saved row differs from the draft', async () => {
       const differing = { ...currentPledge, name: 'Someone Else' };
       const api = createApi(URL, async () => 'tok', conflictOn(differing));
