@@ -69,18 +69,32 @@ The Sheet is the only copy of the fundraiser's records — there is no separate 
    - For a change the history tabs don't have (one from before they existed, or one made directly in the Sheet), open **File → Version history → See version history**, click a version from before the mistake, copy the row's first 8 cells there, and paste them into the current Sheet the same way.
    - **Don't press Restore this version** to get a row back. It rolls back the whole file, every tab, so every pledge and payment any volunteer entered or changed since that version is lost, along with Allowlist and Settings changes.
    - The app never loads the history tabs, so volunteers never see or download them. They do keep deleted rows, phone numbers included: to remove a donor's details for good, delete their rows there too.
-2. **Download a copy monthly, and after each event.** On **Summary**, press **Download .xlsx**, and keep the file somewhere safe — a laptop, a shared drive — outside the Sheet itself.
-3. **Share the Sheet with a second trusted person as an Editor** (not just Viewer), so access to the fundraiser's records is never locked to one person's Google account.
+2. **Share the Sheet with a second trusted person as an Editor** (not just Viewer), so access to the fundraiser's records is never locked to one person's Google account.
+3. **Have the second editor copy the Sheet once a month, and after each event.** They open the Sheet, choose **File → Make a copy**, name the copy with the date, such as `ICG backup 2026-09-24`, and keep it in their own Google Drive. The copy keeps every tab, each row's `id`, **Settings**, the **Allowlist** and the Sheet's Apps Script, so the tracker can be set up again from it (see [Restoring from a copy](#restoring-from-a-copy)). It belongs to the second editor, so it survives even if the organiser's Google account is lost, and the dated name keeps it from being mistaken for the live Sheet.
+   - **Download .xlsx** on **Summary** is a readable record for the treasurer, not the backup. It has no `id`s, mixes in the columns the tracker works out, and leaves out the Allowlist, so the tracker can't be set up again from it.
 4. **Never delete the Sheet or its Apps Script project.** It is the tracker's only database; deleting either takes every pledge and payment with it.
+
+### Restoring from a copy
+
+This is only for when the Sheet itself is lost, for example when the organiser's Google account is closed or can't be signed in to any more. To get back a deleted or changed row, copy the row back instead, as in the first step of the routine above. If the Sheet was deleted in the last 30 days, its owner can first try restoring it from **Trash** in Google Drive.
+
+The restored tracker holds only what was in the copy. Anything entered after the copy was made has to be added again; the latest **Download .xlsx** may help, if it's newer. Whoever holds the copy does these, and is the organiser from then on:
+
+1. Open the copy and rename it **ICG Fundraiser Data**, so it's clear it's the live Sheet now. Make sure your own Google email is on its **Allowlist** tab.
+2. Open **Extensions → Apps Script** and replace `Code.gs` and `appsscript.json` with the ones on the repository's `main` branch (steps 1.3 and 1.4). The copy holds the script as it was on the day the copy was made.
+3. Open **Project Settings → Script properties**. If `CLIENT_ID` isn't there, add it as in step 2.5. If the sign-in client was made with the lost account, make a new one with your own account (steps 2.1 to 2.4), and use its Client ID both here and for the site's `VITE_GOOGLE_CLIENT_ID` below.
+4. **Deploy → New deployment → Web app**, with **Execute as: Me** and **Who has access: Anyone** (steps 3.1 and 3.2). Approve the permissions if Google asks, and copy the new **Web app URL**. A copy always needs a new deployment, and its URL differs from the old one.
+5. In the GitHub repository, change the `VITE_SCRIPT_URL` variable to the new URL, and `VITE_GOOGLE_CLIENT_ID` too if you made a new sign-in client (step 4.4). Then run **Actions → Test and deploy → Run workflow** (step 4.5). This needs someone who can change the repository's settings. Until the run finishes, the site keeps sending every save to the old Sheet.
+6. Ask every volunteer to reload the page (on a phone's home-screen app, close it fully and open it again). Then share the restored Sheet with a second editor and carry on the routine above.
 
 ## When the drive ends
 
 The tracker runs one drive at a time. When a drive is over, do these as the organiser:
 
-1. **Keep a final copy.** On **Summary**, press **Download .xlsx**. In the Sheet, also use **File → Make a copy**. Keep both somewhere safe.
+1. **Keep a final copy.** In the Sheet, use **File → Make a copy**, named for the drive, such as `ICG final 2026`. For the treasurer, also press **Download .xlsx** on **Summary**: a readable record of the final figures, not a backup.
 2. **Cut the Allowlist down to yourself.** Everyone on it can still open the tracker, and download every donor's phone number, for as long as their row is there. Delete every row but your own.
 3. **Archive the deployment only if the tracker won't be used again.** **Deploy → Manage deployments → Archive** turns the tracker off for everyone, you included, and its `/exec` URL never works again: another drive would need a new deployment and a new `VITE_SCRIPT_URL` (steps 3 and 4.4). If there may be another drive, leave it deployed. With only you on the Allowlist, it refuses everyone else.
-4. **Decide when donors' phone numbers are deleted**, and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy from step 1, and every `.xlsx` downloaded during the drive. Deleting a tab doesn't take it out of the Sheet's **File → Version history**, whose older versions still hold the numbers, and only deleting the whole Sheet removes those. So if the tracker isn't being reused, delete the whole Sheet.
+4. **Decide when donors' phone numbers are deleted**, and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy from step 1, the second editor's monthly copies, and every `.xlsx` downloaded during the drive. Deleting a tab doesn't take it out of the Sheet's **File → Version history**, whose older versions still hold the numbers, and only deleting the whole Sheet removes those. So if the tracker isn't being reused, delete the whole Sheet.
 
 ### Starting the next drive
 
