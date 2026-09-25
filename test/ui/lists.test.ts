@@ -165,6 +165,40 @@ describe('pledges view: status chips and follow-up', () => {
     expect(chip(document.body, 'All').getAttribute('aria-pressed')).toBe('true');
     expect(chip(document.body, 'Paid').getAttribute('aria-pressed')).toBe('false');
   });
+
+  it('arriving with a drill-down filter clears a leftover search, so the filtered rows are not hidden behind it', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() });
+    document.body.append(view(followUpState, null, () => undefined));
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0003');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['f3']);
+    const filter: ListFilter = { label: 'Pending pledges', ids: new Set(['f2', 'f4']) };
+    document.body.replaceChildren(view(followUpState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['f4', 'f2']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+  });
+
+  it('keeps a search and chip across re-renders of one drill-down, and clears them when Show is tapped again on the same check', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() });
+    const filter: ListFilter = { label: 'Pending pledges', ids: new Set(['f2', 'f4']) };
+    document.body.append(view(followUpState, filter, () => undefined));
+    chip(document.body, 'Needs follow-up').click();
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0004');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['f4']);
+    document.body.replaceChildren(view(followUpState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['f4']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('0004');
+    expect(chip(document.body, 'Needs follow-up').getAttribute('aria-pressed')).toBe('true');
+    document.body.replaceChildren(view(followUpState, { label: 'Pending pledges', ids: new Set(['f2', 'f4']) }, () => undefined));
+    expect(ids(document.body)).toEqual(['f4', 'f2']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+    expect(chip(document.body, 'All').getAttribute('aria-pressed')).toBe('true');
+  });
 });
 
 describe('payments view', () => {
@@ -255,6 +289,40 @@ describe('payments view: date range', () => {
     expect(ids(document.body)).toEqual(['r4']);
     expect(dateInput(document.body, 'payments-date-from').value).toBe('');
     expect(dateInput(document.body, 'payments-date-to').value).toBe('');
+  });
+
+  it('arriving with a drill-down filter clears a leftover search, so the filtered rows are not hidden behind it', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() });
+    document.body.append(view(rangeState, null, () => undefined));
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0002');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['r2']);
+    const filter: ListFilter = { label: 'Undated or out-of-range payments', ids: new Set(['r4']) };
+    document.body.replaceChildren(view(rangeState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['r4']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+  });
+
+  it('keeps a search and date range across re-renders of one drill-down, and clears them when Show is tapped again on the same check', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() });
+    const filter: ListFilter = { label: 'Undated or out-of-range payments', ids: new Set(['r3', 'r4']) };
+    document.body.append(view(rangeState, filter, () => undefined));
+    type(dateInput(document.body, 'payments-date-from'), '2026-06-01');
+    vi.useFakeTimers();
+    type(document.body.querySelector('input[type=search]') as HTMLInputElement, '0003');
+    vi.advanceTimersByTime(150);
+    vi.useRealTimers();
+    expect(ids(document.body)).toEqual(['r3']);
+    document.body.replaceChildren(view(rangeState, filter, () => undefined));
+    expect(ids(document.body)).toEqual(['r3']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('0003');
+    expect(dateInput(document.body, 'payments-date-from').value).toBe('2026-06-01');
+    document.body.replaceChildren(view(rangeState, { label: 'Undated or out-of-range payments', ids: new Set(['r3', 'r4']) }, () => undefined));
+    expect(ids(document.body)).toEqual(['r4', 'r3']);
+    expect((document.body.querySelector('input[type=search]') as HTMLInputElement).value).toBe('');
+    expect(dateInput(document.body, 'payments-date-from').value).toBe('');
   });
 });
 

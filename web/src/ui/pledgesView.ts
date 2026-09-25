@@ -41,15 +41,20 @@ export function createPledgesView(deps: ListViewDeps) {
   let statusChip: string = ALL_CHIP;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let visibleCount = TABLE_PAGE_SIZE;
-  let lastFilterLabel: string | undefined;
+  let lastFilter: ListFilter | null = null;
 
   return function render(state: State, filter: ListFilter | null, clearFilter: () => void): HTMLElement {
-    // A drill-down filter arriving or clearing changes which rows match, same as a new search - start back at page 1.
-    if (filter?.label !== lastFilterLabel) {
+    // Compared by identity, not label: each Data-health Show builds a new filter (even for the check just used), while
+    // store re-renders pass the same one, so a search typed inside a drill-down survives them.
+    if (filter !== lastFilter) {
+      // A drill-down filter arriving or clearing changes which rows match, same as a new search - start back at page 1.
       visibleCount = TABLE_PAGE_SIZE;
-      lastFilterLabel = filter?.label;
-      // A leftover status chip would hide the very rows the filter just arrived to show.
-      if (filter) statusChip = ALL_CHIP;
+      lastFilter = filter;
+      // A leftover search or status chip would hide the very rows the filter just arrived to show.
+      if (filter) {
+        query = '';
+        statusChip = ALL_CHIP;
+      }
     }
     const openPaymentFor = (pledge: Pledge) => {
       // One id per opened form: a Save retried after a lost response must name the same row.

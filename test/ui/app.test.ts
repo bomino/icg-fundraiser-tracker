@@ -3,14 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAuth, type Auth } from '../../web/src/auth';
 import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
+import type { Payment } from '../../web/src/types';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
 import { renderMessageScreen } from '../../web/src/ui/screens';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 const pledges = [pledge({ id: 'p1', phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 100 })];
 
-function fakeStore() {
-  let state: State = { pledges, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, [], SETTINGS, TODAY) };
+function fakeStore(payments: Payment[] = []) {
+  let state: State = { pledges, payments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, payments, SETTINGS, TODAY) };
   const listeners = new Set<(state: State) => void>();
   const publish = () => listeners.forEach((listener) => listener(state));
   const store = {
@@ -301,6 +302,34 @@ describe('mountApp', () => {
     expect(document.activeElement).toBe(redrawn);
     expect(redrawn.value).toBe('aish');
     expect([redrawn.selectionStart, redrawn.selectionEnd]).toEqual([2, 3]);
+  });
+
+  it('starts each Data-health Show with a clear search, but keeps a search typed there when the store publishes', async () => {
+    history.replaceState(null, '', '#payments');
+    const { store, publish } = fakeStore([payment({ id: 'y1', phone: '555-010-0101', amountReceived: 40 }), payment({ id: 'y2', phone: '555-999-0000', amountReceived: 35 })]);
+    mountApp(root, { store, auth: fakeAuth() });
+    const search = () => root.querySelector('input[type=search]') as HTMLInputElement;
+    const rowIds = () => [...root.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
+    const showUnmatched = async () => {
+      (root.querySelector('nav.tabs a[href="#summary"]') as HTMLAnchorElement).click();
+      await vi.waitFor(() => expect(root.querySelector('[data-health=notMatched] button')).not.toBeNull());
+      (root.querySelector('[data-health=notMatched] button') as HTMLButtonElement).click();
+      await vi.waitFor(() => expect(search()).not.toBeNull());
+    };
+    search().value = '0101';
+    search().dispatchEvent(new Event('input'));
+
+    await showUnmatched();
+    expect(search().value).toBe('');
+    expect(rowIds()).toEqual(['y2']);
+
+    search().value = '999';
+    search().dispatchEvent(new Event('input'));
+    publish();
+    expect(search().value).toBe('999');
+
+    await showUnmatched();
+    expect(search().value).toBe('');
   });
 
   it('keeps focus, text and caret in the Find donor search when the store publishes', () => {
