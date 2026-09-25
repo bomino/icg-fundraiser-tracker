@@ -56,7 +56,9 @@ a { color: var(--color-emerald); }
 }
 
 @media print {
-  .nav-bar, .toolbar, .btn, .banner, .toasts, .screen-only { display: none !important; }
+  /* The controls that set a list's filter, the Pledges status chips among them: paper drops the pressed chip's fill, so it
+     could not say which is on. "Showing N of M" names the filter in words instead. */
+  .nav-bar, .toolbar, .chip-row, .btn, .banner, .toasts, .screen-only { display: none !important; }
   /* Find donor prints as a statement a donor may be handed: it loses the search and everything written for volunteers
      (notes, warnings), and gains a heading and a Total paid line from the print-only rule below. */
   .lookup-view .print-hidden { display: none !important; }

@@ -37,3 +37,15 @@ test('a printed list longer than one page says how many rows it left out', async
   await expect(leftOut).toHaveText(/^\d+ more rows not shown\.$/);
   await expect(page.locator('.show-more')).toBeHidden();
 });
+
+test('a printed Pledges list leaves out the status chips, whose pressed one paper cannot show', async ({ page }) => {
+  await openApp(page, 'pledges');
+  await page.getByRole('button', { name: 'Partial', exact: true }).click();
+  const chips = page.getByRole('group', { name: 'Filter by status' });
+  await expect(chips).toBeVisible();
+
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(chips).toBeHidden();
+  await expect(page.locator('.list-status p.meta').first()).toHaveText(/ · Partial$/, { useInnerText: true });
+});
