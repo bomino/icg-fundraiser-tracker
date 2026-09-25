@@ -3,12 +3,15 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '../../web/src/auth';
-import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute } from '../../web/src/engine';
+import { HEALTH_LABELS, STATUS, WARN_NOT_IN_PLEDGES, WARN_NO_AMOUNT, compute, needsFollowUp, type HealthCheck } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
 import { PAYMENT_HELP, PLEDGE_HELP } from '../../web/src/ui/help';
 import { HELP_SECTIONS, QUOTED_MESSAGES, createHelpView } from '../../web/src/ui/helpView';
-import { SETTINGS, TODAY, pledge } from '../support/factories';
+import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
+
+const NO_PHONE_MONEY_TOPIC = 'Record money with no phone number (collection box, walk-in)';
+const GENERAL_DONATIONS = { phone: '000-000-0000', name: 'General donations' } as const;
 
 const SECTION_TITLES = [
   'Getting started',
@@ -150,6 +153,37 @@ describe('createHelpView', () => {
     const howToTitles = Array.from(view.querySelectorAll('#help-how-to .help-topic > h3')).map((heading) => heading.textContent);
     expect(howToTitles).toEqual(expect.arrayContaining(['A check bounced or money was given back', 'A donor gives post-dated checks']));
     expect(view.querySelector('dt[data-health="futureDated"] + dd')?.textContent).toContain('A donor gives post-dated checks in How to…');
+  });
+
+  it('gives money with no donor a How-to topic, pointed at from the not-in-Pledges warning', () => {
+    const view = createHelpView();
+    const howTo = Array.from(view.querySelectorAll('#help-how-to .help-topic')).find((topic) => topic.querySelector('h3')?.textContent === NO_PHONE_MONEY_TOPIC);
+    expect(howTo?.textContent).toContain(`${GENERAL_DONATIONS.phone} as the phone number and ${GENERAL_DONATIONS.name} as the donor name`);
+    const warning = Array.from(view.querySelectorAll('#help-warnings dt')).find((term) => term.textContent === WARN_NOT_IN_PLEDGES);
+    expect(warning?.nextElementSibling?.textContent).toContain(`${NO_PHONE_MONEY_TOPIC} in How to…`);
+  });
+
+  it('warns about the side effects the General donations pledge really has', () => {
+    const howTo = Array.from(createHelpView().querySelectorAll('#help-how-to .help-topic')).find((topic) => topic.querySelector('h3')?.textContent === NO_PHONE_MONEY_TOPIC);
+    for (const effect of [STATUS.overpaid, 'Overpaid / credit', HEALTH_LABELS.possibleDuplicatePayments, 'Unmatched payments stays at $0.00']) expect(howTo?.textContent).toContain(effect);
+
+    const general = pledge({ id: 'general', phone: GENERAL_DONATIONS.phone, name: GENERAL_DONATIONS.name, amountPledged: 0 });
+    const aisha = pledge({ phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 1000, datePledged: '2026-09-01' });
+    const payments = [
+      payment({ phone: '555-010-0101', amountReceived: 500, dateReceived: '2026-09-05' }),
+      payment({ phone: GENERAL_DONATIONS.phone, amountReceived: 1200, dateReceived: '2026-08-28' }),
+      payment({ phone: GENERAL_DONATIONS.phone, amountReceived: 20, dateReceived: '2026-09-18' }),
+      payment({ phone: GENERAL_DONATIONS.phone, amountReceived: 20, dateReceived: '2026-09-18' }),
+    ];
+    const computed = compute([general, aisha], payments, SETTINGS, TODAY);
+    expect(computed.totals).toMatchObject({ receivedCents: 174000, unmatchedCents: 0, creditCents: 124000, donorCount: 1, statusCounts: { Overpaid: 1, Partial: 1 } });
+    expect(computed.totals.goalFraction).toBeCloseTo(0.174, 12);
+    const flagged = (checks: HealthCheck[]) => Object.fromEntries(checks.map((check) => [check.id, check.ids.length]));
+    expect(flagged(computed.health)).toMatchObject({ notMatched: 0, pledgeNoPhone: 0, predatesPledge: 0, possibleDuplicatePayments: 2 });
+    expect(needsFollowUp(computed.pledges[0], TODAY)).toBe(false);
+
+    const dated = compute([{ ...general, datePledged: TODAY }, aisha], payments, SETTINGS, TODAY);
+    expect(flagged(dated.health)).toMatchObject({ predatesPledge: 1 });
   });
 
   it('describes the form fields with the same help the forms show', () => {

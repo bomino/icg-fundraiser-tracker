@@ -372,13 +372,32 @@ function howTo(): Child[] {
     ),
     topic(
       'Record a donor who won’t give a phone number',
-      p('The phone number is how the tracker links a donor’s payments to their pledge, so without one no payment can be logged for them. If a donor won’t give theirs, give them a made-up number instead.'),
+      p(
+        'The phone number is how the tracker links a donor’s payments to their pledge, so without one no payment can be logged for them. If a donor won’t give theirs, give them a made-up number instead. For a one-off gift from someone who has not pledged, see ',
+        b('Record money with no phone number (collection box, walk-in)'),
+        ' in How to….',
+      ),
       steps(
         ['Add their pledge, or open it if it is already on ', b('Pledges'), ', and type ', b('000-0001'), ' as the phone number. If an amber note says it is already on another pledge, try ', b('000-0002'), ', then ', b('000-0003'), ', and so on, until no note appears.'],
         ['In Notes, write that the number is made up, for example “No phone given — made-up number”.'],
         ['Use the same made-up number every time you log a payment from this donor.'],
       ),
       note('The made-up number shows wherever a phone number does, including Needs follow-up and the downloaded copy. The note tells anyone who sees it not to call it.'),
+    ),
+    topic(
+      'Record money with no phone number (collection box, walk-in)',
+      p('Some money has no donor to link it to: cash from the collection box, or a gift from someone who has not pledged and leaves no number. Log all of it under one shared pledge named General donations, so it still counts toward the goal.'),
+      steps(
+        ['The first time only: on ', b('Pledges'), ', press ', b('Add pledge'), '. Type ', b('000-000-0000'), ' as the phone number and ', b('General donations'), ' as the donor name, enter ', b('0'), ' in Amount pledged, and clear the Date pledged box so it is empty. Save.'],
+        ['Log the money as a payment with ', b('000-000-0000'), ' as the phone number. The line under it should show “Donor: General donations”. For the collection box, one payment for each count is enough; say where the money came from in Notes, for example “Collection box, Jumu’ah”.'],
+        ['If you already logged such money under another number, open that payment and change its phone number to ', b('000-000-0000'), '.'],
+      ),
+      p('This money counts toward Total received, the goal and the Friday display, and Unmatched payments stays at $0.00. Two things look odd but are expected:'),
+      bullets(
+        ['General donations shows as ', b(STATUS.overpaid), ' and counts as one Overpaid donor, and all its money is added to ', b('Overpaid / credit'), ' on the Summary, because its pledge amount is 0.'],
+        ['Two gifts of the same amount on the same day, such as two $20 gifts on a Friday, appear under ', b(HEALTH_LABELS.possibleDuplicatePayments), '. That is a false alarm: keep both.'],
+      ),
+      note('Date pledged stays empty so that no gift, however old, is flagged as coming before the pledge. Someone who has pledged, or will pay over time, needs their own made-up number instead: see ', b('Record a donor who won’t give a phone number'), ' in How to….'),
     ),
     topic(
       'Edit a pledge or payment',
@@ -495,7 +514,12 @@ function theNumbers(): Child[] {
         [b('Total pledged'), 'Every Amount Pledged added together.'],
         [b('Total received'), 'Money matched to a pledge. Payments with a ⚠ warning are not included.'],
         [b('Balance outstanding'), 'Only the money donors still owe. A donor’s credit is never subtracted from another donor’s debt.'],
-        [b('Overpaid / credit'), 'All the extra money from donors who gave more than they pledged, shown separately.'],
+        [
+          b('Overpaid / credit'),
+          'All the extra money from donors who gave more than they pledged, shown separately. Money logged under General donations is counted here too; see ',
+          b('Record money with no phone number (collection box, walk-in)'),
+          ' in How to….',
+        ],
         [b('Donors: Pledged'), 'Donors with an Amount Pledged above 0.'],
       ),
     ),
@@ -526,7 +550,12 @@ function warningsAndHealth(): Child[] {
       'The two warnings',
       p('A payment that is not being counted shows a warning in its Donor Name, and its row turns red.'),
       terms(
-        [said(WARN_NOT_IN_PLEDGES), 'No pledge has this phone number. Usually the number was mistyped on the payment or the pledge. Correct it — or, if the donor has no pledge yet, add one.'],
+        [
+          said(WARN_NOT_IN_PLEDGES),
+          'No pledge has this phone number. Usually the number was mistyped on the payment or the pledge. Correct it — or, if the donor has no pledge yet, add one. For money with no donor, such as collection-box cash, see ',
+          b('Record money with no phone number (collection box, walk-in)'),
+          ' in How to….',
+        ],
         [said(WARN_NO_AMOUNT), 'The donor’s pledge has a blank Amount Pledged. Open the pledge and enter the amount, or 0 if it is not known yet.'],
       ),
     ),
