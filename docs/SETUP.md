@@ -80,7 +80,7 @@ The tracker runs one drive at a time. When a drive is over, do these as the orga
 1. **Keep a final copy.** On **Summary**, press **Download .xlsx**. In the Sheet, also use **File → Make a copy**. Keep both somewhere safe.
 2. **Cut the Allowlist down to yourself.** Everyone on it can still open the tracker, and download every donor's phone number, for as long as their row is there. Delete every row but your own.
 3. **Archive the deployment only if the tracker won't be used again.** **Deploy → Manage deployments → Archive** turns the tracker off for everyone, you included, and its `/exec` URL never works again: another drive would need a new deployment and a new `VITE_SCRIPT_URL` (steps 3 and 4.4). If there may be another drive, leave it deployed. With only you on the Allowlist, it refuses everyone else.
-4. **Decide when donors' phone numbers are deleted**, and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy from step 1, and every `.xlsx` downloaded during the drive. If the tracker isn't being reused, that can be the whole Sheet.
+4. **Decide when donors' phone numbers are deleted**, and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy from step 1, and every `.xlsx` downloaded during the drive. Deleting a tab doesn't take it out of the Sheet's **File → Version history**, whose older versions still hold the numbers, and only deleting the whole Sheet removes those. So if the tracker isn't being reused, delete the whole Sheet.
 
 ### Starting the next drive
 

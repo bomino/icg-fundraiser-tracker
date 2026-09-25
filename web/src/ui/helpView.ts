@@ -701,7 +701,9 @@ function forTheOrganiser(): Child[] {
         ],
         [
           b('Decide when donors’ phone numbers are deleted'),
-          ' — and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy of the sheet, and every downloaded .xlsx file.',
+          ' — and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), the copy of the sheet, and every downloaded .xlsx file. Deleting a tab does not take it out of the sheet’s ',
+          b('Version history'),
+          ', whose older versions still hold the numbers, and only deleting the whole sheet removes those. So if the tracker will not be used again, delete the whole sheet.',
         ],
       ),
     ),
