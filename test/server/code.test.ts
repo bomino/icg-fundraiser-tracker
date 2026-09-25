@@ -51,6 +51,7 @@ const CODE_GS_HASHES: readonly string[] = [
   '7b01b77c5dcbb079b862fbf2db88a47176d24bc3f938c7172b14be895454f70d',
   'd4f8cbd947c3b59e64906315a59bb1d354d7da68e96fad7b7a07615507d7027b',
   'f57f3bd1092220049d811db44c18739a7ba0de15f97e18988e3ca9050a168c0e',
+  '7b810f75ccd064011f227d5f1b4966cbac522a1ac834f69414f9eca323cbbbb0',
 ];
 
 describe('API_VERSION', () => {
@@ -208,6 +209,27 @@ describe('load', () => {
     });
     expect(Number.isInteger(server.evaluate('API_VERSION'))).toBe(true);
   });
+  // load takes no lock, so saves can land between its reads of the two tabs. "Save and log a
+  // payment" saves the pledge and then its payment; seen the other way round, the payment would
+  // show ⚠ phone not in Pledges until the next load.
+  it('never shows a payment without the pledge saved just before it, when both land during a load', () => {
+    let meanwhile = () => {
+      meanwhile = () => undefined;
+      server.post('upsertPledge', newRow(pledgeDraft), token);
+      server.post('upsertPayment', newRow(paymentDraft), token);
+    };
+    for (const tab of ['Pledges', 'Payments']) {
+      const sheet = server.sheet(tab);
+      const read = sheet.getDataRange.bind(sheet);
+      sheet.getDataRange = () => {
+        const values = read().getValues();
+        meanwhile();
+        return { getValues: () => values };
+      };
+    }
+    expect(server.post('load', {}, token).data).toMatchObject({ pledges: [{ name: pledgeDraft.name }], payments: [] });
+    expect(server.post('load', {}, token).data).toMatchObject({ pledges: [{ name: pledgeDraft.name }], payments: [{ amountReceived: paymentDraft.amountReceived }] });
+  });
   // Such rows are never loaded, so this count is the app's only sign that pasted entries lack an id.
   it('counts rows with no id that look like entries, leaving out totals and notes rows', () => {
     const pledges = server.sheet('Pledges');
@@ -289,6 +311,8 @@ describe('writes', () => {
     ['a blank id', ''],
     ['a non-UUID id', 'row-1'],
     ['a numeric id', 12345],
+    // Ids are looked up exactly, so an upper-cased retry would add a second copy of the row.
+    ['an upper-case UUID', randomUUID().toUpperCase()],
   ])('refuses a create with %s', (_label, id) => {
     const response = server.post('upsertPledge', { ...pledgeDraft, id }, token);
     expect(response.error).toMatchObject({ code: 'BAD_REQUEST', field: 'id' });
@@ -522,6 +546,25 @@ describe('edits made directly in the Sheet', () => {
     expect(sheet.raw.map((row) => row.slice(6, 8))).toEqual([['updatedAt', 'updatedBy'], [STAMP, `'${ORGANISER}`], ['', ''], [STAMP, `'${ORGANISER}`]]);
     expect(sheet.raw[2][0]).toBe('');
     expect(server.post('load', {}, token).data.pledges.map((row: { id: string }) => row.id)).toEqual(['p1', 'p3']);
+  });
+
+  // Sheets stops a simple trigger after 30 s, and a row it never reached keeps the version a stale
+  // save would pass with, so a paste over a whole tab must not cost one write per row.
+  it('stamps a paste over hundreds of rows with one write per run of rows that have an id', () => {
+    const sheet = server.sheet('Pledges');
+    const rows = Array.from({ length: 500 }, (_, i) => i + 2);
+    const withoutId = [101, 302, 303];
+    rows.forEach((row) => sheet.appendRow(withoutId.includes(row) ? ['', '', 'Subtotal', '', 1000, '', '', ''] : pledgeRow(`p${row}`)));
+    const before = sheet.rangeWrites.length;
+    server.editInSheet('Pledges', 2, 6, rows.map(() => ['Pays monthly']), ORGANISER);
+    expect(sheet.rangeWrites.slice(before)).toEqual([
+      { row: 2, column: 6, numRows: 500, numColumns: 1 },
+      { row: 2, column: 7, numRows: 99, numColumns: 2 },
+      { row: 102, column: 7, numRows: 200, numColumns: 2 },
+      { row: 304, column: 7, numRows: 198, numColumns: 2 },
+    ]);
+    expect(sheet.raw.slice(1).map((row) => row.slice(6, 8))).toEqual(rows.map((row) => (withoutId.includes(row) ? ['', ''] : [STAMP, `'${ORGANISER}`])));
+    expect(withoutId.map((row) => sheet.raw[row - 1][0])).toEqual(['', '', '']);
   });
 
   it('leaves the version alone for edits to the header row, to columns right of updatedBy, and to other tabs', () => {
@@ -1069,7 +1112,17 @@ describe('settings', () => {
   it('refuses a negative goal on the goal field and any other key on the key field', () => {
     expect(server.post('setSetting', { key: 'goal', value: -1 }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
     expect(server.post('setSetting', { key: 'goal', value: '5' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
+    expect(server.post('setSetting', { key: 'goal', value: 1000000000.01 }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'goal' });
     expect(server.post('setSetting', { key: 'paymentMethods', value: 'Cash' }, token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'key' });
+  });
+  // As a pledge or payment amount is refused, rather than saved as a figure nobody typed.
+  it('refuses a goal with more than 2 decimal places, and changes nothing', () => {
+    expect(server.post('setSetting', { key: 'goal', value: 100.456 }, token).error).toEqual({ code: 'BAD_REQUEST', message: 'Use at most 2 decimal places.', field: 'goal' });
+    expect(server.post('load', {}, token).data.settings.goal).toBe(10000);
+  });
+  it('stores a goal with float dust as whole cents', () => {
+    expect(server.post('setSetting', { key: 'goal', value: 0.1 + 0.2 }, token).data.goal).toBe(0.3);
+    expect(server.sheet('Settings').raw[1]).toEqual(['goal', 0.3]);
   });
   it('reads the campaign name the organiser typed, trimmed, and blank on a Sheet set up without one', () => {
     const settings = server.sheet('Settings');

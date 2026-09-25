@@ -20,6 +20,8 @@ export class FakeSheet {
   raw: unknown[][] = [];
   // Each cell's number format as Range.getNumberFormats reports it: '' (Automatic) unless set, '@' for Plain text.
   formats: string[][] = [];
+  // Every setValues and setValue, as the range it wrote: each is a call to Google that costs time.
+  rangeWrites: Array<{ row: number; column: number; numRows: number; numColumns: number }> = [];
   constructor(
     private name: string,
     private readonly tabs: Map<string, FakeSheet>,
@@ -89,8 +91,14 @@ export class FakeSheet {
           (this.formats[r] ??= [])[c] = format;
         });
       },
-      setValues: (values: unknown[][]) => values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value))),
-      setValue: (value: unknown) => write(row, column, value),
+      setValues: (values: unknown[][]) => {
+        this.rangeWrites.push({ row, column, numRows, numColumns });
+        values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value)));
+      },
+      setValue: (value: unknown) => {
+        this.rangeWrites.push({ row, column, numRows: 1, numColumns: 1 });
+        write(row, column, value);
+      },
       clearContent: () => {
         this.raw.slice(row - 1, row - 1 + numRows).forEach((cells) => cells.fill('', column - 1, column - 1 + numColumns));
         this.dropTrailingBlankRows();

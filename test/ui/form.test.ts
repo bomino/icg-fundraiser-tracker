@@ -506,4 +506,14 @@ describe('runForm', () => {
     expect(document.querySelector('dialog[open] .field-error:not([hidden])')?.textContent).toBe('Enter a goal of 0 or more.');
     expect(reportError).not.toHaveBeenCalled();
   });
+
+  // setSetting_ refuses the same goal with the same words, so a volunteer never meets the server's.
+  it('refuses a goal with more than 2 decimal places before sending it', () => {
+    const onSave = vi.fn(async () => undefined);
+    openGoalForm(100, onSave, vi.fn());
+    (document.querySelector('input[name=goal]') as HTMLInputElement).value = '100.456';
+    (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(document.querySelector('dialog[open] .field-error:not([hidden])')?.textContent).toBe('Use at most 2 decimal places.');
+  });
 });

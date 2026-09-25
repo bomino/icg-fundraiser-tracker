@@ -115,9 +115,11 @@ Validation lives in `web/src/validate.ts` and in `validateRow_` in `Code.gs`, an
 
 A payment also needs an amount ("Enter the amount received."; 0 is allowed), though a pledge's may stay blank: a payment of nothing would still add to # Payments and move Last payment, dropping a donor who paid nothing off Needs follow-up.
 
+The goal (`setSetting_`) takes the amounts' 2-decimal rule and message ("Use at most 2 decimal places.", `hasAtMostTwoDecimals_`, the twin of `hasAtMostTwoDecimals` in `validate.ts`) instead of rounding to a figure nobody typed, so the goal form's `amountError` refuses the same goals before they are sent. A negative, non-numeric or over-cap goal answers "Enter a goal of 0 or more.", and float dust such as 0.1 + 0.2 is still stored as whole cents.
+
 ### Client-named rows
 
-The client names new rows. A create is an upsert with a `crypto.randomUUID()` id and *no* `updatedAt`; `upsert_` requires a UUID there and, if that id already exists with the same entry values, returns the row unchanged, so a Save retried after a lost response cannot add a duplicate; differing values answer `CONFLICT` with the saved row as `current`.
+The client names new rows. A create is an upsert with a `crypto.randomUUID()` id and *no* `updatedAt`; `upsert_` requires a lower-case UUID there (`findRow_` compares ids exactly, so an upper-cased copy of an id would be a second row) and, if that id already exists with the same entry values, returns the row unchanged, so a Save retried after a lost response cannot add a duplicate; differing values answer `CONFLICT` with the saved row as `current`.
 
 Each opened form keeps one id across retries: `openPledgeForm`/`openPaymentForm` make it when they open (the `newId` option) and Reopen passes it back, so a form reopened from a failed-save toast is the same open. Views never make ids. `store.savePledge`/`savePayment` take the row as a required argument (the edited row, or `{ id }` (`NewRow`) for a new one), so a create that forgot its id cannot compile. An update carries `updatedAt` and is version-checked as before.
 
@@ -177,6 +179,8 @@ Edits typed or pasted into the Sheet get a new version (the `onEdit` simple trig
 
 For each Pledges/Payments row from row 2 down that the edit touches *and that already has an id*, it writes `updatedAt` (now) and `updatedBy` (the editor's email, or `edited in Sheet` when Google withholds it), apostrophe-forced via `toCell_`. It never creates or rewrites an id (that would turn a pasted totals or notes row into a counted entry), skips edits wholly right of `updatedBy`, checks row 1 first so a moved column is never overwritten, and takes no lock, so a save already past its version check can still win that narrow race.
 
+Stamping is best-effort within the 30 s Sheets allows a simple trigger, so it is batched: one read of column A, then one `setValues` for each run of consecutive rows that have an id, never one per row, and rows without an id between runs are never written. Stamped row by row, a whole-tab paste (a column pasted back from version history, a fill-down) could run out of time and leave the rows it never reached on their old version, which a stale save would then pass. A trigger that fails or is stopped anyway does so silently (only the Executions log shows it); the history tab still keeps whatever a stale save replaces.
+
 Simple triggers need no setup or OAuth scope and never fire for the script's own writes, so it can't loop; they also don't fire for **File → Import**. No wire change.
 
 ### Starting a new drive
@@ -190,6 +194,8 @@ Settings and the Allowlist are left for the organiser (SETUP's "When the drive e
 ### Locking
 
 Saves, deletes and goal changes run under the script lock (`withLock_`, which calls `tryLock(LOCK_WAIT_MS)`), and so do the writes of the organiser's Start a new drive and Add selected rows, never while their dialogs are open; `load` and `onEdit` take none. A `BUSY` answer means the server's `LOCK_WAIT_MS` lock wait ran out before anything was written, and the client retries it (see "Retries and timeouts"). If BUSY still shows up at event scale, raise `LOCK_WAIT_MS` from 10000 to about 25000, well under the client's 45 s timeout, rather than restructuring the locked section (an edit like any other, so it raises `API_VERSION` too).
+
+`load` stays lockless on purpose: every volunteer's Refresh, tab return and Friday display reload would otherwise queue behind the saves for the one lock, adding `BUSY` answers at event scale. It reads each tab in its own call, so a save that lands between two reads gives a view mixed from before and after it. `load_` reads Payments before Pledges because the app saves a pledge before its payment (Save and log a payment): read the other way round, both could land in between and the payment would show `⚠ phone not in Pledges`. Other sequences can still mix for one load, which the next load corrects: a payment and then its pledge deleted between the reads leaves that payment without its pledge, and a Start a new drive landing mid-load shows the old payments against an empty Pledges tab.
 
 ### Logging
 
