@@ -16,6 +16,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
 - **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
 - **No lost typing**: Cancel, Escape or Back on a form with anything typed in it asks "Discard what you typed?" before closing it.
+- **Pledge and pay at once**: a new pledge's **Save and log a payment** saves it and opens the payment form already matched to that donor, with the cursor in the amount, so the phone number is typed only once. Any payment form opened for a known donor starts in the amount too.
 - **Paging at scale**: long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.
 
 ```bash
