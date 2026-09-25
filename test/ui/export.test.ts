@@ -105,6 +105,11 @@ describe('workbook layout', () => {
     expect(Sheets.Pledges['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
     expect(Sheets.Pledges['!cols']?.[4].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
     expect(Sheets.Payments['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
+    // A date counts as the 10 characters Excel shows, not the long timestamp String() prints, so
+    // Date Received (C) is sized by its heading, just like Payment Method (E) with its short names.
+    const dateWidth = Sheets.Payments['!cols']?.[2].wch ?? 0;
+    const methodWidth = Sheets.Payments['!cols']?.[4].wch ?? 0;
+    expect(dateWidth - methodWidth).toBe('Date Received'.length - 'Payment Method'.length);
   });
 
   it('sizes each column to its longest text, counting money as Excel shows it, but caps a long note', async () => {
