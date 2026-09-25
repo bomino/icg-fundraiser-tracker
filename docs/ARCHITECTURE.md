@@ -473,7 +473,7 @@ The Summary view reads "Updated Sep 24, 2026, 2:01 PM" on screen and on paper; i
 
 ### Goal figures
 
-Goal figures are rounded down, never to nearest (`flooredGoalFraction`/`formatWholeDollars` in `web/src/format.ts`): the percentage to 0.1% on the Summary, the display and the export, and the display's money to whole dollars, so nothing claims the goal early. Use these helpers for any new goal figure.
+Goal figures are rounded down, never to nearest (`flooredGoalFraction`/`formatWholeDollars` in `web/src/format.ts`): the percentage to 0.1% on the Summary, the display and the export, and the display's money to whole dollars, so nothing claims the goal early. The Summary's and the display's progress bars announce that same floored percentage as `aria-valuenow` (`flooredGoalPercent`), never one worked from the raw `goalFraction`, where float error can drop a point (0.29 × 100 is 28.999…). Use these helpers for any new goal figure.
 
 ### The donor statement
 

@@ -1,5 +1,5 @@
 import type { Auth } from '../auth';
-import { formatClock, formatFlooredPercent, formatWholeDollars } from '../format';
+import { flooredGoalPercent, formatClock, formatFlooredPercent, formatWholeDollars } from '../format';
 import type { State, Store } from '../store';
 import { h } from './dom';
 
@@ -22,7 +22,7 @@ function figures(state: State): HTMLElement[] {
   const nodes: Array<HTMLElement | null> = [
     h(
       'div',
-      { class: 'progress-track friday-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.floor(progress * 100), 'aria-label': 'Progress toward goal' },
+      { class: 'progress-track friday-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': flooredGoalPercent(receivedCents, goal ?? 0), 'aria-label': 'Progress toward goal' },
       h('div', { class: 'progress-fill', style: `width: ${progress * 100}%` }),
     ),
     h('p', { class: 'friday-raised' }, h('span', { class: 'gold' }, formatWholeDollars(receivedCents)), goal === null ? ' raised' : ` raised of ${formatWholeDollars(goal)}`),
