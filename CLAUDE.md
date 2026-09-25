@@ -20,11 +20,12 @@ Three logical tables: Pledges (donor dimension), Payments (transaction fact), Su
 
 ### The match key
 
-`web/src/matchKey.ts` strips `-`, `(`, `)`, `.`, `+`, any whitespace (tabs and non-breaking spaces included) and Unicode dashes (`‐`–`―`, `−`), lower-cases, and prefixes the result with `#`. Three details are deliberate:
+`web/src/matchKey.ts` strips `-`, `(`, `)`, `.`, `+`, any whitespace (tabs and non-breaking spaces included) and Unicode dashes (`‐`–`―`, `−`), drops a US `+1` country code, lower-cases, and prefixes the result with `#`. Four details are deliberate:
 
 - **The `#` prefix is required.** Without it, a key like `0551234` could be coerced to a number and collide with `551234`. Keep any new key logic text-prefixed.
 - **A blank phone gets a blank key, and every join must guard on that**, not just match on `""` — otherwise a pledge with no phone would match every payment that also lacks one.
 - **A phone with nothing left after stripping (`--`, `()`, `" "`) is blank too**, never a bare `#`, or every such placeholder would join every other one. Anything deciding "has a phone" must test `matchKey(phone) === ''`, not the raw text: the missing-phone health check, the Payments blank-phone validation (and its copy, `PHONE_IGNORED` in `Code.gs`), and the "Log a payment" buttons all do.
+- **A US number keys the same with or without its `+1`.** When what's left is exactly `1` plus a North American number (`/^1[2-9]\d{9}$/`), the `1` is dropped, so `+1 336 555 0123`, `1-336-555-0123` and `(336) 555-0123` are one donor: phones and contact cards add the `+1` on their own, and a donor re-entered that way would otherwise dodge the duplicate hint and "Donors listed more than once". Area codes never start with 0 or 1, so `10551234567` keeps its `1`; every other digit counts, so `0551234` and `551234` stay different. `Code.gs` needs no copy of this: it only asks whether a phone is blank.
 
 ### Statuses
 

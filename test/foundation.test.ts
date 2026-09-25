@@ -14,6 +14,16 @@ describe('matchKey', () => {
   it('keeps a leading zero distinct', () => {
     expect(matchKey('0551234')).not.toBe(matchKey('551234'));
   });
+  it('treats a US number with or without the +1 country code as the same donor', () => {
+    const keys = ['+1 336 555 0123', '1-336-555-0123', '(336) 555-0123', '13365550123'].map(matchKey);
+    expect(new Set(keys)).toEqual(new Set(['#3365550123']));
+  });
+  it.each(['10551234567', '11234567890', '1336555012', '133655501234', '13365550123x'])(
+    'keeps the leading 1 of %j, which is not a US number with its country code',
+    (phone) => {
+      expect(matchKey(phone)).toBe(`#${phone}`);
+    },
+  );
   it.each(['--', '()', '.', ' ', '\t', '\u00a0', '–'])('treats the punctuation-only phone %j as blank', (phone) => {
     expect(matchKey(phone)).toBe('');
   });

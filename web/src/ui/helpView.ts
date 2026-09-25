@@ -475,7 +475,7 @@ function theNumbers(): Child[] {
     topic(
       'Phone numbers',
       p('The phone number is how a payment finds its donor. Dashes, spaces, brackets, dots and the + sign are ignored, so 555-010-0101, (555) 010 0101 and 5550100101 are the same donor.'),
-      p('Digits are never ignored. ', b('0551234'), ' and ', b('551234'), ' are different numbers, and so are ', b('+1 555 010 0101'), ' and ', b('555 010 0101'), '. Type a donor’s number the same way every time.'),
+      p('A US number with or without +1 is the same donor, so ', b('+1 555 010 0101'), ' and ', b('555 010 0101'), ' match. A leading 0 still matters: ', b('0551234'), ' and ', b('551234'), ' are different numbers.'),
     ),
   ];
 }

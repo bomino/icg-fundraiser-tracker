@@ -95,6 +95,8 @@ This is a pure module with no DOM and no network access. Money is handled intern
 
 Deliberate deviation: keys are compared for exact string equality. Excel treats `*`, `?` and `~` inside a phone number as wildcards in `COUNTIF`/`SUMIF`; the app doesn't. Phones never legitimately contain those characters.
 
+Deliberate deviation: after stripping, a key that is exactly `1` plus a North American number (`/^1[2-9]\d{9}$/`) drops the `1`, so `+1 336 555 0123` and `336-555-0123` are the same donor. The workbook kept the country code, which let a donor re-entered with `+1` slip past the duplicate-donor check. Area codes never start with 0 or 1, so `10551234567` is unchanged, and a leading `0` still counts.
+
 ### 5.2 Pledge derived fields
 Let `k` be the row's key and `M` the payments whose key equals `k`.
 
