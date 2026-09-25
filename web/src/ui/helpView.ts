@@ -677,7 +677,7 @@ function forTheOrganiser(): Child[] {
           b('Keep a copy of the Sheet'),
           ' — once a month and again right after each event, the second editor opens the Sheet and uses ',
           b('File → Make a copy'),
-          ', naming the copy with the date, such as ICG backup 2026-09-24. The copy stays in their own Google Drive and keeps every tab (Settings and the Allowlist too) and the tracker’s script, so the tracker can be set up again from it if the Sheet is ever lost. docs/SETUP.md explains how.',
+          ', naming the copy with the date, such as ICG backup 2026-09-24. The copy stays in their own Google Drive and keeps every tab (Settings and the Allowlist too) and the tracker’s script, so the tracker can be set up again from it if the Sheet is ever lost. docs/SETUP.md in the project’s GitHub repository explains how.',
         ],
         [
           b('Download .xlsx'),
@@ -712,7 +712,7 @@ function forTheOrganiser(): Child[] {
         ],
         [
           b('Decide when donors’ phone numbers are deleted'),
-          ' — and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), every copy of the sheet, and every downloaded .xlsx file. Deleting a tab does not take it out of the sheet’s ',
+          ' — and note the date. When it comes, delete everything that holds them: the tabs named for the finished drive (see below), every copy of the sheet (ask the second editor to delete their monthly copies, since only they can), and every downloaded .xlsx file. Deleting a tab does not take it out of the sheet’s ',
           b('Version history'),
           ', whose older versions still hold the numbers, and only deleting the whole sheet removes those. So if the tracker will not be used again, delete the whole sheet.',
         ],
