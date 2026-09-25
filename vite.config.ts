@@ -26,5 +26,9 @@ export default defineConfig({
     root: repoRoot,
     include: ['test/**/*.test.ts'],
     setupFiles: ['test/support/setup.ts'],
+    // CI runs in UTC, where a device's local time and UTC are the same, so a test that means "the
+    // volunteer's own clock, not UTC" (Today, Last changed at, a file name's time) could not catch a
+    // slip back to UTC. Greensboro's own zone keeps the two apart on every machine.
+    env: { TZ: 'America/New_York' },
   },
 });

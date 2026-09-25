@@ -31,8 +31,9 @@ test('the Payments date range filters the table to that window', async ({ page }
 
 test('Today narrows Payments to today and adds up its money by method', async ({ page }) => {
   // Pinned to a seeded payment date, so the spec doesn't depend on the day it runs. Timers still run,
-  // so the demo API's simulated latency resolves as usual.
-  await page.clock.setFixedTime(new Date('2026-06-20T20:00:00'));
+  // so the demo API's simulated latency resolves as usual. 8 PM in the browser's zone (see
+  // playwright.config.ts), when UTC has already reached the next day.
+  await page.clock.setFixedTime(new Date('2026-06-20T20:00:00-04:00'));
   await openApp(page, 'payments');
 
   const rows = page.locator('.data-table tbody tr');
@@ -50,7 +51,7 @@ test('Today narrows Payments to today and adds up its money by method', async ({
 
 test('This week narrows Payments to Saturday through today and adds up its money', async ({ page }) => {
   // A Friday, pinned like the Today spec: the seeded week of Sat Aug 22 – Fri Aug 28 holds three payments.
-  await page.clock.setFixedTime(new Date('2026-08-28T13:00:00'));
+  await page.clock.setFixedTime(new Date('2026-08-28T13:00:00-04:00'));
   await openApp(page, 'payments');
 
   const rows = page.locator('.data-table tbody tr');

@@ -27,6 +27,9 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
+    // CI runs in UTC, where the browser's local time and UTC are the same, so Today and the Last-changed
+    // times could slip back to UTC unnoticed. Greensboro's own zone keeps the two apart.
+    timezoneId: 'America/New_York',
   },
   projects: [
     { name: 'chromium', testIgnore: PRODUCTION_SPEC, use: { ...devices['Desktop Chrome'] } },
