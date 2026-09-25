@@ -52,7 +52,7 @@ a { color: var(--color-emerald); }
 }
 
 @media print {
-  .nav-bar, .toolbar, .btn, .banner, .toasts { display: none !important; }
+  .nav-bar, .toolbar, .btn, .banner, .toasts, .screen-only { display: none !important; }
   .container { padding: 0; max-width: none; }
   .card, .stat-card { box-shadow: none; break-inside: avoid; }
 }

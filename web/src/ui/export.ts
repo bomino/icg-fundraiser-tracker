@@ -1,6 +1,6 @@
 import { todayIso } from '../dates';
 import type { Computed } from '../engine';
-import { flooredGoalFraction, formatCents } from '../format';
+import { flooredGoalFraction, formatCents, formatDateTime } from '../format';
 import type { State } from '../store';
 
 type Cell = string | number | null | Date;
@@ -44,9 +44,11 @@ export const GOAL_PERCENT_LABEL = '% of Goal Received';
 // organiser's own, so they carry no "($)" to recognise them by.
 const METHODS_HEADING = 'Collected by Payment Method';
 
-export function summarySheetRows(state: State): Cell[][] {
+export function summarySheetRows(state: State, loadedAt: number | null): Cell[][] {
   const { totals, health, methods, methodTotalCents } = state.computed;
   return [
+    // The last load, not the download: other volunteers' changes since that load are not in the file.
+    ['Figures as of', loadedAt === null ? null : formatDateTime(loadedAt)],
     ['Fundraiser Goal ($)', dollars(totals.goalCents)],
     ['Total Pledged ($)', dollars(totals.pledgedCents)],
     ['Total Received ($)', dollars(totals.receivedCents)],
@@ -130,9 +132,9 @@ function methodRowIndexes(rows: Cell[][]): Set<number> {
 // fraction (e.g. 0.999) would read as "0.999", not "99.9%", once opened in a spreadsheet. Async so
 // xlsx (a large dependency) stays a lazy-loaded chunk instead of being pulled into the main bundle
 // by export.ts's eager importers (see below).
-export async function buildSummarySheet(state: State): Promise<import('xlsx').WorkSheet> {
+export async function buildSummarySheet(state: State, loadedAt: number | null): Promise<import('xlsx').WorkSheet> {
   const XLSX = await import('xlsx');
-  const rows = summarySheetRows(state);
+  const rows = summarySheetRows(state, loadedAt);
   const sheet = XLSX.utils.aoa_to_sheet(rows);
   const percentRowIndex = rows.findIndex((row) => row[0] === GOAL_PERCENT_LABEL);
   if (percentRowIndex !== -1) {
@@ -144,17 +146,27 @@ export async function buildSummarySheet(state: State): Promise<import('xlsx').Wo
   return sheet;
 }
 
-export async function buildWorkbook(state: State): Promise<import('xlsx').WorkBook> {
+export async function buildWorkbook(state: State, loadedAt: number | null): Promise<import('xlsx').WorkBook> {
   const XLSX = await import('xlsx');
   const book = XLSX.utils.book_new();
+  // No Author: the file gets emailed around, and a volunteer's address has no reason to travel with it.
+  book.Props = { Title: 'ICG Fundraiser Tracker', CreatedDate: new Date() };
   // Summary first, so the file opens on the totals rather than on the raw list of donors.
-  XLSX.utils.book_append_sheet(book, await buildSummarySheet(state), 'Summary');
+  XLSX.utils.book_append_sheet(book, await buildSummarySheet(state, loadedAt), 'Summary');
   XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, pledgeSheetRows(state.computed)), 'Pledges');
   XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, paymentSheetRows(state.computed)), 'Payments');
   return book;
 }
 
-export async function downloadWorkbook(state: State): Promise<void> {
+// The same moment as the "Figures as of" row, to the minute, so two copies from one day get two
+// names rather than a browser's "(1)"; no colons, which Windows forbids in a file name.
+export function workbookFileName(loadedAt: number | null, now: Date = new Date()): string {
+  const moment = loadedAt === null ? now : new Date(loadedAt);
+  const time = [moment.getHours(), moment.getMinutes()].map((part) => String(part).padStart(2, '0')).join('');
+  return `ICG-Fundraiser-${todayIso(moment)}-${time}.xlsx`;
+}
+
+export async function downloadWorkbook(state: State, loadedAt: number | null): Promise<void> {
   const XLSX = await import('xlsx');
-  XLSX.writeFile(await buildWorkbook(state), `ICG-Fundraiser-${todayIso()}.xlsx`);
+  XLSX.writeFile(await buildWorkbook(state, loadedAt), workbookFileName(loadedAt));
 }

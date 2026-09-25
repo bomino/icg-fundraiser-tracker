@@ -35,6 +35,7 @@ const SAID = {
   deletePayment: 'Delete this payment? It will be removed from every total.',
   healthIntro: 'Every figure below should read 0. Anything higher needs a look.',
   methodTotal: 'Total (should match Payments Logged)',
+  figuresAsOf: 'Figures as of',
   displayStale: 'Figures may be out of date — tap to reconnect',
   saving: 'Saving…',
   saved: 'Saved.',
@@ -221,6 +222,7 @@ function theScreens(): Child[] {
     topic(
       'Summary',
       bullets(
+        [b('Updated'), ' — the line above the title gives the date and time the tracker last fetched the figures from the shared sheet. Press ', b('Refresh'), ' to see changes other volunteers made since then. A printed Summary shows this date and time too.'],
         [b('Goal'), ' — how much has been received against the fundraiser goal, with a progress bar. ', b('Edit goal'), ' changes the target.'],
         [b('The four totals'), ' — Total pledged, Total received, Balance outstanding, and Overpaid / credit. ', b('Understanding the numbers'), ' explains each one.'],
         [b('Donors'), ' — how many donors have pledged, and how many are Fully paid, Partial, Pending or Overpaid.'],
@@ -428,9 +430,9 @@ function howTo(): Child[] {
       'Download a copy',
       steps(
         ['On ', b('Summary'), ', press ', b('Download .xlsx'), '.'],
-        ['Your device saves a file named like ICG-Fundraiser-2026-09-24.xlsx. It opens on the Summary sheet, followed by the Pledges and Payments sheets.'],
+        ['Your device saves a file named like ICG-Fundraiser-2026-09-24-1401.xlsx. It opens on the Summary sheet, followed by the Pledges and Payments sheets.'],
       ),
-      p('The file is a snapshot of that moment. Changes made afterwards are not in it.'),
+      p('The file is a snapshot. The first row of its Summary sheet, ', said(SAID.figuresAsOf), ', gives the date and time the tracker last fetched the figures from the shared sheet — the same time shown at the top of the Summary screen, and in the file name (1401 means 2:01 PM). Changes other volunteers made after that time are not in the file, so press ', b('Refresh'), ' first if you need them.'),
       p('On the Pledges and Payments sheets, the small arrow beside each heading lets you show only some rows, for example only Partial pledges or only Cash payments.'),
     ),
     topic(

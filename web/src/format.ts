@@ -2,6 +2,9 @@ const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: '
 const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
 const wholeDollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const clock = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+// Local time, unlike dateFormat below: this shows a moment, and read in UTC a load late on a US
+// evening would carry the next day's date.
+const dateTime = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' });
 
 export function formatCents(cents: number | null): string {
@@ -15,6 +18,10 @@ export function formatWholeDollars(cents: number): string {
 
 export function formatClock(epochMs: number): string {
   return clock.format(epochMs);
+}
+
+export function formatDateTime(epochMs: number): string {
+  return dateTime.format(epochMs);
 }
 
 export function formatPercent(fraction: number): string {

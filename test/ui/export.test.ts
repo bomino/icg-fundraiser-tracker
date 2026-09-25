@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { compute } from '../../web/src/engine';
 import type { State } from '../../web/src/store';
-import { DATE_SHEET_OPTIONS, buildSummarySheet, buildWorkbook, paymentSheetRows, pledgeSheetRows, summarySheetRows } from '../../web/src/ui/export';
+import { DATE_SHEET_OPTIONS, buildSummarySheet, buildWorkbook, paymentSheetRows, pledgeSheetRows, summarySheetRows, workbookFileName } from '../../web/src/ui/export';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 const utc = (year: number, month: number, day: number) => new Date(Date.UTC(year, month - 1, day));
+const LOADED_AT = new Date(2026, 8, 24, 14, 1).getTime();
 
 describe('export rows', () => {
   const computed = compute(
@@ -28,7 +29,7 @@ describe('summarySheetRows', () => {
   const nearlyPayments = [payment({ phone: '1', amountReceived: 99.96, method: 'Cash' })];
   const settings = { ...SETTINGS, goal: 100 };
   const state: State = { pledges: nearlyThere, payments: nearlyPayments, settings, me: 'me@example.com', computed: compute(nearlyThere, nearlyPayments, settings, TODAY) };
-  const rows = summarySheetRows(state);
+  const rows = summarySheetRows(state, LOADED_AT);
   const row = (label: string) => rows.find((candidate) => candidate[0] === label);
 
   it('writes "% of Goal Received" as a floored fraction, never claiming the goal is met before it is', () => {
@@ -45,11 +46,50 @@ describe('summarySheetRows', () => {
   });
 
   it('builds a worksheet where that cell carries a real percent number format', async () => {
-    const sheet = await buildSummarySheet(state);
+    const sheet = await buildSummarySheet(state, LOADED_AT);
     const percentRowIndex = rows.findIndex((candidate) => candidate[0] === '% of Goal Received');
     const cell = sheet[`B${percentRowIndex + 1}`];
     expect(cell.v).toBe(0.999);
     expect(cell.z).toBe('0.0%');
+  });
+});
+
+describe('the "Figures as of" stamp', () => {
+  const stampPledges = [pledge({ phone: '1', amountPledged: 100 })];
+  const stampState: State = { pledges: stampPledges, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(stampPledges, [], SETTINGS, TODAY) };
+
+  it('opens the Summary sheet with when the figures were last refreshed from the shared sheet', () => {
+    expect(summarySheetRows(stampState, LOADED_AT)[0]).toEqual(['Figures as of', 'Sep 24, 2026, 2:01 PM']);
+  });
+
+  it('leaves the time blank, never a 1970 date, when the tracker has not loaded yet', () => {
+    expect(summarySheetRows(stampState, null)[0]).toEqual(['Figures as of', null]);
+  });
+
+  it('writes the stamp as plain text, not as a money or date cell', async () => {
+    const sheet = await buildSummarySheet(stampState, LOADED_AT);
+    expect(sheet['A1'].v).toBe('Figures as of');
+    expect(sheet['B1'].t).toBe('s');
+    expect(sheet['B1'].z).toBeUndefined();
+  });
+
+  it('names the file for the same moment, to the minute, with no colons', () => {
+    expect(workbookFileName(LOADED_AT)).toBe('ICG-Fundraiser-2026-09-24-1401.xlsx');
+    expect(workbookFileName(new Date(2026, 0, 5, 9, 5).getTime())).toBe('ICG-Fundraiser-2026-01-05-0905.xlsx');
+  });
+
+  it('names the file for the download time when the tracker has not loaded yet', () => {
+    expect(workbookFileName(null, new Date(2026, 8, 24, 16, 30))).toBe('ICG-Fundraiser-2026-09-24-1630.xlsx');
+  });
+
+  it('gives the file a title and creation time, but never the volunteer’s email', async () => {
+    const XLSX = await import('xlsx');
+    const written = XLSX.write(await buildWorkbook(stampState, LOADED_AT), { type: 'buffer', bookType: 'xlsx' });
+    const { Props } = XLSX.read(written);
+    expect(Props?.Title).toBe('ICG Fundraiser Tracker');
+    expect(Props?.CreatedDate).toBeInstanceOf(Date);
+    expect(Props?.Author).toBeUndefined();
+    expect(summarySheetRows(stampState, LOADED_AT).flat()).not.toContain('me@example.com');
   });
 });
 
@@ -92,15 +132,15 @@ describe('workbook layout', () => {
     me: 'me@example.com',
     computed: compute(layoutPledges, layoutPayments, SETTINGS, TODAY),
   };
-  const summaryCell = (sheet: import('xlsx').WorkSheet, label: string) => sheet[`B${summarySheetRows(layoutState).findIndex((row) => row[0] === label) + 1}`];
+  const summaryCell = (sheet: import('xlsx').WorkSheet, label: string) => sheet[`B${summarySheetRows(layoutState, LOADED_AT).findIndex((row) => row[0] === label) + 1}`];
 
   it('opens on the Summary sheet, ahead of Pledges and Payments', async () => {
-    const book = await buildWorkbook(layoutState);
+    const book = await buildWorkbook(layoutState, LOADED_AT);
     expect(book.SheetNames).toEqual(['Summary', 'Pledges', 'Payments']);
   });
 
   it('widens every date column past the Excel default, so a date never shows as ########', async () => {
-    const { Sheets } = await buildWorkbook(layoutState);
+    const { Sheets } = await buildWorkbook(layoutState, LOADED_AT);
     // Pledges C and E are Date Pledged and Last Payment Date; Payments C is Date Received.
     expect(Sheets.Pledges['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
     expect(Sheets.Pledges['!cols']?.[4].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
@@ -113,7 +153,7 @@ describe('workbook layout', () => {
   });
 
   it('sizes each column to its longest text, counting money as Excel shows it, but caps a long note', async () => {
-    const { Sheets } = await buildWorkbook(layoutState);
+    const { Sheets } = await buildWorkbook(layoutState, LOADED_AT);
     expect(Sheets.Pledges['!cols']?.[1].wch).toBeGreaterThanOrEqual('Donor Name'.length);
     const notesWidth = Sheets.Pledges['!cols']?.[9].wch ?? 0;
     expect(notesWidth).toBeGreaterThanOrEqual('Notes'.length);
@@ -124,7 +164,7 @@ describe('workbook layout', () => {
   });
 
   it('formats every money cell as dollars and cents, with a credit in brackets', async () => {
-    const { Sheets } = await buildWorkbook(layoutState);
+    const { Sheets } = await buildWorkbook(layoutState, LOADED_AT);
     // Pledges D, F and G are Amount Pledged, Amount Received and Balance Due; Payments D is the amount.
     for (const ref of ['D2', 'F2', 'G2', 'D3', 'F3', 'G3']) expect(Sheets.Pledges[ref].z).toBe(MONEY_FORMAT);
     expect(Sheets.Pledges['G3'].v).toBe(-50);
@@ -141,7 +181,7 @@ describe('workbook layout', () => {
   });
 
   it('puts a filter on the header row of each list, covering every entry, and none on Summary', async () => {
-    const { Sheets } = await buildWorkbook(layoutState);
+    const { Sheets } = await buildWorkbook(layoutState, LOADED_AT);
     expect(Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:K3' });
     expect(Sheets.Payments['!autofilter']).toEqual({ ref: 'A1:G3' });
     expect(Sheets.Summary['!autofilter']).toBeUndefined();
@@ -149,7 +189,7 @@ describe('workbook layout', () => {
 
   it('keeps that layout once written to a file and read back', async () => {
     const XLSX = await import('xlsx');
-    const written = XLSX.write(await buildWorkbook(layoutState), { type: 'buffer', bookType: 'xlsx' });
+    const written = XLSX.write(await buildWorkbook(layoutState, LOADED_AT), { type: 'buffer', bookType: 'xlsx' });
     const book = XLSX.read(written, { cellNF: true, cellStyles: true });
     expect(book.SheetNames).toEqual(['Summary', 'Pledges', 'Payments']);
     expect(book.Sheets.Pledges['!autofilter']).toEqual({ ref: 'A1:K3' });

@@ -198,7 +198,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 
 **Screens**
 - **Top bar:** app name, the signed-in email, and sign-out. The tabs are Summary, Pledges, Payments and Find donor. The last view used is remembered in `localStorage`.
-- **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links, the method breakdown, and a "Download .xlsx" export.
+- **Summary:** an "Updated <date, time>" line giving the last load from the Sheet (printed too, while its "tap Refresh" prompt is screen-only), KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links, the method breakdown, and a "Download .xlsx" export.
 - **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
   - Derived columns are read-only and styled differently.
   - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date.
@@ -209,7 +209,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
   - In the Payments dialog, the donor name (or `⚠` reason) resolves live as the phone is typed.
   - Help text under each field reuses the workbook's header tooltips.
   - Delete lives inside the edit dialog and asks for confirmation.
-- **Export:** SheetJS builds a workbook that opens on a Summary sheet, followed by a Pledges sheet (entries plus derived columns) and a Payments sheet. It's a backup and treasurer copy, not a round-trip format, so it's laid out to be read in Excel as it opens: columns sized to their contents (capped at about 40 characters), money in the app's accounting style ($1,650.30, a credit as ($50.00)), and a header filter on Pledges and Payments. There are no print titles (a malformed `_xlnm.Print_Titles` name makes Excel offer to repair the file) and no frozen header row (SheetJS CE can't write one).
+- **Export:** SheetJS builds a workbook that opens on a Summary sheet, followed by a Pledges sheet (entries plus derived columns) and a Payments sheet. It's a backup and treasurer copy, not a round-trip format, so it's laid out to be read in Excel as it opens: columns sized to their contents (capped at about 40 characters), money in the app's accounting style ($1,650.30, a credit as ($50.00)), and a header filter on Pledges and Payments. The Summary sheet's first row, "Figures as of", gives the date and time the figures were last loaded from the Sheet (not the time of the download), and the file is named for that minute (`ICG-Fundraiser-2026-09-24-1401.xlsx`), so two copies from one day are told apart. There are no print titles (a malformed `_xlnm.Print_Titles` name makes Excel offer to repair the file) and no frozen header row (SheetJS CE can't write one).
 
 **Validation**, identical on client and server:
 - `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23.

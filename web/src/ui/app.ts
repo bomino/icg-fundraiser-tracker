@@ -189,7 +189,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
       : renderSummary(state, {
           store: deps.store,
           reportError,
-          exportWorkbook: downloadWorkbook,
+          exportWorkbook: (exported) => downloadWorkbook(exported, deps.store.lastLoadedAt()),
           drawChart: drawMethodChart,
           showList: (target, targetFilter) => {
             listFilter = { view: target, filter: targetFilter };

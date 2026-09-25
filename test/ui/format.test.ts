@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flooredGoalFraction, formatCents, formatClock, formatDate, formatFlooredPercent, formatPercent, formatWholeDollars, parseAmount } from '../../web/src/format';
+import { flooredGoalFraction, formatCents, formatClock, formatDate, formatDateTime, formatFlooredPercent, formatPercent, formatWholeDollars, parseAmount } from '../../web/src/format';
 
 describe('format', () => {
   it('shows money in accounting format, with credits in brackets', () => {
@@ -20,6 +20,10 @@ describe('format', () => {
   it('shows a local clock time', () => {
     expect(formatClock(new Date(2026, 8, 25, 13, 5).getTime())).toBe('1:05 PM');
     expect(formatClock(new Date(2026, 8, 25, 9, 30).getTime())).toBe('9:30 AM');
+  });
+  it('shows a local date and time, on the local day even late in the evening', () => {
+    expect(formatDateTime(new Date(2026, 8, 24, 14, 1).getTime())).toBe('Sep 24, 2026, 2:01 PM');
+    expect(formatDateTime(new Date(2026, 8, 24, 23, 30).getTime())).toBe('Sep 24, 2026, 11:30 PM');
   });
   it('formats percentages', () => {
     expect(formatPercent(0.035)).toBe('3.5%');

@@ -1,5 +1,5 @@
 import type { HealthCheck, MethodRow } from '../engine';
-import { flooredGoalFraction, formatCents, formatFlooredPercent } from '../format';
+import { flooredGoalFraction, formatCents, formatDateTime, formatFlooredPercent } from '../format';
 import type { State, Store } from '../store';
 import { chartSlots } from './chartSlots';
 import { h } from './dom';
@@ -12,6 +12,13 @@ export interface SummaryDeps {
   showList(view: 'pledges' | 'payments', filter: ListFilter): void;
   exportWorkbook(state: State): Promise<void>;
   drawChart(canvas: HTMLCanvasElement, rows: readonly MethodRow[]): void;
+}
+
+// Printed too, so a handout says which moment its figures come from; only the prompt to tap
+// Refresh, a button paper doesn't have, stays on screen.
+function freshness(loadedAt: number | null): HTMLElement {
+  const updated = loadedAt === null ? 'Not yet loaded' : `Updated ${formatDateTime(loadedAt)}`;
+  return h('p', { class: 'eyebrow' }, updated, h('span', { class: 'screen-only' }, ' — tap Refresh for others’ changes'));
 }
 
 const statCard = (label: string, value: string) => h('div', { class: 'stat-card' }, h('p', { class: 'eyebrow' }, label), h('p', { class: 'numeric-xl stat-value' }, value));
@@ -75,7 +82,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   return h(
     'section',
     { class: 'view' },
-    h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Live from the shared sheet — tap Refresh for others’ changes'), h('h1', { class: 'display-md' }, 'Fundraiser summary')), h('div', { class: 'toolbar' }, h('a', { href: '#display', class: 'btn btn-ghost' }, 'Friday display'), download)),
+    h('header', { class: 'view-header' }, h('div', {}, freshness(deps.store.lastLoadedAt()), h('h1', { class: 'display-md' }, 'Fundraiser summary')), h('div', { class: 'toolbar' }, h('a', { href: '#display', class: 'btn btn-ghost' }, 'Friday display'), download)),
     h(
       'section',
       { class: 'card' },
