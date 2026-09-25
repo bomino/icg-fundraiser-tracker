@@ -271,6 +271,14 @@ describe('createHelpView', () => {
     expect(loggedAt(100)).toMatchObject({ status: STATUS.paid, balanceCents: 0 });
   });
 
+  // Pasted rows only count once the menu item has checked them and given them ids.
+  it('walks the organiser through bringing in an outside list with the Sheet menu item that checks it', () => {
+    const view = createHelpView();
+    const bringIn = topicOf(view, 'Bring in a list kept outside the tracker').textContent ?? '';
+    for (const step of ['File → Make a copy', 'Edit → Paste special → Values only', 'Leave column A (id) empty', 'Fundraiser tracker → Add selected rows to the tracker…', 'right-click and choose Delete rows']) expect(bringIn).toContain(step);
+    expect(topicOf(view, 'Keeping the sheet healthy').textContent).toContain('See Bring in a list kept outside the tracker');
+  });
+
   it('describes the form fields with the same help the forms show', () => {
     const text = createHelpView().textContent ?? '';
     for (const help of [...Object.values(PLEDGE_HELP), ...Object.values(PAYMENT_HELP)]) expect(text).toContain(help);

@@ -15,7 +15,7 @@ Turn the masjid fundraiser tracker workbook into a small web app hosted on GitHu
 - Access uses Google sign-in, checked against an allowlist of volunteer emails kept in the Sheet.
 - The Sheet holds the raw entries only. The app reproduces every calculated field in TypeScript.
 - Build: Vite + TypeScript, no UI framework, Vitest, deployed to GitHub Pages by GitHub Actions.
-- There is no existing data to migrate.
+- There is no existing data to migrate. Changed 2026-09-25: a list of pledges and payments kept outside the tracker before it was in use can be caught up once, through the Sheet's own **Fundraiser tracker → Add selected rows to the tracker…** menu item (§4), not an in-app import.
 
 **Assumptions (correct these if wrong)**
 - The xlsx and the user guide stay in service. The app is an alternative, not a replacement, so the business rules exist in two places and parity is enforced by tests (§6).
@@ -81,12 +81,14 @@ Every request looks like `{idToken, op, payload}`. Every response is `{ok: true,
 
 | op | payload | behaviour |
 |---|---|---|
-| `load` | — | `{pledges[], payments[], settings, me: email, rowsWithoutId: {pledges, payments}, apiVersion}`. Rows with a blank `id` are skipped; `rowsWithoutId` counts the skipped rows that look like entries (a non-blank phone, plus an amount on Payments), so a totals or notes row isn't counted. Ids are never filled in automatically. `apiVersion` is the script's `API_VERSION` (§7, Errors and state). |
+| `load` | — | `{pledges[], payments[], settings, me: email, rowsWithoutId: {pledges, payments}, apiVersion}`. Rows with a blank `id` are skipped; `rowsWithoutId` counts the skipped rows that look like entries (a non-blank phone, plus an amount on Payments), so a totals or notes row isn't counted. Ids are never filled in automatically; the organiser's Add selected rows (below the table) is the one confirmed exception. `apiVersion` is the script's `API_VERSION` (§7, Errors and state). |
 | `upsertPledge` / `upsertPayment` | row plus `id` (a client UUID) and no `updatedAt` for a create; row plus `id` and `updatedAt` for an update | Validates (§7). Create: `BAD_REQUEST` if the id isn't a UUID. If a row with that id exists with the same entry values, returns it unchanged (a retried create); otherwise `CONFLICT` "This entry was already saved with different values. Reopen it to check." with `current`. Update: `NOT_FOUND` if the row is gone; `CONFLICT` with `current` if the stored `updatedAt` ≠ the sent `updatedAt`; otherwise appends the stored row to the history tab (§3), then stamps and writes the row and returns it. |
 | `deletePledge` / `deletePayment` | `{id, updatedAt}` | Same conflict check, then appends the row to the history tab (§3) and deletes it from the sheet. `NOT_FOUND` if the row is gone. A history write that fails fails the edit or delete. |
 | `setSetting` | `{key: "goal", value}` | Only `goal`, a number from 0 to 1,000,000,000, rounded to cents. `paymentMethods` and `campaignName` are edited in the Sheet. |
 
 Writes run under `LockService.getScriptLock().tryLock(10000)`, which throws `BUSY` "The tracker is busy. Try again in a moment." rather than waiting indefinitely, and rows are found by scanning column A for the `id`. `setup()` is run once by hand from the Apps Script editor.
+
+**Catching up a list kept outside the tracker** (added 2026-09-25, `API_VERSION` 9, no wire change): the organiser pastes the rows into Pledges or Payments (Paste special → Values only, column A blank), selects them and chooses **Fundraiser tracker → Add selected rows to the tracker…** (`addSelectedRows`). Every non-empty selected row must pass `validateRow_` and checks for what a paste misreads (Plain text cells, dates and amounts that would read as blank, a phone turned into a date, an error or a short number, a row with no phone or no payment amount, a pledge phone already on a pledge). Any problem lists the rows and writes nothing; otherwise one confirmation lists warnings (a payment with no pledge, a possible duplicate payment), and after OK the rows are checked again under the lock and written in one `setValues` with a UUID `id`, a blank `updatedAt` and `updatedBy` "imported <date time>". Details in `docs/ARCHITECTURE.md` → Rows with no id.
 
 A body that isn't a JSON object answers `BAD_REQUEST` "The request could not be read." Any other unexpected failure answers `INTERNAL` "Something went wrong on the server. Try again." and is logged for the owner with its operation and stack; `BUSY` and `FORBIDDEN` are logged as one-line warnings. The caller's token is masked in every log line (see `docs/SETUP.md`, "Reading the server's log").
 
@@ -317,7 +319,7 @@ Before uploading the site, the build job checks the two repo variables on every 
 - roles or permissions
 - receipts and emails, apart from the printable donor statement on the Find donor card (§5.7), which carries no tax-acknowledgment wording
 - multiple campaigns
-- importing an xlsx
+- importing an xlsx, or any file, into the app. (A one-off catch-up of rows pasted into the Sheet is supported since 2026-09-25 through the Sheet's Fundraiser tracker menu, §4; the app itself still imports nothing.)
 - editing `paymentMethods`, `campaignName` or the allowlist from the app
 - server-side paging of `load` (revisit above about 5,000 rows). Reversed for display: since v1.1 the lists draw 100 rows at a time (25 at phone width) with Show more, for render speed at event scale. Every row is still loaded and computed.
 - updating the workbook's own user guide, which belongs to that separate project. The app's volunteer guide is built in, as its Help tab (§7). Changed 2026-09-24.

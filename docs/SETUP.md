@@ -13,7 +13,8 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 7. Don't format the Pledges or Payments data columns as **Plain text** in the Sheet UI. The app forces text (ids, phone numbers, dates) by writing a leading apostrophe on every value; a Plain text column stores that apostrophe as a literal character instead of hiding it, which corrupts ids and phone numbers. Leave the columns on Automatic.
 8. Add pledges and payments through the app, not by typing into the **Pledges** or **Payments** tabs. The app ignores any row with an empty `id` in column A, so a row typed straight into the Sheet without one won't appear or count anywhere. The app never fills one in, so a totals or notes row you add under the data stays out of every figure.
    - The **Summary** says how many of those rows look like real entries (a phone number, and on Payments an amount too), in a note under Data health. The note appears once both `Code.gs` and the site are updated.
-   - To bring such rows in, give each one an `id` no other row uses. For a batch, type a new word and a number in column A of the first row, such as `dinner1`, then drag the cell's small corner square down the batch to fill `dinner2`, `dinner3` and so on. Use a different word for each batch, so an `id` is never repeated.
+   - To bring such rows in, select them and choose **Fundraiser tracker → Add selected rows to the tracker…** from the menu bar. It checks every selected row first and gives each one an `id` only if all of them pass (see [Bringing in a list kept outside the tracker](#bringing-in-a-list-kept-outside-the-tracker)). This is the only way the tracker ever fills in an `id` for you.
+   - For a row or two you can also type an `id` by hand: one no other row uses. For a batch, type a new word and a number in column A of the first row, such as `dinner1`, then drag the cell's small corner square down the batch to fill `dinner2`, `dinner3` and so on. Use a different word for each batch, so an `id` is never repeated. Nothing checks a row given an `id` this way, and it counts as changed now, so an unpaid pledge among them stays off **Needs follow-up** for 30 days.
    - Correcting an existing row straight in the Sheet is safe. Whenever you type or paste into a row that has an `id`, `Code.gs` writes the time into its `updatedAt` and your email into its `updatedBy` (or `edited in Sheet`, when Google doesn't share who made the edit). A volunteer who opened that row before your fix is then asked to reload, instead of their save putting the old values back. Rows with no `id`, the header row and your own columns to the right of `updatedBy` are left alone. This needs no setup, but it doesn't happen for rows brought in with **File → Import**, so don't use Import to change rows volunteers may be editing.
    - When you type a phone number into the Sheet, start it with an apostrophe (`'0551234`, `'+1 336 555 0123`), as the app does. The apostrophe doesn't show in the cell. Without it, the Sheet drops a leading 0, or treats a leading + as the start of a formula (often showing `#ERROR!`), and that row stops matching the donor's other rows. Type dates as `2026-09-24` and amounts as plain numbers such as `50` or `1250.50`. A date the Sheet doesn't recognise as a date (for example `24/09/2026`), or an amount with words in it, shows as blank in the app. This applies both to corrections and to rows you bring in with a new `id`.
 9. Add your own columns to the **Pledges** or **Payments** tabs only to the right of the last one, `updatedBy`, and don't rename, move or delete the existing columns, or rename or delete any tab. The app reads and writes those columns by position, so after such a change it refuses to load or save until the change is put back (see [Putting a changed column or tab back](#putting-a-changed-column-or-tab-back)), and its message names the first column that's out of place. Changing only a header's capitals, spaces or punctuation (`Amount Pledged` for `amountPledged`) is fine. The app's columns, in order, are:
@@ -125,6 +126,55 @@ The restored tracker holds only what was in the copy. Anything entered after the
 4. **Deploy → New deployment → Web app**, with **Execute as: Me** and **Who has access: Anyone** (steps 3.1 and 3.2). Approve the permissions if Google asks, and copy the new **Web app URL**. A copy always needs a new deployment, and its URL differs from the old one.
 5. In the GitHub repository, change the `VITE_SCRIPT_URL` variable to the new URL, and `VITE_GOOGLE_CLIENT_ID` too if you made a new sign-in client (step 4.4). Then run **Actions → Test and deploy → Run workflow** (step 4.5). This needs someone who can change the repository's settings. Until the run finishes, the site keeps sending every save to the old Sheet.
 6. Ask every volunteer to reload the page (on a phone's home-screen app, close it fully and open it again). Then share the restored Sheet with a second editor and carry on the routine above.
+
+## Bringing in a list kept outside the tracker
+
+If pledges and payments were collected in another spreadsheet before the tracker was in use, you can bring them in all at once from the Sheet with **Fundraiser tracker → Add selected rows to the tracker…**. For a short list (up to about 50 rows), typing it into the app with **Save and add another** is simpler, and several volunteers can share the typing.
+
+The menu item works on rows you paste into the **Pledges** or **Payments** tab with column A (`id`) left empty. It checks every selected row the way the app checks a save, plus the mistakes a paste makes without any warning (a date or amount the Sheet can't read, a phone number that lost its leading 0). If any row has a problem, it changes nothing and lists the problems with their row numbers. Otherwise it asks once, then gives every row an `id` in one go. The menu item appears once `Code.gs` is updated (the one with `const API_VERSION = 9;` or later) and the Sheet is reopened.
+
+### Try it on a copy first
+
+Choose **File → Make a copy** of the live Sheet. The copy includes the script, so it has the **Fundraiser tracker** menu too (Google may ask you to allow it the first time). Paste about five awkward rows into the copy (a phone number that starts with 0 or +, a date, an amount with cents, a payment method) and run the steps below on it. Check the rows it wrote, then delete the copy, since it holds donors' phone numbers. The app keeps using the live Sheet, so volunteers see nothing of the trial.
+
+### Tidy the list
+
+Do this in the list's own spreadsheet, or in a scratch tab of the Sheet (the app never reads other tabs), never in the **Pledges** or **Payments** tabs:
+
+- **Locale and time zone.** In **File → Settings**, the time zone should be the masjid's. If the list writes dates as text, such as `9/24/2026`, set the locale to one that writes dates the same way (United States reads `9/24/2026` as 24 September) before typing or pasting them.
+- **Dates** must be real dates (they sit at the right of the cell) or typed like `2026-09-24`. A date sitting at the left of its cell is text, and the menu item refuses it.
+- **Amounts** must be plain numbers, such as `50` or `1250.50`: no `$`, commas or words.
+- **Payment methods** must be spelled as on the **Settings** tab (at first Cash, Bank Transfer, Card, Check, Online, Other), or left empty. Capitals don't matter; the menu item corrects them.
+- **Phone numbers** must keep a leading 0 or +. Format the list's phone column as **Format → Number → Plain text** there before pasting numbers into it (only in the list: the **Pledges** and **Payments** tabs must stay on Automatic).
+- **One pledge row per donor**, and one payment row per payment, each with its own date and amount. Sort the pledges by phone to spot repeats: a donor on two pledge rows has every payment counted twice.
+- **Donors already in the tracker.** Look each one up in the app's **Find donor**. If they are there, leave out their pledge row and bring in only their payments.
+- **Money with no donor** (a collection box) goes in as payments on `000-000-0000`, the General donations pledge. If the tracker has no General donations pledge yet, add it in the app first (Help → How to… → *Record money with no phone number*). Never add a second one.
+- Note how many rows there are, and the total of each amount column, to check against the Summary afterwards.
+
+### Bring the rows in
+
+1. **Pledges first.** Put the list's columns in this order: phone, name, date pledged, amount pledged, notes. Copy the rows.
+2. On the **Pledges** tab, click column **B** a few rows below the last filled row, and choose **Edit → Paste special → Values only**. Leave column A empty. The gap means a volunteer's new row, added at that moment, can't be pasted over. Don't use a plain paste (Ctrl+V): it brings the list's formatting with it, and the menu item refuses cells formatted as Plain text.
+3. Select the pasted rows (click the first row's number at the left, hold **Shift** and click the last one's), then choose **Fundraiser tracker → Add selected rows to the tracker…**.
+4. If it lists problems, nothing was changed. Each line names a row, the column and the fix, such as *Row 214, datePledged (column D): the sheet does not read "24/09/2026" as a date. Type it as 2026-09-24.* Fix those cells in place, select the rows again and run it once more. It shows the first 10 problems at a time.
+5. When every row passes, it asks *Add 143 pledges from rows 212–354 to the tracker?* and lists anything worth checking first: a payment whose phone number is on no pledge (it would show *⚠ phone not in Pledges* and not count), or a payment with the same phone number, amount and date as another (often the same payment twice, but two real gifts are possible). To leave a row out, press **Cancel**, delete the row and run it again. Otherwise press **OK**.
+6. **Then payments,** the same way on the **Payments** tab, with the columns in this order: phone, date received, amount received, method, notes.
+
+Volunteers can keep saving meanwhile. The menu item checks everything again just before it writes, and if something changed while its question was open (a volunteer added one of the same donors, say), it changes nothing and asks you to run it again. If it says *The tracker is busy*, run it again. If Google says *Service Spreadsheets timed out*, select half the rows and run it twice.
+
+Each added row gets a new `id`, keeps its own dates, and has `imported` and the time (such as `imported 2026-09-25 14:01`) in `updatedBy`, with `updatedAt` left empty. So the rows don't count as changed today: an old unpaid pledge shows under **Needs follow-up** straight away.
+
+### Check the result
+
+Ask volunteers to press **Refresh**, then on the **Summary**:
+
+- the pledge and payment counts, and **Total pledged**, should have gone up by your row counts and totals;
+- the note about rows with no `id` under Data health should be gone;
+- every **Data health** figure should read 0, or you know why. Press **Show** on any that don't. *Donors listed more than once*: the donor was already in the tracker, perhaps with the number written another way (`+1 336…` and `336…`); delete the extra pledge. *Payments not matched to a pledge*: a phone number typo, or a missing pledge. *Payments dated in the future*: the day and month were swapped. *Possible duplicate payments*: something was pasted twice, or two real gifts match.
+
+### Undoing it
+
+The last message names the rows it added, such as *rows 212–354*. Before anyone edits them, select those rows by their numbers at the left, right-click and choose **Delete rows**, then ask volunteers to press **Refresh**. Check first that the rows still show the `imported …` mark in `updatedBy`: a row deleted above them since moves them up. Once a volunteer has edited one, fix it in the app instead.
 
 ## When the drive ends
 

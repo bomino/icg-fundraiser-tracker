@@ -88,6 +88,7 @@ const SAID = {
   couldNotDelete: "Couldn't delete",
   trackerMenu: 'Fundraiser tracker',
   newDriveMenu: 'Start a new drive…',
+  addRowsMenu: 'Add selected rows to the tracker…',
   sortBy: 'Sort by',
   oldestFirst: 'Oldest first',
   defaultOrder: 'Default order',
@@ -772,7 +773,7 @@ function howTo(): Child[] {
         said(SAID.lastChangedBy),
         ' and ',
         said(SAID.lastChangedAt),
-        ': who last saved each row, and when. That is the email of whoever last saved the row in the tracker, not always the person who took the money — fixing a typo in someone else’s payment puts your email there. A row the organiser corrected straight in the shared sheet shows the organiser’s email, or “edited in Sheet” when Google does not say who made the change.',
+        ': who last saved each row, and when. That is the email of whoever last saved the row in the tracker, not always the person who took the money — fixing a typo in someone else’s payment puts your email there. A row the organiser corrected straight in the shared sheet shows the organiser’s email, or “edited in Sheet” when Google does not say who made the change. A row the organiser brought in from a list kept outside the tracker shows “imported” and the date and time, with Last changed at left empty.',
       ),
       p('On the Pledges and Payments sheets, the small arrow beside each heading lets you show only some rows, for example only Partial pledges or only Cash payments.'),
       p(
@@ -987,7 +988,14 @@ function forTheOrganiser(): Child[] {
           ' (the first column) is left out of every total and list, so a totals or notes row under the data does no harm. When such rows look like real pledges or payments, the Summary says how many, under Data health.',
         ],
         [
-          'To bring those rows in, give each one an id no other row uses. Type a new word and a number in the id column of the first row, such as dinner1, then drag the small square at the corner of that cell down the batch to fill in dinner2, dinner3 and so on. Use a different word for each batch.',
+          'To bring those rows in, select them and choose ',
+          b(`${SAID.trackerMenu} → ${SAID.addRowsMenu}`),
+          ' from the menu bar. It checks every row first and gives each one an id only if all of them pass. See ',
+          b('Bring in a list kept outside the tracker'),
+          ', below.',
+        ],
+        [
+          'You can also type an id by hand, for a row or two: a word and a number no other row uses, such as dinner1, in the id column. For a batch, drag the small square at the corner of that cell down to fill in dinner2, dinner3 and so on, and use a different word for each batch. Nothing checks the row then, and the tracker counts it as changed today.',
         ],
         [
           'You can correct a pledge or payment directly in the sheet. The tracker marks the row as changed, filling in ',
@@ -1027,6 +1035,57 @@ function forTheOrganiser(): Child[] {
           ' to fix a column or tab. Volunteers’ saves go into the sheet’s versions alongside your own changes, so a version from before the mistake can also be from before some of their entries, and restoring it loses them.',
         ],
       ),
+    ),
+    topic(
+      'Bring in a list kept outside the tracker',
+      p(
+        'If pledges and payments were written down in another spreadsheet before the tracker was in use, you can bring them all in at once from the sheet instead of typing each one. For a short list, typing it into the tracker with ',
+        b(SAID.saveAndAddAnother),
+        ' is simpler, and checks each entry as you go.',
+      ),
+      steps(
+        [
+          b('Try it on a copy first.'),
+          ' In the sheet, choose ',
+          b('File → Make a copy'),
+          '. The copy has the same menu. Do the steps below on the copy with a few rows, look at what it wrote, then delete the copy (it holds donors’ phone numbers). The tracker keeps using the real sheet, so volunteers see nothing of the trial.',
+        ],
+        [
+          b('Tidy the list.'),
+          ' Keep one pledge row per donor, and one payment row per payment. Dates must be real dates, or typed like 2026-09-24. Amounts must be plain numbers such as 1250.50, with no $ or words. Payment methods must be spelled as on the Settings tab, or left empty. A phone number that starts with 0 or + must still have it. Look each donor up in ',
+          b('Find donor'),
+          ': if they are already in the tracker, bring in only their payments.',
+        ],
+        [
+          b('Pledges first.'),
+          ' Put the list’s columns in this order: phone, name, date pledged, amount pledged, notes. Copy the rows. On the Pledges tab, click column B a few rows below the last row, and choose ',
+          b('Edit → Paste special → Values only'),
+          '. Leave column A (id) empty.',
+        ],
+        [
+          'Select the pasted rows (click the first row’s number at the left, then hold Shift and click the last one’s), then choose ',
+          b(`${SAID.trackerMenu} → ${SAID.addRowsMenu}`),
+          '.',
+        ],
+        [
+          'If it lists problems, nothing was changed. Fix each cell it names, then select the rows and run it again. When every row is fine, it says how many it will add and lists anything worth checking first. Press OK.',
+        ],
+        [
+          b('Then payments,'),
+          ' the same way on the Payments tab, with the columns in this order: phone, date received, amount received, method, notes.',
+        ],
+        [
+          'Press ',
+          b('Refresh'),
+          ' in the tracker. On the Summary, the totals should have gone up by what you added, and every Data health figure should still read 0, or you know why.',
+        ],
+      ),
+      p(
+        'To undo, before anyone edits them: the last message names the rows it added. Select those rows by their numbers, right-click and choose Delete rows, then ask volunteers to press Refresh. Each added row says “imported” and the time in its ',
+        b('updatedBy'),
+        ' column.',
+      ),
+      note('Rows brought in this way are not counted as changed today, so an old unpaid pledge shows under Needs follow-up straight away. docs/SETUP.md in the project’s GitHub repository has the full checklist.'),
     ),
     topic(
       'Bring back a deleted or changed row',
