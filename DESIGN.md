@@ -457,7 +457,7 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 
 **Project cards** (homepage grid): `surface`, `md` radius, hairline `rule` border, hovers lift to second-tier shadow + a `1px solid rule-strong` border. Project color is shown as a 4px tall bar across the top (not a dot anywhere on the card) — this is a major visual signature for the redesign.
 
-**Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing. The sorted column's heading turns `ink` and gains a ▲ or ▼ arrow, so the direction never rests on colour alone. On phones the header row is removed, since each card labels its own values, and a **Sort by** list above the table takes over sorting.
+**Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing. The sorted column's heading turns `ink` and gains a ▲ or ▼ arrow, so the direction never rests on colour alone. On phones the header row is removed, since each card labels its own values, and a **Sort by** list above the table takes over sorting. A flagged row's `danger-tint` or a flagged cell's `warning-tint` is never the only sign, since both are too pale to see on a dim phone or by a colour-blind volunteer: a duplicate donor reads "· Listed more than once" after the phone number, a payment that is not counted has its `⚠` warning in Donor Name, and a future date reads "(future)".
 
 **Charts** (Chart.js): grid lines drop to `rule` color at 50% opacity; tick labels use `ink-muted`; bars/lines use the `chart-1`..`chart-6` palette. The dark-theme cyan bars are gone.
 

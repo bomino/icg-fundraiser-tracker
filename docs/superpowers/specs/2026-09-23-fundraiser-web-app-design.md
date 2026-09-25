@@ -202,7 +202,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 - **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
   - With no column sorted, the most recently added row comes first (the reverse of Sheet order), so a just-added row is on the first page (an edited row keeps its place). A third tap on a sorted header returns to the default order.
   - Derived columns are read-only and styled differently.
-  - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date.
+  - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date. The tint is never the only sign: a duplicate pledge's phone number is followed by "· Listed more than once", a not-counted payment shows its `⚠` reason in Donor Name, and a future date is followed by "(future)" (not `⚠`, since the payment still counts).
   - On narrow screens the table collapses to cards. The column headers are hidden there, so a "Sort by" list above the table takes over sorting. Each option names its direction ("Amount: largest first"), and "Default order" returns to the default. On wider screens the sorted header shows a ▲ or ▼ arrow.
 - **Add/edit dialog**
   - Entry fields only.

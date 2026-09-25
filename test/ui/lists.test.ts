@@ -36,10 +36,13 @@ const pickSort = (view: HTMLElement, label: string) => {
 };
 
 describe('pledges view', () => {
-  it('marks duplicates red and filters by search without losing the box', () => {
+  it('marks duplicates red and in words, and filters by search without losing the box', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);
     expect([...view.querySelectorAll('tr.row-danger')].map((tr) => tr.getAttribute('data-id'))).toEqual(['p2', 'p1']);
+    const openLabel = (id: string) => view.querySelector(`tr[data-id="${id}"] .row-open`)?.getAttribute('aria-label');
+    expect(view.querySelector('tr[data-id="p1"] .warning-text')?.textContent).toBe(' · Listed more than once');
+    expect([openLabel('p1'), openLabel('p2'), openLabel('p3')]).toEqual(['Open 555-010-0101 · Listed more than once', 'Open 5550100101 · Listed more than once', 'Open 555-010-0103']);
     const search = view.querySelector('input[type=search]') as HTMLInputElement;
     vi.useFakeTimers();
     type(search, 'chen');
@@ -235,10 +238,14 @@ describe('pledges view: status chips and follow-up', () => {
 });
 
 describe('payments view', () => {
-  it('flags a payment that will not be counted and a future date', () => {
-    const view = createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined);
+  it('flags a payment that will not be counted and a future date, in words as well as colour', () => {
+    const withPastPayment = [...payments, payment({ id: 'y2', phone: '555-010-0103', amountReceived: 20, dateReceived: '2026-01-01' })];
+    const view = createPaymentsView({ store, reportError: vi.fn() })({ ...state, payments: withPastPayment, computed: compute(pledges, withPastPayment, SETTINGS, TODAY) }, null, () => undefined);
+    const dateCell = (id: string) => view.querySelector(`tr[data-id="${id}"] td[data-label="Date Received"]`);
     expect(view.querySelector('tr.row-danger')?.textContent).toContain('⚠ phone not in Pledges');
-    expect(view.querySelector('td.cell-warning')).not.toBeNull();
+    expect(dateCell('y1')?.classList.contains('cell-warning')).toBe(true);
+    expect(dateCell('y1')?.textContent).toBe('Jan 1, 2099 (future)');
+    expect(dateCell('y2')?.textContent).toBe('Jan 1, 2026');
   });
 });
 

@@ -15,7 +15,8 @@ import { nextSort, renderTable, sortRows, sortSelect, TABLE_PAGE_SIZE, type Colu
 const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'phone', label: 'Phone Number', value: (d) => d.payment.phone },
   { key: 'donor', label: 'Donor Name', derived: true, value: (d) => d.donorName, display: (d) => (d.notCounted ? h('span', { class: 'warning-text' }, d.donorName) : d.donorName) },
-  { key: 'dateReceived', label: 'Date Received', value: (d) => d.payment.dateReceived, display: (d) => formatDate(d.payment.dateReceived), cellClass: (d) => (d.futureDate ? 'cell-warning' : undefined) },
+  // Said in words, not only by the amber tint. Not with a ⚠, which means a payment is not counted: this one still is.
+  { key: 'dateReceived', label: 'Date Received', value: (d) => d.payment.dateReceived, display: (d) => `${formatDate(d.payment.dateReceived)}${d.futureDate ? ' (future)' : ''}`, cellClass: (d) => (d.futureDate ? 'cell-warning' : undefined) },
   { key: 'amount', label: 'Amount', numeric: true, value: (d) => d.payment.amountReceived, display: (d) => formatCents(toCents(d.payment.amountReceived)) },
   { key: 'method', label: 'Method', value: (d) => d.payment.method, display: (d) => methodBadge(d.payment.method) },
   { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },

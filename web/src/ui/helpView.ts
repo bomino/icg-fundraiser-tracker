@@ -30,6 +30,8 @@ const SAID = {
   noPhone: "Enter the donor's phone number.",
   pickMethod: 'Pick a method from the list.',
   duplicateHint: 'This phone number is already on the pledge for',
+  listedMoreThanOnce: 'Listed more than once',
+  future: '(future)',
   discardPledge: 'Discard your changes to this pledge?',
   deletePledge: "Delete this pledge? The donor's payments stay on the Payments tab but will show as not matched.",
   deletePayment: 'Delete this payment? It will be removed from every total.',
@@ -239,7 +241,7 @@ function theScreens(): Child[] {
       p('One row per donor. You type the ', b('Phone Number'), ', ', b('Donor Name'), ', ', b('Date Pledged'), ', ', b('Amount Pledged'), ' and ', b('Notes'), '. The tracker works out the rest from the Payments screen: ', b('Last Payment'), ', ', b('Received'), ', ', b('Balance Due'), ', ', b('# Payments'), ' and ', b('Status'), '.'),
       bullets(
         ['The line above the table shows the running totals: pledged, received, outstanding and number of payments.'],
-        [b('Red rows'), ' are donors listed more than once. Their payments are being counted twice until you fix it.'],
+        ['A phone number followed by ', said(SAID.listedMoreThanOnce), ' is a donor listed more than once, and the row is shaded red. Their payments are being counted twice until you fix it.'],
         ['A faded row marked ', said(SAID.saving), ' is still being saved. It cannot be opened until the save finishes, usually within a few seconds.'],
         ['Tap any row to edit or delete it.'],
         [
@@ -260,8 +262,8 @@ function theScreens(): Child[] {
       'Payments',
       p('One row per payment. You type the ', b('Phone Number'), ', ', b('Date Received'), ', ', b('Amount'), ', ', b('Method'), ' and ', b('Notes'), '. The ', b('Donor Name'), ' is filled in for you by matching the phone number to a pledge.'),
       bullets(
-        [b('Red rows'), ' with a ', b('⚠'), ' in Donor Name are payments that are not being counted. ', b('Warnings and data health'), ' explains why and how to fix them.'],
-        [b('An amber date'), ' is a date in the future, which is usually a typo.'],
+        ['A ', b('⚠'), ' warning in Donor Name means the payment is not being counted, and the row is shaded red. ', b('Warnings and data health'), ' explains why and how to fix them.'],
+        ['A date followed by ', said(SAID.future), ' is later than today, which is usually a typo. The date is also shaded amber.'],
         ['The coloured label in the Method column shows how the money was paid.'],
         [b('From'), ' and ', b('To'), ' filter to payments received in that range; either can stay blank. Payments with no date drop out once a bound is set. ', b('Clear dates'), ' removes the range.'],
       ),
@@ -400,7 +402,7 @@ function howTo(): Child[] {
     ),
     topic(
       'Fix a donor entered twice',
-      p('Both rows turn red on Pledges, and Data health shows ', said(HEALTH_LABELS.duplicates), '. Until you fix it, that donor’s payments are counted twice.'),
+      p('On Pledges, both rows show ', said(SAID.listedMoreThanOnce), ' after the phone number and are shaded red, and Data health shows ', said(HEALTH_LABELS.duplicates), '. Until you fix it, that donor’s payments are counted twice.'),
       steps(
         ['On ', b('Summary'), ', tap ', b('Show'), ' next to ', b(HEALTH_LABELS.duplicates), ' to see just those rows.'],
         ['Decide which row to keep. Open it and make it complete: the correct amount (add the two together if they really were two separate promises), the name, and any notes from the other row. Save.'],
@@ -495,11 +497,11 @@ function warningsAndHealth(): Child[] {
       ),
     ),
     topic(
-      'Colours on the lists',
+      'Marks and colours on the lists',
       terms(
-        [b('Red row on Pledges'), 'The donor is listed more than once.'],
-        [b('Red row on Payments'), 'The payment is not counted (it has a ⚠ warning).'],
-        [b('Amber date on Payments'), 'The payment is dated in the future.'],
+        [said(SAID.listedMoreThanOnce), 'After a phone number on Pledges: the donor is listed more than once. The row is shaded red.'],
+        [b('⚠ in Donor Name'), 'On Payments: the payment is not counted. The row is shaded red.'],
+        [said(SAID.future), 'After a date on Payments: the payment is dated in the future. The date is shaded amber.'],
       ),
     ),
     topic(

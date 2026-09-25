@@ -19,7 +19,9 @@ export interface ListViewDeps {
 }
 
 const COLUMNS: Column<DerivedPledge>[] = [
-  { key: 'phone', label: 'Phone Number', value: (d) => d.pledge.phone },
+  // Said in words, not only by the row's pale tint. This first cell's text also names the row's open button, so screen
+  // readers hear the marker too; its separator sits inside the marker because textContent joins the pieces with no space.
+  { key: 'phone', label: 'Phone Number', value: (d) => d.pledge.phone, display: (d) => (d.duplicate ? h('span', {}, d.pledge.phone, h('span', { class: 'warning-text' }, ' · Listed more than once')) : d.pledge.phone) },
   { key: 'name', label: 'Donor Name', value: (d) => d.pledge.name },
   { key: 'datePledged', label: 'Date Pledged', value: (d) => d.pledge.datePledged, display: (d) => formatDate(d.pledge.datePledged) },
   { key: 'amountPledged', label: 'Amount Pledged', numeric: true, value: (d) => d.pledge.amountPledged, display: (d) => formatCents(toCents(d.pledge.amountPledged)) },
