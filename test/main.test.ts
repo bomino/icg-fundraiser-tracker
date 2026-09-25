@@ -32,21 +32,34 @@ describe('opening the tracker', () => {
     document.body.replaceChildren();
   });
 
-  it('loads on the sign-in this tab kept, and Try again loads again in place on that same sign-in', async () => {
+  it('loads on the sign-in this tab kept', async () => {
     const kept = encode({ aud: 'client-id', exp: Math.floor(Date.now() / 1000) + 3600 });
     sessionStorage.setItem('icg-id-token', kept);
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(json({ ok: false, error: { code: 'INTERNAL', message: 'Something went wrong on the server. Try again.' } }))
-      .mockResolvedValueOnce(json({ ok: true, data: { pledges: [], payments: [], settings: SETTINGS, me: 'me@example.com' } }));
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ ok: true, data: { pledges: [], payments: [], settings: SETTINGS, me: 'me@example.com' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await openTracker();
+
+    await vi.waitFor(() => expect(document.querySelector('nav.tabs')).not.toBeNull());
+    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).idToken)).toEqual([kept]);
+  });
+
+  // The fix for a wrong script address or sign-in ID is a new build of the site, which only a reload
+  // runs; the page is built with the old ones. The kept sign-in makes the reload cost no extra tap.
+  it('reloads the page on Try again, so a site rebuilt since it opened is the one that tries', async () => {
+    const location = { href: 'https://example.org/tracker/', search: '', replace: vi.fn(), reload: vi.fn() };
+    vi.stubGlobal('location', location);
+    sessionStorage.setItem('icg-id-token', encode({ aud: 'client-id', exp: Math.floor(Date.now() / 1000) + 3600 }));
+    const mismatch = 'This site and the server are set up with different Google sign-in IDs. Reload the page; if it keeps happening, tell the organiser.';
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(json({ ok: false, error: { code: 'INTERNAL', message: mismatch } }));
     vi.stubGlobal('fetch', fetchMock);
 
     await openTracker();
     await vi.waitFor(() => expect(button('Try again')).toBeDefined());
     button('Try again')?.click();
 
-    await vi.waitFor(() => expect(document.querySelector('nav.tabs')).not.toBeNull());
-    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).idToken)).toEqual([kept, kept]);
+    expect(location.reload).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('reloads the page on Try again when Google sign-in never arrived, since only a reload fetches it again', async () => {

@@ -219,7 +219,7 @@ const PROBLEMS: readonly Problem[] = [
   {
     message: [b(SAID.couldNotLoad)],
     meaning: ['The tracker could not fetch the pledges and payments when it opened. The reason is shown underneath.'],
-    action: ['Press ', b('Try again'), '. If the reason mentions the server or the deployment, tell the organiser.'],
+    action: ['Press ', b('Try again'), ', which reloads the page; you stay signed in. If the reason mentions the server or the deployment, tell the organiser.'],
   },
   {
     message: [said(SAID.conflict)],

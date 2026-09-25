@@ -4,7 +4,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import { ApiError, createApi, type Api } from './api';
-import { SignInLoadError, createAuth, isSignedOutUrl, signInAgainUrl, signedOutUrl, type Auth } from './auth';
+import { createAuth, isSignedOutUrl, signInAgainUrl, signedOutUrl, type Auth } from './auth';
 import { todayIso } from './dates';
 import { createStore } from './store';
 import { mountApp } from './ui/app';
@@ -32,10 +32,10 @@ async function boot(root: HTMLElement, api: Api, auth: Auth) {
       });
       return;
     }
-    // In place, so the sign-in this page already holds is reused; only a sign-in script that
-    // never arrived needs the reload that fetches it again.
-    const tryAgain = err instanceof SignInLoadError ? () => window.location.reload() : () => void boot(root, api, auth);
-    renderMessageScreen(root, { title: 'Could not load the tracker', body: messageOf(err), action: { label: 'Try again', run: tryAgain } });
+    // A reload, not boot() again in place: the fix for a wrong script address or sign-in ID is a new
+    // build of the site, which this page, built with the old ones, would never run. The tab keeps its
+    // sign-in across the reload (auth.ts), so it costs no extra tap.
+    renderMessageScreen(root, { title: 'Could not load the tracker', body: messageOf(err), action: { label: 'Try again', run: () => window.location.reload() } });
   } finally {
     stopLoading();
   }
