@@ -362,6 +362,34 @@ describe('payments view', () => {
   });
 });
 
+// Every store publish rebuilds the list. The copy it replaces must not go on to redraw itself when its search
+// timer fires, since the new copy has already drawn the current search.
+describe('a search typed just before the list is redrawn', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const twoPayments = [...payments, payment({ id: 'y2', phone: '555-010-0103', amountReceived: 20, dateReceived: '2026-01-01' })];
+  const withTwoPayments: State = { ...state, payments: twoPayments, computed: compute(pledges, twoPayments, SETTINGS, TODAY) };
+
+  it.each([
+    ['Pledges', createPledgesView, 'chen', ['p3']],
+    ['Payments', createPaymentsView, '999', ['y1']],
+  ] as const)('%s draws the search in the new copy at once and leaves the replaced one alone', (_list, createView, query, matching) => {
+    vi.useFakeTimers();
+    const render = createView({ store, reportError: vi.fn() });
+    const replaced = render(withTwoPayments, null, () => undefined);
+    document.body.append(replaced);
+    const tableBefore = replaced.querySelector('table');
+    type(replaced.querySelector('input[type=search]') as HTMLInputElement, query);
+    vi.advanceTimersByTime(50);
+
+    document.body.replaceChildren(render(withTwoPayments, null, () => undefined));
+    expect([...document.body.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'))).toEqual(matching);
+    vi.advanceTimersByTime(200);
+
+    expect(replaced.querySelector('table')).toBe(tableBefore);
+  });
+});
+
 describe('payments view: date range', () => {
   const rangePayments = [
     payment({ id: 'r1', phone: '555-300-0001', amountReceived: 10, dateReceived: '2026-01-01' }),

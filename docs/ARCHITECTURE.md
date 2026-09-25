@@ -295,6 +295,8 @@ Every store publish rebuilds `<main>`, so `render()` puts focus back on whatever
 
 Inputs also keep their text and caret. Any new control in a list, the Summary or Find donor needs a key too, or each save that lands while a volunteer is on it throws them back to the top of the page.
 
+The lists' search redraw is debounced (`SEARCH_DEBOUNCE_MS`), and a timer still pending belongs to the copy a re-render replaces, so Pledges' and Payments' `render()` cancels it first: the new copy draws the current search at once, and the old timer would only redraw a detached table.
+
 Help is built once and handed back unchanged, so `render()` leaves it in place rather than putting it back, which would drop the focus of a section heading or Contents link. A heading press redraws only the table, not through `render()`, so `renderTable` itself moves focus to the redrawn heading when the pressed one had it.
 
 ### Focus after a save or delete
