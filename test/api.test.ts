@@ -184,6 +184,12 @@ describe('createApi', () => {
       await expect(api.savePledge(pledgeDraft, { id: 'p1', updatedAt: 'v1' })).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
+    it('compares every field the draft carries, so a field added later cannot be skipped', async () => {
+      const draftWithNewField = { ...pledgeDraft, receiptNumber: 'R-2' };
+      const api = createApi(URL, async () => 'tok', conflictOn({ ...currentPledge, receiptNumber: 'R-1' }));
+      await expect(api.savePledge(draftWithNewField, { id: 'p1', updatedAt: 'v1' })).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
     it('does not recover a CONFLICT on the create path', async () => {
       const api = createApi(URL, async () => 'tok', conflictOn(currentPledge));
       await expect(api.savePledge(pledgeDraft, { id: 'new-id' })).rejects.toMatchObject({ code: 'CONFLICT' });
