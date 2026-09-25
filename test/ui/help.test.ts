@@ -151,6 +151,23 @@ describe('createHelpView', () => {
     expect(text).toContain(`a save waits up to ${OFFLINE_WAIT_MS / 1000} seconds for it`);
   });
 
+  const topicOf = (view: HTMLElement, title: string) =>
+    Array.from(view.querySelectorAll<HTMLElement>('.help-topic')).find((topic) => topic.querySelector('h3')?.textContent === title) as HTMLElement;
+
+  // Sign out cannot end the volunteer's Google session, which lets the next person on a shared computer back in with one tap.
+  it('does not promise that Sign out alone keeps the next person on a shared computer out', () => {
+    const text = topicOf(createHelpView(), 'Signing out').textContent ?? '';
+    expect(text).not.toContain('so the next person cannot see donor details');
+    expect(text).toContain('does not sign you out of Google');
+    expect(text).toContain('Guest or private window');
+  });
+
+  it('starts the projector steps in a Guest or private window and ends them by signing out and closing it', () => {
+    const steps = Array.from(topicOf(createHelpView(), 'Show the fundraiser on the projector').querySelectorAll('.help-steps > li'), (step) => step.textContent ?? '');
+    expect(steps[0]).toContain('Guest or private window');
+    expect(steps.at(-1)).toMatch(/Exit.*Sign out.*close the window/);
+  });
+
   it('describes the form fields with the same help the forms show', () => {
     const text = createHelpView().textContent ?? '';
     for (const help of [...Object.values(PLEDGE_HELP), ...Object.values(PAYMENT_HELP)]) expect(text).toContain(help);

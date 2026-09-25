@@ -13,6 +13,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **Status chips and Needs follow-up** on Pledges: filter to Pending/Partial/Paid/Overpaid, or to Pending/Partial donors with no activity in 30+ days, biggest balance first. A **date range** filter on Payments.
 - **A possible-duplicate-payments check** (app-only, on top of the six core data-health checks) flags payments that share a phone number, amount and date.
 - **Friday display**: a full-screen, name-free projector view of progress toward the goal that never interrupts an announcement with a sign-in prompt.
+- **Sign out for shared computers**: Sign out lands on a signed-out page rather than a fresh sign-in prompt, and tells a volunteer on a shared computer to close their Guest or private window or sign out of Google too, since the app can't end their Google session itself.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
 - **Resilient saves**: a save is retried automatically if Google's servers hiccup, the sheet is busy with other saves, or the connection drops for a moment; a stalled request times out instead of hanging; a retry that actually landed is recognised rather than resurfaced as an error; and Sign out, or closing the tab on a computer, asks first while a change is still saving.
 - **Paging at scale**: long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.

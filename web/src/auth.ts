@@ -8,7 +8,30 @@ export interface Auth {
   hasFreshToken(): boolean;
   /** Until the returned release runs, a request that needs sign-in fails instead of opening the dialog. */
   suppressPrompts(): () => void;
-  signOut(): void;
+  /** Lands on the signed-out page; `switchAccount` instead goes straight back to Google's account chooser. */
+  signOut(options?: { switchAccount?: boolean }): void;
+}
+
+// A page of its own, checked before Google sign-in is set up, so nothing on it can offer the next
+// person on a shared computer "Continue as <volunteer>".
+const SIGNED_OUT_FLAG = 'signedout';
+
+/** Drops the route too, so signing in again opens the Summary. */
+export function signedOutUrl(href: string): string {
+  const url = new URL(href);
+  url.hash = '';
+  url.search = url.search ? `${url.search}&${SIGNED_OUT_FLAG}` : SIGNED_OUT_FLAG;
+  return url.href;
+}
+
+export function isSignedOutUrl(href: string): boolean {
+  return new URL(href).searchParams.has(SIGNED_OUT_FLAG);
+}
+
+export function signInAgainUrl(href: string): string {
+  const url = new URL(href);
+  url.searchParams.delete(SIGNED_OUT_FLAG);
+  return url.href;
 }
 
 const EXPIRY_MARGIN_SECONDS = 60;
@@ -161,10 +184,12 @@ export function createAuth(clientId: string, host: HTMLElement): Auth {
         suppressions -= 1;
       };
     },
-    signOut() {
+    signOut(options) {
       if (typeof google !== 'undefined') google.accounts.id.disableAutoSelect();
       token = null;
-      window.location.reload();
+      // Replace, not assign, so Back does not step straight back into the page just left and prompt.
+      if (options?.switchAccount) window.location.reload();
+      else window.location.replace(signedOutUrl(window.location.href));
     },
   };
 }

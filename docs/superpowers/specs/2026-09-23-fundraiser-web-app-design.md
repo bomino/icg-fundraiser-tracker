@@ -198,6 +198,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 
 **Screens**
 - **Top bar:** app name, the signed-in email, and sign-out. The tabs are Summary, Pledges, Payments and Find donor. The last view used is remembered in `localStorage`.
+- **Signed out:** Sign out lands on its own page, "You are signed out", instead of asking for sign-in again. The app can't end the volunteer's Google session, so an immediate prompt would offer the next person on a shared computer "Continue as <volunteer>". The page says so, links to Google sign-out labelled for shared computers only (it also signs the browser out of Gmail), and has a "Sign in again" button. "Use a different account" on the not-on-the-list screen still goes straight to Google's account chooser. The Help guide recommends a Guest or private window on shared and projector computers, closed after signing out.
 - **Summary:** KPI tiles (B5–B8), a goal progress bar (B14) with the goal editable inline, status counts, Unmatched Payments (highlighted when ≠ 0), the Data Health list with links, the method breakdown, and a "Download .xlsx" export.
 - **Pledges and Payments:** a totals band, a search box that filters on phone, name and notes, sortable column headers, and an "Add" button.
   - Derived columns are read-only and styled differently.

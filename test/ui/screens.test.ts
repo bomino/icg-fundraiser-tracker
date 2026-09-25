@@ -1,9 +1,28 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderLoading } from '../../web/src/ui/screens';
+import { renderLoading, renderSignedOut } from '../../web/src/ui/screens';
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe('renderSignedOut', () => {
+  it('says Google is still signed in, offers Google sign-out for shared computers only, and signs in again only when asked', () => {
+    const root = document.createElement('div');
+    const signInAgain = vi.fn();
+    renderSignedOut(root, signInAgain);
+
+    expect(root.querySelector('h1')?.textContent).toBe('You are signed out');
+    expect(root.textContent).toContain('Guest or private window');
+    const link = root.querySelector('a') as HTMLAnchorElement;
+    expect(link.textContent).toBe('Sign out of Google on this computer');
+    expect(link.getAttribute('href')).toBe('https://accounts.google.com/Logout');
+    expect(root.textContent).toContain('For shared computers only');
+    expect(signInAgain).not.toHaveBeenCalled();
+
+    (Array.from(root.querySelectorAll('button')).find((button) => button.textContent === 'Sign in again') as HTMLButtonElement).click();
+    expect(signInAgain).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('renderLoading', () => {

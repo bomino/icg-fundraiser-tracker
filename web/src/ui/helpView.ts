@@ -40,6 +40,9 @@ const SAID = {
   saving: 'Saving…',
   saved: 'Saved.',
   signOutWhileSaving: 'A change is still saving. Signing out now could lose it. Sign out anyway?',
+  signedOut: 'You are signed out',
+  signInAgain: 'Sign in again',
+  signOutOfGoogle: 'Sign out of Google on this computer',
   couldNotSave: "Couldn't save",
   couldNotDelete: "Couldn't delete",
 } as const;
@@ -212,7 +215,17 @@ function gettingStarted(): Child[] {
     ),
     topic(
       'Signing out',
-      p('On a shared or borrowed device, press ', b('Sign out'), ' when you finish, so the next person cannot see donor details. On your own phone you can stay signed in.'),
+      p('Press ', b('Sign out'), ' at the top of the page when you finish. The tracker then shows ', said(SAID.signedOut), ', with a ', b(SAID.signInAgain), ' button. On your own phone you can stay signed in.'),
+      p('Sign out closes the tracker, but it does not sign you out of Google. On a shared or borrowed computer, the next person to open the tracker in that browser could get back in as you with one tap and see every donor’s details. So on a masjid computer, or any computer other people use:'),
+      bullets(
+        [
+          b('Best'),
+          ' — use a Guest or private window (Incognito in Chrome, InPrivate in Edge). To open one, press Ctrl+Shift+N, or ⌘+Shift+N on a Mac (Ctrl+Shift+P in Firefox), then open the tracker in it. When you finish, press ',
+          b('Sign out'),
+          ' and close the window: closing it signs Google out too. If you opened more than one private window, close them all.',
+        ],
+        ['If you did not use one, press ', b(SAID.signOutOfGoogle), ' on the signed-out screen. Only do this on a shared computer: it also signs that browser out of Gmail and every other Google service.'],
+      ),
       p('If something you just saved is still on its way to the shared sheet, the tracker first asks ', said(SAID.signOutWhileSaving), ' Press ', b('Cancel'), ', wait a few seconds, then press ', b('Sign out'), ' again. If the change could not be saved, its message appears once you press Cancel, so you can deal with it first.'),
       note('On a computer, closing or reloading the page while a change is still saving asks first too. A phone usually does not ask, so on a phone wait a few seconds after your last change, until no row shows ', said(SAID.saving), ', before you close the page.'),
     ),
@@ -394,9 +407,11 @@ function howTo(): Child[] {
     topic(
       'Show the fundraiser on the projector',
       steps(
-        ['Sign in on the computer connected to the projector.'],
+        ['On the computer connected to the projector, open a Guest or private window: press Ctrl+Shift+N on most computers. See ', b('Signing out'), ' in Getting started for why.'],
+        ['Open the tracker in that window and sign in.'],
         ['On ', b('Summary'), ', press ', b('Friday display'), '.'],
         ['Make the browser full screen (F11 on most computers).'],
+        ['When the announcement is over, press ', b('Exit'), ', then ', b('Sign out'), ', then close the window. Press F11 first to leave full screen.'],
       ),
       p('The screen shows the amount received, the goal, the percentage and how many donors have pledged. It never shows a donor’s name, phone number or amount.'),
       p('It updates itself every few minutes and shows the time of the last update. It never asks anyone to sign in on its own, so a sign-in box will not pop up in the middle of an announcement.'),
