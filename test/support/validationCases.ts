@@ -32,6 +32,9 @@ export const VALIDATION_CASES: ValidationCase[] = [
   { name: 'payment with a punctuation-only phone', tab: 'Payments', draft: { ...payment, phone: '(--)' }, invalidField: 'phone' },
   { name: 'payment with a Unicode dash and space phone', tab: 'Payments', draft: { ...payment, phone: '–\u00a0—' }, invalidField: 'phone' },
   { name: 'payment with a Unicode-dashed phone', tab: 'Payments', draft: { ...payment, phone: '555–010–0101' }, invalidField: null },
+  { name: 'payment with a phone of only invisible marks', tab: 'Payments', draft: { ...payment, phone: '\u202a\u200e\u202c' }, invalidField: 'phone' },
+  { name: 'payment with a phone wrapped the way Mac Contacts copies it', tab: 'Payments', draft: { ...payment, phone: '\u202d555-010-0101\u202c' }, invalidField: null },
+  { name: 'payment with a full-width punctuation phone', tab: 'Payments', draft: { ...payment, phone: '＋（）' }, invalidField: 'phone' },
   // Both blank (after trim) and over the length limit - client and server must agree on which
   // field is at fault even though their messages differ (length-first order, see CLAUDE.md).
   { name: 'payment with an overlong whitespace phone', tab: 'Payments', draft: { ...payment, phone: ' '.repeat(501) }, invalidField: 'phone' },

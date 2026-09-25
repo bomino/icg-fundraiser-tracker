@@ -1,6 +1,7 @@
 import { findByName, findByPhone, paymentsForKey, type DerivedPayment, type DerivedPledge } from '../engine';
 import { formatCents, formatDate } from '../format';
 import { newId as makeId } from '../id';
+import { matchKey } from '../matchKey';
 import { toCents } from '../money';
 import { isPending, type State } from '../store';
 import { methodBadge, statusBadge } from './badges';
@@ -70,7 +71,8 @@ export function createLookupView(deps: ListViewDeps) {
         return;
       }
       const chosen = chosenId ? (computed.pledges.find((d) => d.pledge.id === chosenId) ?? null) : null;
-      const donor = chosen ?? (/\d/.test(text) ? findByPhone(computed, text) : null);
+      // The key, not the raw text: it has read Arabic and Persian digits as 0-9.
+      const donor = chosen ?? (/\d/.test(matchKey(text)) ? findByPhone(computed, text) : null);
       if (donor) {
         results.replaceChildren(donorCard(donor, paymentsForKey(computed, donor.key), () => openPaymentFor(donor)));
         return;

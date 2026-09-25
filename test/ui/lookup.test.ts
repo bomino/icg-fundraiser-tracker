@@ -33,6 +33,13 @@ describe('find donor', () => {
     expect(view.textContent).toContain('Partial');
   });
 
+  it('finds by a phone typed with Arabic digits', () => {
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(view, '٥٥٥-٠١٠-٠١٠١');
+    expect(view.textContent).toContain('<b>Aisha</b>');
+    expect(view.textContent).toContain('$40.00');
+  });
+
   it('lists name matches, then opens the chosen donor', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, 'aisha');

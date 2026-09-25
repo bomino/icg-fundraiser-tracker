@@ -24,13 +24,38 @@ describe('matchKey', () => {
       expect(matchKey(phone)).toBe(`#${phone}`);
     },
   );
-  it.each(['--', '()', '.', ' ', '\t', '\u00a0', '–'])('treats the punctuation-only phone %j as blank', (phone) => {
+  it.each(['--', '()', '.', ' ', '\t', '\u00a0', '–', '＋（）'])('treats the punctuation-only phone %j as blank', (phone) => {
     expect(matchKey(phone)).toBe('');
   });
   it.each(['555\u00a0010\u00a00110', '555\t010\t0110', '555–010–0110', '555—010—0110', '555‐010‐0110', '555−010−0110'])(
     'treats %j, pasted with a Unicode space or dash, as the plain number',
     (phone) => {
       expect(matchKey(phone)).toBe('#5550100110');
+    },
+  );
+  it.each([
+    { copied: 'wrapped the way Mac Contacts copies it', phone: '\u202d+1 (336) 555-0123\u202c' },
+    { copied: 'wrapped by a right-to-left app', phone: '\u202a336-555-0123\u202c' },
+    { copied: 'after a left-to-right mark', phone: '\u200e336-555-0123' },
+    { copied: 'with zero-width spaces between the groups', phone: '336\u200b555\u200b0123' },
+    { copied: 'inside direction isolates', phone: '\u2066336 555 0123\u2069' },
+    { copied: 'after a word joiner', phone: '\u2060336-555-0123' },
+  ])('treats a number $copied as the plain number', ({ phone }) => {
+    expect(matchKey(phone)).toBe('#3365550123');
+  });
+  it.each([
+    { marks: 'direction embedding marks', phone: '\u202a\u202c' },
+    { marks: 'a left-to-right mark', phone: '\u200e' },
+    { marks: 'a right-to-left mark and a zero-width space', phone: '\u200f\u200b' },
+    { marks: 'direction isolates', phone: '\u2066\u2069' },
+    { marks: 'a word joiner', phone: '\u2060' },
+  ])('treats a phone of only $marks as blank', ({ phone }) => {
+    expect(matchKey(phone)).toBe('');
+  });
+  it.each(['٣٣٦-٥٥٥-٠١٢٣', '۳۳۶-۵۵۵-۰۱۲۳', '+١ (٣٣٦) ٥٥٥-٠١٢٣', '３３６-５５５-０１２３'])(
+    'reads the Arabic, Persian or full-width digits of %j as 0-9',
+    (phone) => {
+      expect(matchKey(phone)).toBe('#3365550123');
     },
   );
   it('ignores letter case', () => {
