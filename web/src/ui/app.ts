@@ -8,7 +8,7 @@ import { mountDisplay } from './displayView';
 import { createErrorReporter } from './errors';
 import { downloadWorkbook } from './export';
 import type { ListFilter } from './filter';
-import { findFocusSpot, focusSpotOf, type FocusSpot } from './focus';
+import { findFocusSpot, focusableHeading, focusSpotOf, type FocusSpot } from './focus';
 import { createHelpView } from './helpView';
 import { createLookupView } from './lookupView';
 import { destroyMethodChart, drawMethodChart } from './methodChart';
@@ -61,11 +61,8 @@ export interface AppDeps {
   auth: Auth;
 }
 
-// tabindex -1 lets the heading take focus without becoming a tab stop.
 function focusHeading(container: ParentNode) {
-  const heading = container.querySelector<HTMLElement>('h1');
-  heading?.setAttribute('tabindex', '-1');
-  heading?.focus();
+  focusableHeading(container)?.focus();
 }
 
 // DESIGN.md's projector link; rewritten to #display so that Exit, and a reload after it, leave the mode.

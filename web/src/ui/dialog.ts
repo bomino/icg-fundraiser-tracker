@@ -1,5 +1,5 @@
 import { h, type Child } from './dom';
-import { findFocusSpot, focusSpotOf, type FocusSpot } from './focus';
+import { findFocusSpot, focusableHeading, focusSpotOf, type FocusSpot } from './focus';
 
 export interface DialogHandle {
   element: HTMLDialogElement;
@@ -31,8 +31,9 @@ function refocusOpener(opener: Opener) {
   if (!main || opener.element.isConnected || !focusLost || document.querySelector('dialog[open]')) return;
   const replacement = findFocusSpot(opener.spot, main);
   if (replacement) replacement.focus();
-  // The row itself was deleted; its table is the nearest place to carry on from.
-  else main.querySelector<HTMLElement>('.table-wrap')?.focus({ preventScroll: true });
+  // The row itself was deleted; its table is the nearest place to carry on from, or, once the list is
+  // empty, its heading.
+  else (findFocusSpot({ place: 'table' }, main) ?? focusableHeading(main))?.focus({ preventScroll: true });
 }
 
 export function openDialog(title: string, body: Node, footer: Child[]): DialogHandle {

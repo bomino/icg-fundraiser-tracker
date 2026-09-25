@@ -570,6 +570,24 @@ describe('mountApp', () => {
       await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
       expect(rowButton('p2')).toBeNull();
       expect(document.activeElement).toBe(root.querySelector('.table-wrap'));
+      const table = document.activeElement;
+      // A reload while the delete is still in flight redraws the list; the table must keep focus.
+      await store.load();
+      expect(root.querySelector('.table-wrap')).not.toBe(table);
+      expect(document.activeElement).toBe(root.querySelector('.table-wrap'));
+    });
+
+    it('moves focus to the list’s heading once its last row is deleted', async () => {
+      const store = await slowStore();
+      mountApp(root, { store, auth: fakeAuth() });
+      openWithKeyboard(rowButton('p1') as HTMLButtonElement);
+
+      topDialogButton('Delete').click();
+      topDialogButton('Delete').click();
+
+      await vi.waitFor(() => expect(document.querySelector('dialog')).toBeNull());
+      expect(root.querySelector('.table-wrap')).toBeNull();
+      expect(document.activeElement).toBe(root.querySelector('main h1'));
     });
 
     it('returns focus to the pledge after a payment logged from its form is saved', async () => {
@@ -633,6 +651,11 @@ describe('mountApp', () => {
       show().click();
 
       await vi.waitFor(() => expect(root.querySelector('main h1')?.textContent).toBe('Payments'));
+      expect(document.activeElement).toBe(root.querySelector('main h1'));
+      const heading = document.activeElement;
+      // A save landing just after Show N redraws the list; the heading must keep focus.
+      publish();
+      expect(root.querySelector('main h1')).not.toBe(heading);
       expect(document.activeElement).toBe(root.querySelector('main h1'));
     });
 
