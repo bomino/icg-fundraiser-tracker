@@ -103,7 +103,8 @@ const LIST_PRIVACY_NOTE = 'Keep this list private. Delete the file, and shred an
 const sumCents = (values: readonly number[]): number => values.reduce((sum, cents) => sum + cents, 0);
 
 function listTotalRows(list: FilteredList): Cell[][] {
-  if (list.list === 'Payments') return [['Total Amount Received ($)', dollars(sumCents(list.rows.map((d) => toCents(d.payment.amountReceived) ?? 0)))]];
+  // Not-counted (⚠) payments are in it, as in the screen's "$X logged", so it is never labelled as the Summary's Total Received.
+  if (list.list === 'Payments') return [['Payments Logged ($)', dollars(sumCents(list.rows.map((d) => toCents(d.payment.amountReceived) ?? 0)))]];
   const balances = list.rows.map((d) => d.balanceCents ?? 0);
   // Kept apart, as on the Summary, so one donor's credit never shrinks what another still owes.
   return [

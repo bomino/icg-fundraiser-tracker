@@ -276,9 +276,9 @@ describe('a list downloaded as filtered', () => {
     ]);
   });
 
-  it('adds up every payment on a payment list, counted or not, and a blank amount as nothing', () => {
+  it('adds up every payment on a payment list, counted or not, and a blank amount as nothing, as money logged', () => {
     const rows = aboutListRows({ list: 'Payments', filter: 'Received Jul 1, 2026 – Jul 31, 2026', rows: computed.payments }, LOADED_AT, MADE_AT);
-    expect(rows.slice(4)).toEqual([['Payments on this list', 4], ['Total Amount Received ($)', 112.5], [], [PRIVACY]]);
+    expect(rows.slice(4)).toEqual([['Payments on this list', 4], ['Payments Logged ($)', 112.5], [], [PRIVACY]]);
   });
 
   it('leaves Figures as of blank, never a 1970 date, before the first load', () => {
