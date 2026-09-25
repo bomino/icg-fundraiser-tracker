@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from '../web/src/api';
 import { SITE_API_VERSION, behindHalf } from '../web/src/version';
+import { compute } from '../web/src/engine';
 import { WARNING_MARK } from '../web/src/engine/constants';
-import { IGNORED_CHARACTERS } from '../web/src/matchKey';
+import { IGNORED_CHARACTERS, matchKey } from '../web/src/matchKey';
 import { createStore } from '../web/src/store';
 import type { Payment, PaymentDraft, Pledge, PledgeDraft } from '../web/src/types';
 import { MAX_AMOUNT, MAX_TEXT } from '../web/src/validate';
@@ -88,6 +89,49 @@ describe('the client against the real Code.gs', () => {
     // A RegExp from the script's own realm, so it is compared by its parts rather than as an object.
     const phoneIgnored = server.evaluate<RegExp>('PHONE_IGNORED');
     expect({ source: phoneIgnored.source, flags: phoneIgnored.flags }).toEqual({ source: IGNORED_CHARACTERS.source, flags: IGNORED_CHARACTERS.flags });
+  });
+
+  // Add selected rows refuses a second pledge for a donor, and warns about a payment no pledge
+  // counts, by this key, so it must join exactly the phones the app joins.
+  it('keys phones in Code.gs exactly as the app’s match key does', () => {
+    const phoneKey = createServer().evaluate<(phone: string) => string>('phoneKey_');
+    const phones = ['+1 336 555 0123', '1-336-555-0123', '(336) 555-0123', '13365550123', '10551234567', '1 055 123 4567', '0551234', '551234', '٣٣٦٥٥٥٠١٢٣', '۳۳۶-۵۵۵-۰۱۲۳', '３３６５５５０１２３', 'Ext 12', '', ' -() ', '1'];
+    expect(phones.map(phoneKey)).toEqual(phones.map((phone) => matchKey(phone).slice(1)));
+  });
+
+  // Rows Add selected rows gives an id must differ from the app's own only in the id, a blank
+  // updatedAt and the "imported" mark: counted the same, and edited and deleted the same way.
+  it('counts, edits and deletes rows brought in from the Sheet like its own', async () => {
+    const { server, store } = await connect();
+    await store.savePledge(pledgeDraft, { id: randomUUID() });
+    await store.savePayment(paymentDraft, { id: randomUUID() });
+    const bringIn = (tab: string, rows: unknown[][]) => {
+      server.editInSheet(tab, 4, 2, rows);
+      server.select({ tab, row: 4, numRows: rows.length });
+      server.call('addSelectedRows');
+    };
+    bringIn('Pledges', [['+1 336 555 0199', 'Bilal Chowdhury', '2026-09-01', 300, '']]);
+    bringIn('Payments', [
+      ['336-555-0199', '2026-09-03', 100, 'cash', ''],
+      ['(555) 010-0101', '2026-09-04', 300, 'Card', 'Paid in full'],
+    ]);
+    await store.load();
+    const loaded = store.state()!;
+    const [, bilal] = loaded.pledges;
+    const [, first] = loaded.payments;
+    expect(first).toEqual({ phone: '336-555-0199', dateReceived: '2026-09-03', amountReceived: 100, method: 'Cash', notes: '', id: expect.any(String), updatedAt: '', updatedBy: expect.stringMatching(/^imported \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/) });
+    const computed = compute(loaded.pledges, loaded.payments, loaded.settings, TODAY);
+    expect(computed.pledges.map((d) => [d.pledge.name, d.receivedCents, d.status])).toEqual([
+      ['Aisha Rahman', 50000, 'Paid'],
+      ['Bilal Chowdhury', 10000, 'Partial'],
+    ]);
+    expect(computed.health.filter((check) => check.ids.length > 0)).toEqual([]);
+
+    await store.savePayment({ phone: first.phone, dateReceived: first.dateReceived, amountReceived: 150, method: first.method, notes: first.notes }, first);
+    await store.deletePledge(bilal);
+    await store.load();
+    expect(store.state()!.pledges.map((row) => row.name)).toEqual(['Aisha Rahman']);
+    expect(store.state()!.payments[1]).toMatchObject({ id: first.id, amountReceived: 150, updatedBy: OWNER });
   });
 
   it('names a site and server set up with different sign-in IDs instead of asking for a new sign-in', async () => {

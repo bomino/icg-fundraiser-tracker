@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 10;
+const API_VERSION = 11;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -30,6 +30,13 @@ const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
 // Keep in step with IGNORED_CHARACTERS and its NFKC step in web/src/matchKey.ts: a phone of only
 // these is blank.
 const PHONE_IGNORED = /[\s\-().+\u2010-\u2015\u2212\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069]/g;
+// Keep these two in step with web/src/matchKey.ts as well; test/contract.test.ts compares the keys.
+const EASTERN_DIGITS = /[\u0660-\u0669\u06f0-\u06f9]/g;
+const US_COUNTRY_CODE = /^1(?=[2-9]\d{9}$)/;
+// Fewer than this many digits is a label, such as "Total" or "Week 3 box", not a phone number.
+const MIN_PHONE_DIGITS = 7;
+// What the app's forms trim from what is typed before saving.
+const TRIMMED_FIELDS = ['phone', 'name', 'notes'];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ADD_ROWS_ITEM = 'Add selected rows to the tracker…';
 // Longer lists would overflow the Sheet's dialog; the organiser fixes these and runs it again.
@@ -322,10 +329,12 @@ function isBlankPhone_(phone) {
   return phoneKey_(phone) === '';
 }
 
-// Two phones with the same key always share a match key in the app, which also drops a US +1, so
-// a check on this key can miss a donor written both ways but never mistakes two donors for one.
+// The app's match key without its '#' (web/src/matchKey.ts): two phones join in the app exactly
+// when these are equal, so Add selected rows finds every donor the app would count twice, such as
+// one written with a +1 and without.
 function phoneKey_(phone) {
-  return phone.normalize('NFKC').replace(PHONE_IGNORED, '').toLowerCase();
+  const ascii = phone.normalize('NFKC').replace(EASTERN_DIGITS, (digit) => String(digit.charCodeAt(0) & 0xf));
+  return ascii.replace(PHONE_IGNORED, '').replace(US_COUNTRY_CODE, '').toLowerCase();
 }
 
 function isIsoDate_(value) {
@@ -659,11 +668,15 @@ function planRows_(selection) {
       }
       pledgeAt.set(phoneKey_(record.phone), { rowNumber: rowNumber, selected: true });
     } else {
-      // Two real payments can share a phone, amount and date, so neither of these stops the rows.
-      if (!pledge) note(plan.warnings, 'phone', 'no pledge has this number, so the payment may show ' + WARNING_MARK + ' phone not in Pledges and not count. Add the pledge first, or check the number.');
-      const same = paymentAt.get(paymentKey_(record));
-      if (!same) paymentAt.set(paymentKey_(record), { rowNumber: rowNumber, selected: true });
-      else if (same.selected) note(plan.warnings, '', 'row ' + same.rowNumber + ' has the same phone number, amount and date. If it is the same payment, leave one of them out.');
+      // The app's two warnings on a payment it doesn't count. Two real payments can share a phone,
+      // amount and date, so none of these stops the rows.
+      if (!pledge) note(plan.warnings, 'phone', 'no pledge has this number, so the payment will show ' + WARNING_MARK + ' phone not in Pledges and not count. Add the pledge first, or check the number.');
+      else if (pledge.record.amountPledged === null) note(plan.warnings, 'phone', 'the pledge with this number, on row ' + pledge.rowNumber + ', has no amount, so the payment will show ' + WARNING_MARK + ' no amount on Pledges and not count. Add the amount to that pledge first, or check the number.');
+      const key = paymentKey_(record);
+      const same = paymentAt.get(key);
+      if (!same) {
+        if (key !== '') paymentAt.set(key, { rowNumber: rowNumber, selected: true });
+      } else if (same.selected) note(plan.warnings, '', 'row ' + same.rowNumber + ' has the same phone number, amount and date. If it is the same payment, leave one of them out.');
       else note(plan.warnings, '', 'a payment with the same phone number, amount and date is already in the tracker, on row ' + same.rowNumber + '. If it is the same payment, leave this row out.');
     }
     plan.entries.push({ rowNumber: rowNumber, record: record });
@@ -688,14 +701,15 @@ function firstRowByKey_(rows, keyOf) {
   const byKey = new Map();
   rows.forEach((row) => {
     const key = keyOf(row.record);
-    if (key !== '' && !byKey.has(key)) byKey.set(key, { rowNumber: row.rowNumber, selected: false });
+    if (key !== '' && !byKey.has(key)) byKey.set(key, { rowNumber: row.rowNumber, selected: false, record: row.record });
   });
   return byKey;
 }
 
+// As duplicatePaymentKey in web/src/engine/summary.ts, which leaves out a payment with no date.
 function paymentKey_(record) {
   const phone = phoneKey_(record.phone);
-  if (phone === '' || record.amountReceived === null) return '';
+  if (phone === '' || record.amountReceived === null || record.dateReceived === '') return '';
   return [phone, Math.round(record.amountReceived * 100), record.dateReceived].join('|');
 }
 
@@ -722,17 +736,28 @@ function checkRow_(tab, row, formats, methods, timeZone) {
   if (plainText.length > 0) {
     return refuse('', 'some cells are formatted as Plain text (' + (plainText.length === 1 ? 'column ' : 'columns ') + plainText.join(', ') + '). Select the row, choose Format → Number → Automatic, then run this again.');
   }
+  // A list pasted wider than the tracker's columns would lose what it put there without a word.
+  const trackerColumns = ['updatedAt', 'updatedBy'].map((field) => HEADERS[tab].indexOf(field));
+  if (trackerColumns.some((i) => !isBlankCell_(row[i]))) {
+    return refuse('', 'columns ' + trackerColumns.map(columnLetter_).join(' and ') + ' must be empty: the tracker fills in updatedAt and updatedBy there, and would replace what this row has in them. Move it to column ' + columnLetter_(HEADERS[tab].length) + ' or further right, or clear it.');
+  }
   const record = toRecord_(tab, row, timeZone);
+  ENTRY_FIELDS[tab].filter((field) => TRIMMED_FIELDS.indexOf(field) >= 0).forEach((field) => {
+    record[field] = record[field].trim();
+  });
   const problems = ENTRY_FIELDS[tab]
     .map((field) => ({ field: field, text: cellProblem_(field, row[HEADERS[tab].indexOf(field)], record[field]) }))
     .filter((problem) => problem.text !== '');
   if (problems.length > 0) return { problems: problems };
-  // Keeps totals and notes rows out, as the Summary's count of rows with no id does.
-  if (!looksLikeEntry_(tab, record)) {
-    return isBlankPhone_(record.phone)
-      ? refuse('', "it has no phone number. Rows brought in this way need one, so that a totals or notes row is never counted. Add the donor's number (or a made-up one such as 000-0001), or leave the row out.")
-      : refuse('', 'it has no amount. Add the amount received, or leave the row out.');
+  // Keeps totals and notes rows out, as the Summary's count of rows with no id does, and also one
+  // whose label sits where the phone goes.
+  if (isBlankPhone_(record.phone)) {
+    return refuse('', "it has no phone number. Rows brought in this way need one, so that a totals or notes row is never counted. Add the donor's number (or a made-up one such as 000-0001), or leave the row out.");
   }
+  if (phoneKey_(record.phone).replace(/\D/g, '').length < MIN_PHONE_DIGITS) {
+    return refuse('phone', '"' + record.phone + '" is not a phone number: it has fewer than ' + MIN_PHONE_DIGITS + " digits. If this is a totals or notes row, leave it out; otherwise type the donor's full phone number.");
+  }
+  if (!looksLikeEntry_(tab, record)) return refuse('', 'it has no amount. Add the amount received, or leave the row out.');
   if (tab === 'Payments') record.method = settingsSpelling_(record.method, methods);
   try {
     return { problems: [], record: validateRow_(tab, record, methods) };
@@ -762,6 +787,10 @@ function cellProblem_(field, cell, value) {
   if (field !== 'phone') return SHEET_ERROR.test(cell) ? 'it shows ' + cell + '. ' + retype + '.' : '';
   // A phone typed without an apostrophe: a leading + makes a formula, and a number loses its leading 0.
   if (typeof cell === 'string' && cell.charAt(0) === '#') return 'it shows ' + cell + '. ' + retype + ", such as '+1 336 555 0123.";
+  // Typed with its apostrophe into a list cell formatted as Plain text, which keeps it as text.
+  if (typeof cell === 'string' && cell.charAt(0) === "'") {
+    return 'it shows ' + cell + ", with the apostrophe kept as part of the number, so it would not match the donor's other rows. Retype the number here, starting it with an apostrophe, such as '0551234.";
+  }
   if (typeof cell === 'number' && String(Math.abs(cell)).replace(/\D/g, '').length < 10) {
     return cell + ' has fewer than 10 digits, so the sheet may have dropped a leading 0. ' + retype + ", such as '0551234.";
   }

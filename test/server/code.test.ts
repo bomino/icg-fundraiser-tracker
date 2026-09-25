@@ -50,6 +50,7 @@ const CODE_GS_HASHES: readonly string[] = [
   'a98140747f76c94a3c124e2eb7f390a538c5792a357a7e02efe8d8f29aadeb1a',
   '7b01b77c5dcbb079b862fbf2db88a47176d24bc3f938c7172b14be895454f70d',
   'd4f8cbd947c3b59e64906315a59bb1d354d7da68e96fad7b7a07615507d7027b',
+  'f57f3bd1092220049d811db44c18739a7ba0de15f97e18988e3ca9050a168c0e',
 ];
 
 describe('API_VERSION', () => {
@@ -829,27 +830,53 @@ describe('adding selected rows to the tracker', () => {
   });
 
   it('lists what to check before adding, without stopping the rows being added', () => {
+    server.post('upsertPledge', newRow({ ...pledgeDraft, phone: '555-010-0199', name: 'Dana Hussain', amountPledged: null }), token);
     paste('Payments', 4, [
       ['555-099-9999', '2026-09-03', 20, 'Cash', ''],
-      ['555-010-0101', '2025-01-15', 200, 'Cash', ''],
+      ['+1 555 010 0101', '2025-01-15', 200, 'Cash', ''],
       ['555-010-0101', '2026-09-05', 20, 'Cash', ''],
-      ['555 010 0101', '2026-09-05', 20, 'Cash', 'Friday box'],
+      ['1 555 010 0101', '2026-09-05', 20, 'Cash', 'Friday box'],
+      ['555-010-0199', '2026-09-06', 30, 'Cash', ''],
     ]);
-    addSelectedRows('Payments', 4, 4);
+    addSelectedRows('Payments', 4, 5);
     expect(server.ui.alerts[0]).toBe(
       [
-        'Add 4 payments from rows 4–7 to the tracker? Volunteers see them after pressing Refresh.',
+        'Add 5 payments from rows 4–8 to the tracker? Volunteers see them after pressing Refresh.',
         '',
         'Check these first. They do not stop the rows being added. To leave a row out, press Cancel, delete the row and run this again:',
         '',
-        '• Row 4, phone (column B): no pledge has this number, so the payment may show ⚠ phone not in Pledges and not count. Add the pledge first, or check the number.',
+        '• Row 4, phone (column B): no pledge has this number, so the payment will show ⚠ phone not in Pledges and not count. Add the pledge first, or check the number.',
         '• Row 5: a payment with the same phone number, amount and date is already in the tracker, on row 2. If it is the same payment, leave this row out.',
         '• Row 7: row 6 has the same phone number, amount and date. If it is the same payment, leave one of them out.',
+        '• Row 8, phone (column B): the pledge with this number, on row 3, has no amount, so the payment will show ⚠ no amount on Pledges and not count. Add the amount to that pledge first, or check the number.',
         '',
         'Press OK to add them, or Cancel to change nothing.',
       ].join('\n'),
     );
-    expect(imported('Payments')).toHaveLength(4);
+    expect(imported('Payments')).toHaveLength(5);
+  });
+
+  // As on the Summary's Possible duplicate payments, which leaves out payments with no date.
+  it('does not call two payments with no date the same payment', () => {
+    paste('Payments', 4, [
+      ['555-010-0101', '', 20, 'Cash', ''],
+      ['555-010-0101', '', 20, 'Cash', ''],
+    ]);
+    addSelectedRows('Payments', 4, 2);
+    expect(server.ui.alerts[0]).toBe('Add 2 payments from rows 4–5 to the tracker? Volunteers see them after pressing Refresh.\n\nPress OK to add them, or Cancel to change nothing.');
+  });
+
+  // The app's forms trim what is typed, and the apostrophe keeps a formula-looking name as text.
+  it('stores each row as the app would have saved it', () => {
+    paste('Pledges', 4, [
+      ['  336-555-0199 ', ' Eman Saleh  ', '2026-09-01', ' 500.00 ', '  '],
+      [3365550188, '=HYPERLINK("https://example.com","Omar")', '', '', ' Pays in Ramadan '],
+    ]);
+    addSelectedRows('Pledges', 4, 2);
+    expect(server.sheet('Pledges').raw.slice(3, 5).map((row) => row.slice(1, 6))).toEqual([
+      ["'336-555-0199", "'Eman Saleh", "'2026-09-01", 500, ''],
+      ["'3365550188", `'=HYPERLINK("https://example.com","Omar")`, '', '', "'Pays in Ramadan"],
+    ]);
   });
 
   it.each([
@@ -925,6 +952,8 @@ describe('adding selected rows to the tracker', () => {
     ['a phone the sheet turned into a date', 'Pledges', [[new Date(Date.UTC(2026, 4, 5)), 'Eman Saleh', '', 100, '']], "Row 4, phone (column B): the sheet turned it into a date. Retype it starting with an apostrophe, such as '0551234."],
     ['a phone the sheet shows as an error', 'Payments', [['#ERROR!', '2026-09-03', 20, 'Cash', '']], "Row 4, phone (column B): it shows #ERROR!. Retype it starting with an apostrophe, such as '+1 336 555 0123."],
     ['a phone kept as a number of fewer than 10 digits', 'Pledges', [[551234, 'Eman Saleh', '', 100, '']], "Row 4, phone (column B): 551234 has fewer than 10 digits, so the sheet may have dropped a leading 0. Retype it starting with an apostrophe, such as '0551234."],
+    // Typed as '0551234 into a list cell formatted as Plain text, which keeps the apostrophe as text.
+    ['a phone whose apostrophe is part of the text', 'Pledges', [["''0551234", 'Eman Saleh', '', 100, '']], "Row 4, phone (column B): it shows '0551234, with the apostrophe kept as part of the number, so it would not match the donor's other rows. Retype the number here, starting it with an apostrophe, such as '0551234."],
     ['a date the sheet reads as text', 'Pledges', [['555-010-0102', 'Eman Saleh', '24/09/2026', 100, '']], 'Row 4, datePledged (column D): the sheet does not read "24/09/2026" as a date. Type it as 2026-09-24.'],
     ['a date the sheet keeps as a plain number', 'Payments', [['555-010-0101', 46289, 20, 'Cash', '']], 'Row 4, dateReceived (column C): the sheet holds the number 46289 here, not a date. Choose Format → Number → Date for the cell, or type the date as 2026-09-24.'],
     ['an amount written with a currency sign', 'Pledges', [['555-010-0102', 'Eman Saleh', '', '$1,250', '']], 'Row 4, amountPledged (column E): "$1,250" is not a plain number. Type a plain number such as 1250 or 1250.50.'],
@@ -935,7 +964,14 @@ describe('adding selected rows to the tracker', () => {
     ['notes over the length limit', 'Payments', [['555-010-0101', '2026-09-03', 20, 'Cash', 'x'.repeat(501)]], 'Row 4, notes (column F): Keep this under 500 characters.'],
     ['a method not on the Settings tab', 'Payments', [['555-010-0101', '2026-09-03', 20, 'Venmo', '']], `Row 4, method (column E): "Venmo" is not on the Settings tab's list (${METHODS.join(', ')}). Change it to one of those, or leave it blank.`],
     ['a donor already in the tracker', 'Pledges', [['(555) 010-0101', 'Aisha R.', '', 100, '']], 'Row 4, phone (column B): this number is already on the pledge in row 2. Bring in only their payments, and leave this row out.'],
+    ['a donor already in the tracker, written with +1', 'Pledges', [['+1 555 010 0101', 'Aisha R.', '', 100, '']], 'Row 4, phone (column B): this number is already on the pledge in row 2. Bring in only their payments, and leave this row out.'],
+    ['a donor already in the tracker, written in Arabic-Indic digits', 'Pledges', [['٥٥٥-٠١٠-٠١٠١', 'Aisha R.', '', 100, '']], 'Row 4, phone (column B): this number is already on the pledge in row 2. Bring in only their payments, and leave this row out.'],
     ['a donor listed twice in the selection', 'Pledges', [['0551234', 'Chidi Okafor', '', 100, ''], ['055-1234', 'Chidi O.', '', 50, '']], 'Row 5, phone (column B): this number is also on row 4. Keep one pledge row per donor.'],
+    ['a donor listed twice in the selection, once with +1', 'Pledges', [['336-555-0199', 'Chidi Okafor', '', 100, ''], ['1 (336) 555-0199', 'Chidi O.', '', 50, '']], 'Row 5, phone (column B): this number is also on row 4. Keep one pledge row per donor.'],
+    ['a totals row labelled in the phone column', 'Pledges', [['Total', '', '', 1250, '']], 'Row 4, phone (column B): "Total" is not a phone number: it has fewer than 7 digits. If this is a totals or notes row, leave it out; otherwise type the donor\'s full phone number.'],
+    ['a notes row typed in the phone column', 'Payments', [['Week 3 box', '2026-09-03', 320, 'Cash', '']], 'Row 4, phone (column B): "Week 3 box" is not a phone number: it has fewer than 7 digits. If this is a totals or notes row, leave it out; otherwise type the donor\'s full phone number.'],
+    ['a name that starts with the warning mark after a space', 'Pledges', [['555-010-0102', ' ⚠ Eman', '', 100, '']], 'Row 4, name (column C): A name cannot start with ⚠.'],
+    ['something in columns G and H, which the tracker fills in', 'Payments', [['555-010-0101', '2026-09-03', 20, 'Cash', '', 'Brother Omar', 1001]], 'Row 4: columns G and H must be empty: the tracker fills in updatedAt and updatedBy there, and would replace what this row has in them. Move it to column I or further right, or clear it.'],
   ])('refuses %s, naming the row and the fix, and changes nothing', (_label, tab, rows, problem) => {
     paste(tab, 4, rows);
     const before = snapshot();
