@@ -6,14 +6,18 @@
 // It drives its own dev server (a separate port from playwright.config.ts's e2e fixture) with
 // `@playwright/test`'s `chromium` export directly, outside the Playwright Test runner, and prints
 // the measured numbers to stdout for the report - it makes no pass/fail assertions of its own.
+//
+// What it times is compute at 1,500 pledges / 3,000 payments, first page rendered (100 rows, 25
+// at phone width); Show more is never timed. `instant` turns off the demo API's simulated server
+// delay, so no figure includes a wait the demo adds.
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import http from 'node:http';
-import { chromium, type Page } from '@playwright/test';
+import { chromium, type BrowserContext, type Page } from '@playwright/test';
 
 const PORT = 5301;
 const BASE_URL = `http://localhost:${PORT}`;
-const PLEDGES_URL = `${BASE_URL}/?demo&big#pledges`;
+const PLEDGES_URL = `${BASE_URL}/?demo&big&instant#pledges`;
 const SEARCH_DEBOUNCE_MS = 150;
 const SETTLE_QUIET_MS = 100;
 const SETTLE_TIMEOUT_MS = 15_000;
@@ -162,9 +166,24 @@ interface Measurement {
   longestLongTaskMs: number;
 }
 
+/**
+ * One untimed load in each new browser before anything is timed. Otherwise the first figure also
+ * carries Vite's on-demand transform of every module on a cold dev server (seconds, not
+ * milliseconds) and the browser's first fetch of each, neither of which is the app's own work.
+ * A separate page, closed after, because a second goto to the same `#pledges` address would only
+ * move the fragment, not load the page again.
+ */
+async function warmUp(context: BrowserContext): Promise<void> {
+  const page = await context.newPage();
+  await page.goto(PLEDGES_URL);
+  await page.getByRole('navigation', { name: 'Sections' }).waitFor();
+  await page.close();
+}
+
 async function measure(viewport: Viewport, throttled: boolean): Promise<Measurement> {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height } });
+  await warmUp(context);
   const page = await context.newPage();
   if (throttled) {
     const client = await context.newCDPSession(page);
@@ -172,8 +191,9 @@ async function measure(viewport: Viewport, throttled: boolean): Promise<Measurem
   }
   await installObservers(page);
 
-  // (c) Initial render of the Pledges tab: fresh navigation straight onto #pledges. The boot
-  // observer (armed by installObservers before any app script ran) is already logging mutations.
+  // (c) Initial render of the Pledges tab: a new page's navigation straight onto #pledges, in the
+  // warmed-up browser. The boot observer (armed by installObservers before any app script ran) is
+  // already logging mutations.
   const navStartEpoch = Date.now();
   await page.goto(PLEDGES_URL);
   await page.getByRole('navigation', { name: 'Sections' }).waitFor();
@@ -192,7 +212,10 @@ async function measure(viewport: Viewport, throttled: boolean): Promise<Measurem
   await search.fill('');
   await page.waitForTimeout(SEARCH_DEBOUNCE_MS + 50);
 
-  // (b) Store publish (save a pledge) -> redraw settle.
+  // (b) Save a pledge -> both of its redraws settle: the immediate one that shows the row as
+  // "Saving…" and the one after the demo API answers that clears it. waitForQuiet alone would stop
+  // in any gap of over SETTLE_QUIET_MS between the two, timing only the first, so the saved row is
+  // waited for first.
   await page.getByRole('button', { name: 'Add pledge' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add pledge' });
   await dialog.waitFor();
@@ -203,6 +226,7 @@ async function measure(viewport: Viewport, throttled: boolean): Promise<Measurem
   await resetSettleWatch(page);
   const saveStart = await startClock(page);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.locator('.data-table tbody tr:not(.row-pending)', { hasText: uniquePhone }).waitFor({ timeout: SETTLE_TIMEOUT_MS });
   const saveSettledAt = await waitForQuiet(page);
   const savePledgeRedrawMs = saveSettledAt - saveStart.epochMs;
   const saveLongTasks = await longTaskDurationsSince(page, saveStart.perfNowMs);
@@ -242,6 +266,8 @@ async function main() {
     );
   }
   console.log('\nAll times in milliseconds. "throttled" = 4x CPU throttling via CDP Emulation.setCPUThrottlingRate.');
+  console.log('Each browser loads the page once, untimed, first; the demo API answers with no simulated delay.');
+  console.log('saveRedraw covers both redraws of a save: the row shown as saving, then as saved.');
 }
 
 void main();

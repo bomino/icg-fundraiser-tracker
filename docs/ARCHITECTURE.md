@@ -532,7 +532,7 @@ The app is installable but has no service worker (`web/index.html`, `web/public/
 
 ## Demo mode
 
-A dev-only demo mode exists for visual checks without Google sign-in or a deployed backend: `npm run dev`, then open `http://localhost:5173/?demo` (`web/src/demo.ts`, dynamically imported so it is excluded from production builds). `?demo&big` swaps the hand-written seed for a deterministic event-scale one (1,500 pledges, 3,000 payments), which the paging and list-download e2e specs and `npm run perf` use.
+A dev-only demo mode exists for visual checks without Google sign-in or a deployed backend: `npm run dev`, then open `http://localhost:5173/?demo` (`web/src/demo.ts`, dynamically imported so it is excluded from production builds). `?demo&big` swaps the hand-written seed for a deterministic event-scale one (1,500 pledges, 3,000 payments), which the paging and list-download e2e specs and `npm run perf` use. Every demo call waits 300 ms by default, to feel like the real server; `&instant` drops that wait, so `npm run perf` times only the app's own work.
 
 ## Help and its drift test
 
@@ -596,7 +596,9 @@ Both the unit tests (`TZ` in `vite.config.ts`'s `test.env`) and the e2e browser 
 
 ### Performance probe
 
-`e2e/perf-probe.ts` is a separate, non-CI script, deliberately not matching Playwright's `*.spec.ts` test discovery, that measures render time at event scale (~1,500 rows) in both viewports. Run it manually with `npm run perf`.
+`e2e/perf-probe.ts` is a separate, non-CI script, deliberately not matching Playwright's `*.spec.ts` test discovery. In both viewports, with and without 4× CPU throttling, it times compute at 1,500 pledges / 3,000 payments, first page rendered (100 rows, 25 at phone width; Show more is never timed): the first load of Pledges, one search keystroke, and one save through both its redraws, the row shown as Saving… and then as saved. Run it manually with `npm run perf`.
+
+Two things keep those figures to the app's own work. It opens `?demo&big&instant`, so none includes the demo's simulated 300 ms server delay; at that delay the save's two redraws were far enough apart that only the first was being timed. And each browser loads the page once, untimed, before timing, so the first figure doesn't also carry a cold dev server's on-demand transform of every module, which a volunteer's production bundle never does.
 
 ## CI and deploy
 
