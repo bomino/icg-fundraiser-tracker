@@ -7,10 +7,19 @@ export const OWNER = 'owner@example.com';
 
 const stripQuotePrefix = (value: unknown) => (typeof value === 'string' && value.startsWith("'") ? value.slice(1) : value);
 
+// The date (yyyy-MM-dd) and 24-hour time (HH:mm) a clock in `timeZone` shows at `moment`.
+export function zonedClock(moment: Date, timeZone: string) {
+  const format = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const parts = Object.fromEntries(format.formatToParts(moment).map((part) => [part.type, part.value]));
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
 // Stores exactly what Code.gs writes (raw) and returns what Sheets would read back
 // (a leading apostrophe forces text and is not part of the value).
 export class FakeSheet {
   raw: unknown[][] = [];
+  // Each cell's number format as Range.getNumberFormats reports it: '' (Automatic) unless set, '@' for Plain text.
+  formats: string[][] = [];
   constructor(
     private name: string,
     private readonly tabs: Map<string, FakeSheet>,
@@ -31,6 +40,7 @@ export class FakeSheet {
   }
   deleteRow(rowNumber: number) {
     this.raw.splice(rowNumber - 1, 1);
+    this.formats.splice(rowNumber - 1, 1);
   }
   getMaxRows() {
     return 1000;
@@ -65,12 +75,20 @@ export class FakeSheet {
       while (this.raw.length < r) this.raw.push([]);
       this.raw[r - 1][c - 1] = value;
     };
+    const cells = <T>(read: (r: number, c: number) => T) => Array.from({ length: numRows }, (_, i) => Array.from({ length: numColumns }, (_, j) => read(row - 1 + i, column - 1 + j)));
     return {
       getSheet: () => this,
       getRow: () => row,
       getColumn: () => column,
+      getNumRows: () => numRows,
       getLastRow: () => row + numRows - 1,
-      getValues: () => Array.from({ length: numRows }, (_, i) => Array.from({ length: numColumns }, (_, j) => stripQuotePrefix(this.raw[row - 1 + i]?.[column - 1 + j] ?? ''))),
+      getValues: () => cells((r, c) => stripQuotePrefix(this.raw[r]?.[c] ?? '')),
+      getNumberFormats: () => cells((r, c) => this.formats[r]?.[c] ?? ''),
+      setNumberFormat: (format: string) => {
+        cells((r, c) => {
+          (this.formats[r] ??= [])[c] = format;
+        });
+      },
       setValues: (values: unknown[][]) => values.forEach((rowValues, i) => rowValues.forEach((value, j) => write(row + i, column + j, value))),
       setValue: (value: unknown) => write(row, column, value),
       clearContent: () => {
@@ -103,9 +121,12 @@ export function createServer() {
     // then succeeds once `ms` covers that wait, modelling the real blocking-then-succeeding path
     // instead of only "free" or "busy forever".
     lockDelayMsUntilAvailable: number;
+    lockHeld: boolean;
+    // A dialog waits for a person, so one shown while the script lock is held would stall every save.
+    dialogsWhileLocked: number;
     clientId: string | null;
     timeZone: string;
-  } = { fetchCount: 0, fetchThrows: false, lockAvailable: true, lockDelayMsUntilAvailable: Infinity, clientId: CLIENT_ID, timeZone: 'UTC' };
+  } = { fetchCount: 0, fetchThrows: false, lockAvailable: true, lockDelayMsUntilAvailable: Infinity, lockHeld: false, dialogsWhileLocked: 0, clientId: CLIENT_ID, timeZone: 'UTC' };
 
   const spreadsheet = {
     getSheetByName: (name: string) => sheets.get(name) ?? null,
@@ -117,25 +138,41 @@ export function createServer() {
     getSpreadsheetTimeZone: () => state.timeZone,
   };
 
-  // The Sheet's own dialogs and menus. `answer` is what the next prompt gets back; the messages
-  // the script showed and the menus it added are kept for tests to read.
-  const ui: { answer: { button: 'OK' | 'CANCEL'; text: string }; prompts: string[]; alerts: string[]; menus: Array<{ name: string; items: Array<[string, string]> }> } = {
+  // The Sheet's own dialogs and menus. `answer` is what the next prompt, or alert with OK and
+  // Cancel, gets back; the messages the script showed and the menus it added are kept for tests to
+  // read. `whileOpen` runs once, the next time a dialog is open, for what others do meanwhile.
+  const ui: {
+    answer: { button: 'OK' | 'CANCEL'; text: string };
+    prompts: string[];
+    alerts: string[];
+    menus: Array<{ name: string; items: Array<[string, string]> }>;
+    whileOpen: (() => void) | null;
+  } = {
     answer: { button: 'OK', text: '' },
     prompts: [],
     alerts: [],
     menus: [],
+    whileOpen: null,
+  };
+  const showDialog = () => {
+    if (state.lockHeld) state.dialogsWhileLocked += 1;
+    const whileOpen = ui.whileOpen;
+    ui.whileOpen = null;
+    whileOpen?.();
   };
   const sheetUi = {
     Button: { OK: 'OK', CANCEL: 'CANCEL' },
     ButtonSet: { OK: 'ButtonSet.OK', OK_CANCEL: 'ButtonSet.OK_CANCEL' },
     prompt: (_title: string, message: string) => {
       ui.prompts.push(message);
+      showDialog();
       const { button, text } = ui.answer;
       return { getSelectedButton: () => button, getResponseText: () => text };
     },
-    alert: (_title: string, message: string) => {
+    alert: (_title: string, message: string, buttons: string) => {
       ui.alerts.push(message);
-      return 'OK';
+      showDialog();
+      return buttons === sheetUi.ButtonSet.OK_CANCEL ? ui.answer.button : sheetUi.Button.OK;
     },
     createMenu: (name: string) => {
       const menu = { name, items: [] as Array<[string, string]> };
@@ -152,9 +189,19 @@ export function createServer() {
     },
   };
 
+  // What the organiser has selected in the Sheet: one block, several (Ctrl-click), or nothing.
+  let activeRanges: Array<ReturnType<FakeSheet['getRange']>> = [];
+  function select(...ranges: Array<{ tab: string; row: number; numRows: number; column?: number; numColumns?: number }>) {
+    activeRanges = ranges.map(({ tab, row, numRows, column = 1, numColumns = 8 }) => (sheets.get(tab) as FakeSheet).getRange(row, column, numRows, numColumns));
+  }
+
   const context = vm.createContext({
     console,
-    SpreadsheetApp: { getActiveSpreadsheet: () => spreadsheet, getUi: () => sheetUi },
+    SpreadsheetApp: {
+      getActiveSpreadsheet: () => spreadsheet,
+      getUi: () => sheetUi,
+      getActiveRangeList: () => (activeRanges.length > 0 ? { getRanges: () => activeRanges } : null),
+    },
     ContentService: {
       MimeType: { JSON: 'application/json' },
       createTextOutput: (text: string) => ({ text, setMimeType() { return this; } }),
@@ -180,8 +227,13 @@ export function createServer() {
     },
     LockService: {
       getScriptLock: () => ({
-        tryLock: (ms: number) => state.lockAvailable || state.lockDelayMsUntilAvailable <= ms,
-        releaseLock: () => undefined,
+        tryLock: (ms: number) => {
+          state.lockHeld = state.lockAvailable || state.lockDelayMsUntilAvailable <= ms;
+          return state.lockHeld;
+        },
+        releaseLock: () => {
+          state.lockHeld = false;
+        },
       }),
     },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (key: string) => (key === 'CLIENT_ID' ? state.clientId : null) }) },
@@ -193,12 +245,16 @@ export function createServer() {
       base64DecodeWebSafe: (value: string) => Array.from(Buffer.from(value, 'base64url')),
       newBlob: (bytes: number[]) => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }),
       getUuid: () => randomUUID(),
-      // Real Utilities.formatDate is genuinely timezone-aware; 'yyyy-MM-dd' is the one pattern
-      // Code.gs formats in a caller-supplied (non-UTC) zone, via getSpreadsheetTimeZone().
-      // Intl's 'en-CA' locale happens to format as yyyy-MM-dd. The other call site always
-      // passes tz 'UTC' with a fixed millisecond-ISO pattern, so toISOString() already matches.
-      formatDate: (date: Date, tz: string, pattern: string) =>
-        pattern === 'yyyy-MM-dd' ? new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date) : date.toISOString(),
+      // Real Utilities.formatDate is genuinely timezone-aware; 'yyyy-MM-dd' and 'yyyy-MM-dd HH:mm'
+      // are the patterns Code.gs formats in a caller-supplied (non-UTC) zone, via
+      // getSpreadsheetTimeZone(). The other call site always passes tz 'UTC' with a fixed
+      // millisecond-ISO pattern, so toISOString() already matches.
+      formatDate: (date: Date, tz: string, pattern: string) => {
+        const { day, time } = zonedClock(date, tz);
+        if (pattern === 'yyyy-MM-dd') return day;
+        if (pattern === 'yyyy-MM-dd HH:mm') return `${day} ${time}`;
+        return date.toISOString();
+      },
     },
   });
   vm.runInContext(readFileSync(new URL('../../apps-script/Code.gs', import.meta.url), 'utf8'), context, { filename: 'Code.gs' });
@@ -237,5 +293,5 @@ export function createServer() {
     call('onEdit', { range, user: { getEmail: () => email } });
   }
 
-  return { sheets, cache, state, ui, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, sheet: (name: string) => sheets.get(name) as FakeSheet };
+  return { sheets, cache, state, ui, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, select, sheet: (name: string) => sheets.get(name) as FakeSheet };
 }

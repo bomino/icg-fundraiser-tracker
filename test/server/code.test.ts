@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CLIENT_ID, OWNER, createServer } from '../support/appsScript';
+import { CLIENT_ID, OWNER, createServer, zonedClock } from '../support/appsScript';
 import { METHODS, VALIDATION_CASES } from '../support/validationCases';
 
 let server: ReturnType<typeof createServer>;
@@ -48,6 +48,7 @@ const CODE_GS_HASHES: readonly string[] = [
   '1f6654d9250f990f1f0478c13aa8725746785757b87e42eec817899c0a905fc6',
   '0f0571ffd3e3c74627f2cb79d5c0bfa53fda1d52ea85fc9af7e4b9a4c661a227',
   'a98140747f76c94a3c124e2eb7f390a538c5792a357a7e02efe8d8f29aadeb1a',
+  '7b01b77c5dcbb079b862fbf2db88a47176d24bc3f938c7172b14be895454f70d',
 ];
 
 describe('API_VERSION', () => {
@@ -631,7 +632,15 @@ describe('starting a new drive', () => {
 
   it('is offered in a menu the Sheet shows when it opens', () => {
     server.call('onOpen');
-    expect(server.ui.menus).toEqual([{ name: 'Fundraiser tracker', items: [['Start a new drive…', 'startNewDrive']] }]);
+    expect(server.ui.menus).toEqual([
+      {
+        name: 'Fundraiser tracker',
+        items: [
+          ['Start a new drive…', 'startNewDrive'],
+          ['Add selected rows to the tracker…', 'addSelectedRows'],
+        ],
+      },
+    ]);
   });
 
   it('keeps the finished drive in tabs named for it, then empties the live tabs below row 1', () => {
@@ -707,6 +716,283 @@ describe('starting a new drive', () => {
     const before = snapshot();
     expect(() => startNewDrive('OK', '2026')).toThrow('The 3rd column of the "Payments" tab should be "dateReceived"');
     expect(snapshot()).toEqual(before);
+  });
+});
+
+// The organiser's one-off catch-up of a list kept outside the tracker: pasted into the live tab
+// with column A left blank, then given ids from the Sheet's menu, all or nothing.
+describe('adding selected rows to the tracker', () => {
+  const ITEM = 'Add selected rows to the tracker…';
+  const QUOTED_UUID = /^'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const NOTHING_CHANGED = `Nothing was changed. Fix what is listed below, then select the rows and choose ${ITEM} once more:\n\n`;
+  const PLEDGE_LIST = [
+    ['+1 336 555 0101', 'Bilal Chowdhury', new Date(Date.UTC(2026, 8, 1)), 500, 'Pledged at the dinner'],
+    ['0551234', 'Chidi Okafor', '2026-09-02', 250.5, ''],
+    [3365550103, 'Dana Hussain', '', '', ''],
+  ];
+  const PAYMENT_LIST = [
+    ['555-010-0101', new Date(Date.UTC(2026, 8, 3)), 100, 'cash', ''],
+    ['(555) 010-0101', '2026-09-10', 50.25, ' Bank transfer ', 'Second instalment'],
+  ];
+  const snapshot = () => new Map([...server.sheets].map(([name, sheet]) => [name, structuredClone(sheet.raw)]));
+  // Paste special → Values only into columns B to F: what the Sheet parsed, with no apostrophes and no id.
+  const paste = (tab: string, row: number, rows: unknown[][]) => server.editInSheet(tab, row, 2, rows);
+  const addSelectedRows = (tab: string, row: number, numRows: number, button: 'OK' | 'CANCEL' = 'OK') => {
+    server.select({ tab, row, numRows });
+    server.ui.answer = { button, text: '' };
+    server.call('addSelectedRows');
+  };
+  const importMark = () => {
+    const { day, time } = zonedClock(new Date(), server.state.timeZone);
+    return `imported ${day} ${time}`;
+  };
+  const imported = (tab: string) => server.sheet(tab).getDataRange().getValues().filter((row) => String(row[7]).startsWith('imported'));
+
+  // Row 2 of each tab is a live entry saved through the app, for Aisha Rahman on 555-010-0101.
+  beforeEach(() => {
+    server.post('upsertPledge', newRow(pledgeDraft), token);
+    server.post('upsertPayment', newRow(paymentDraft), token);
+  });
+
+  it('gives each pasted pledge a new id and writes it back as the app would, with no version and an import mark', () => {
+    server.state.timeZone = 'America/New_York';
+    paste('Pledges', 5, [[PLEDGE_LIST[0][0], PLEDGE_LIST[0][1], new Date('2026-09-01T04:00:00Z'), ...PLEDGE_LIST[0].slice(3)], ...PLEDGE_LIST.slice(1)]);
+    const before = importMark();
+    addSelectedRows('Pledges', 5, 3);
+    const after = importMark();
+    const rows = server.sheet('Pledges').raw.slice(4, 7);
+    const mark = String(rows[0][7]).slice(1);
+    expect([before, after]).toContain(mark);
+    expect(rows).toEqual([
+      [expect.stringMatching(QUOTED_UUID), "'+1 336 555 0101", "'Bilal Chowdhury", "'2026-09-01", 500, "'Pledged at the dinner", '', `'${mark}`],
+      [expect.stringMatching(QUOTED_UUID), "'0551234", "'Chidi Okafor", "'2026-09-02", 250.5, '', '', `'${mark}`],
+      [expect.stringMatching(QUOTED_UUID), "'3365550103", "'Dana Hussain", '', '', '', '', `'${mark}`],
+    ]);
+    expect(new Set(rows.map((row) => row[0])).size).toBe(3);
+  });
+
+  it('asks first, naming the rows, then says how to check and how to undo', () => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    addSelectedRows('Pledges', 5, 3);
+    const mark = String(server.sheet('Pledges').raw[4][7]).slice(1);
+    expect(server.ui.alerts).toEqual([
+      'Add 3 pledges from rows 5–7 to the tracker? Volunteers see them after pressing Refresh.\n\nPress OK to add them, or Cancel to change nothing.',
+      `Done: the tracker now counts 3 pledges from rows 5–7, marked "${mark}" in updatedBy. Ask volunteers to press Refresh, then check Data health on the Summary.\n\nTo undo, before anyone edits them, delete rows 5–7: select them by the numbers at the left, right-click and choose Delete rows.`,
+    ]);
+  });
+
+  it('adds payments, putting each method in the spelling the Settings tab uses', () => {
+    paste('Payments', 4, PAYMENT_LIST);
+    addSelectedRows('Payments', 4, 2);
+    const mark = String(server.sheet('Payments').raw[3][7]).slice(1);
+    expect(server.sheet('Payments').raw.slice(3, 5)).toEqual([
+      [expect.stringMatching(QUOTED_UUID), "'555-010-0101", "'2026-09-03", 100, "'Cash", '', '', `'${mark}`],
+      [expect.stringMatching(QUOTED_UUID), "'(555) 010-0101", "'2026-09-10", 50.25, "'Bank Transfer", "'Second instalment", '', `'${mark}`],
+    ]);
+    expect(server.ui.alerts[0]).toBe('Add 2 payments from rows 4–5 to the tracker? Volunteers see them after pressing Refresh.\n\nPress OK to add them, or Cancel to change nothing.');
+  });
+
+  it('turns the Summary’s rows-with-no-id count into rows the app loads, edits and deletes like any other', () => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    expect(server.post('load', {}, token).data.rowsWithoutId).toEqual({ pledges: 3, payments: 0 });
+    addSelectedRows('Pledges', 5, 3);
+    const loaded = server.post('load', {}, token).data;
+    expect(loaded.rowsWithoutId).toEqual({ pledges: 0, payments: 0 });
+    const [, bilal, chidi] = loaded.pledges;
+    expect(bilal).toMatchObject({ phone: '+1 336 555 0101', name: 'Bilal Chowdhury', datePledged: '2026-09-01', amountPledged: 500, updatedAt: '', updatedBy: expect.stringMatching(/^imported \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/) });
+    const edit = { phone: bilal.phone, name: 'Bilal C.', datePledged: bilal.datePledged, amountPledged: 600, notes: bilal.notes, id: bilal.id };
+    expect(server.post('upsertPledge', { ...edit, updatedAt: 'stale' }, token).error).toMatchObject({ code: 'CONFLICT', current: bilal });
+    expect(server.post('upsertPledge', { ...edit, updatedAt: '' }, token).data).toMatchObject({ id: bilal.id, name: 'Bilal C.', amountPledged: 600, updatedBy: OWNER });
+    expect(server.post('deletePledge', { id: chidi.id, updatedAt: '' }, token)).toEqual({ ok: true, data: { id: chidi.id } });
+    expect(server.sheet('Pledges history').getDataRange().getValues().slice(1).map((row) => [row[2], row[10]])).toEqual([
+      ['Bilal Chowdhury', 'edit'],
+      ['Chidi Okafor', 'delete'],
+    ]);
+  });
+
+  it('skips empty rows in the selection and leaves them without an id', () => {
+    paste('Payments', 4, [PAYMENT_LIST[0]]);
+    paste('Payments', 6, [PAYMENT_LIST[1]]);
+    server.sheet('Payments').getRange(8, 6).setValue('   ');
+    addSelectedRows('Payments', 4, 6);
+    expect(server.sheet('Payments').getRange(4, 1, 6, 1).getValues().map(([id]) => id !== '')).toEqual([true, false, true, false, false, false]);
+    expect(server.ui.alerts[0]).toMatch(/^Add 2 payments from rows 4–6 to the tracker\?/);
+  });
+
+  it('changes nothing when the organiser presses Cancel', () => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    const before = snapshot();
+    addSelectedRows('Pledges', 5, 3, 'CANCEL');
+    expect(snapshot()).toEqual(before);
+    expect(server.ui.alerts).toHaveLength(1);
+  });
+
+  it('lists what to check before adding, without stopping the rows being added', () => {
+    paste('Payments', 4, [
+      ['555-099-9999', '2026-09-03', 20, 'Cash', ''],
+      ['555-010-0101', '2025-01-15', 200, 'Cash', ''],
+      ['555-010-0101', '2026-09-05', 20, 'Cash', ''],
+      ['555 010 0101', '2026-09-05', 20, 'Cash', 'Friday box'],
+    ]);
+    addSelectedRows('Payments', 4, 4);
+    expect(server.ui.alerts[0]).toBe(
+      [
+        'Add 4 payments from rows 4–7 to the tracker? Volunteers see them after pressing Refresh.',
+        '',
+        'Check these first. They do not stop the rows being added. To leave a row out, press Cancel, delete the row and run this again:',
+        '',
+        '• Row 4, phone (column B): no pledge has this number, so the payment may show ⚠ phone not in Pledges and not count. Add the pledge first, or check the number.',
+        '• Row 5: a payment with the same phone number, amount and date is already in the tracker, on row 2. If it is the same payment, leave this row out.',
+        '• Row 7: row 6 has the same phone number, amount and date. If it is the same payment, leave one of them out.',
+        '',
+        'Press OK to add them, or Cancel to change nothing.',
+      ].join('\n'),
+    );
+    expect(imported('Payments')).toHaveLength(4);
+  });
+
+  it.each([
+    ['nothing is selected', () => server.select()],
+    ['the selection is on another tab', () => server.select({ tab: 'Settings', row: 2, numRows: 1 })],
+  ])('changes nothing and asks for rows on Pledges or Payments when %s', (_label, choose) => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    const before = snapshot();
+    choose();
+    server.call('addSelectedRows');
+    expect(server.ui.alerts).toEqual([`Nothing was changed. Select the new rows on the Pledges or Payments tab first, then choose ${ITEM} again.`]);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('changes nothing when more than one block of rows is selected', () => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    const before = snapshot();
+    server.select({ tab: 'Pledges', row: 5, numRows: 1 }, { tab: 'Pledges', row: 7, numRows: 1 });
+    server.call('addSelectedRows');
+    expect(server.ui.alerts).toEqual([`Nothing was changed. Select one block of rows only, then choose ${ITEM} again.`]);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('changes nothing when the selection includes row 1, the column names', () => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    const before = snapshot();
+    addSelectedRows('Pledges', 1, 7);
+    expect(server.ui.alerts).toEqual([`Nothing was changed. The selection includes row 1, the column names. Select only the new rows below it, then choose ${ITEM} again.`]);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('says so and changes nothing when the selected rows are empty', () => {
+    const before = snapshot();
+    addSelectedRows('Pledges', 5, 3);
+    expect(server.ui.alerts).toEqual(['Nothing was changed: the selected rows are empty.']);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('never rewrites a row that already has an id', () => {
+    paste('Pledges', 3, [PLEDGE_LIST[0]]);
+    const before = snapshot();
+    addSelectedRows('Pledges', 2, 2);
+    expect(server.ui.alerts).toEqual([`${NOTHING_CHANGED}• Row 2: it already has an id in column A, so it is already in the tracker. Select only the new rows.`]);
+    expect(snapshot()).toEqual(before);
+  });
+
+  // A Plain text cell would keep the apostrophe the helper writes, as a visible part of the value.
+  it('refuses a row with cells formatted as Plain text', () => {
+    paste('Pledges', 4, [PLEDGE_LIST[1]]);
+    server.sheet('Pledges').getRange(4, 2).setNumberFormat('@');
+    server.sheet('Pledges').getRange(4, 8).setNumberFormat('@');
+    const before = snapshot();
+    addSelectedRows('Pledges', 4, 1);
+    expect(server.ui.alerts).toEqual([`${NOTHING_CHANGED}• Row 4: some cells are formatted as Plain text (columns B, H). Select the row, choose Format → Number → Automatic, then run this again.`]);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it.each([
+    ['a totals row with no phone number', 'Pledges', [['', 'Total', '', 1250, '']], "Row 4: it has no phone number. Rows brought in this way need one, so that a totals or notes row is never counted. Add the donor's number (or a made-up one such as 000-0001), or leave the row out."],
+    ['a payment with no amount', 'Payments', [['555-010-0101', '2026-09-03', '', 'Cash', '']], 'Row 4: it has no amount. Add the amount received, or leave the row out.'],
+    ['a phone the sheet turned into a date', 'Pledges', [[new Date(Date.UTC(2026, 4, 5)), 'Eman Saleh', '', 100, '']], "Row 4, phone (column B): the sheet turned it into a date. Retype it starting with an apostrophe, such as '0551234."],
+    ['a phone the sheet shows as an error', 'Payments', [['#ERROR!', '2026-09-03', 20, 'Cash', '']], "Row 4, phone (column B): it shows #ERROR!. Retype it starting with an apostrophe, such as '+1 336 555 0123."],
+    ['a phone kept as a number of fewer than 10 digits', 'Pledges', [[551234, 'Eman Saleh', '', 100, '']], "Row 4, phone (column B): 551234 has fewer than 10 digits, so the sheet may have dropped a leading 0. Retype it starting with an apostrophe, such as '0551234."],
+    ['a date the sheet reads as text', 'Pledges', [['555-010-0102', 'Eman Saleh', '24/09/2026', 100, '']], 'Row 4, datePledged (column D): the sheet does not read "24/09/2026" as a date. Type it as 2026-09-24.'],
+    ['a date the sheet keeps as a plain number', 'Payments', [['555-010-0101', 46289, 20, 'Cash', '']], 'Row 4, dateReceived (column C): the sheet holds the number 46289 here, not a date. Choose Format → Number → Date for the cell, or type the date as 2026-09-24.'],
+    ['an amount written with a currency sign', 'Pledges', [['555-010-0102', 'Eman Saleh', '', '$1,250', '']], 'Row 4, amountPledged (column E): "$1,250" is not a plain number. Type a plain number such as 1250 or 1250.50.'],
+    ['a name the sheet turned into a date', 'Pledges', [['555-010-0102', new Date(Date.UTC(2026, 4, 5)), '', 100, '']], 'Row 4, name (column C): the sheet turned it into a date. Retype it starting with an apostrophe.'],
+    ['a name that starts with the warning mark', 'Pledges', [['555-010-0102', '⚠ Eman', '', 100, '']], 'Row 4, name (column C): A name cannot start with ⚠.'],
+    ['an amount with more than 2 decimal places', 'Pledges', [['555-010-0102', 'Eman Saleh', '', 10.125, '']], 'Row 4, amountPledged (column E): Use at most 2 decimal places.'],
+    ['a negative amount', 'Payments', [['555-010-0101', '2026-09-03', -20, 'Cash', '']], 'Row 4, amountReceived (column D): Enter an amount of 0 or more.'],
+    ['notes over the length limit', 'Payments', [['555-010-0101', '2026-09-03', 20, 'Cash', 'x'.repeat(501)]], 'Row 4, notes (column F): Keep this under 500 characters.'],
+    ['a method not on the Settings tab', 'Payments', [['555-010-0101', '2026-09-03', 20, 'Venmo', '']], `Row 4, method (column E): "Venmo" is not on the Settings tab's list (${METHODS.join(', ')}). Change it to one of those, or leave it blank.`],
+    ['a donor already in the tracker', 'Pledges', [['(555) 010-0101', 'Aisha R.', '', 100, '']], 'Row 4, phone (column B): this number is already on the pledge in row 2. Bring in only their payments, and leave this row out.'],
+    ['a donor listed twice in the selection', 'Pledges', [['0551234', 'Chidi Okafor', '', 100, ''], ['055-1234', 'Chidi O.', '', 50, '']], 'Row 5, phone (column B): this number is also on row 4. Keep one pledge row per donor.'],
+  ])('refuses %s, naming the row and the fix, and changes nothing', (_label, tab, rows, problem) => {
+    paste(tab, 4, rows);
+    const before = snapshot();
+    addSelectedRows(tab, 4, rows.length);
+    expect(server.ui.alerts).toEqual([`${NOTHING_CHANGED}• ${problem}`]);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('lists at most 10 problems, then says how many more there are', () => {
+    paste('Pledges', 4, Array.from({ length: 12 }, (_, i) => ['', `Subtotal ${i + 1}`, '', 100, '']));
+    addSelectedRows('Pledges', 4, 12);
+    const lines = server.ui.alerts[0].split('\n');
+    expect(lines.filter((line) => line.startsWith('• '))).toHaveLength(10);
+    expect(lines.at(-2)).toMatch(/^• Row 13: it has no phone number\./);
+    expect(lines.at(-1)).toBe('…and 2 more.');
+  });
+
+  // The question waits for the organiser without the lock, so volunteers can save meanwhile.
+  it.each([
+    ['a volunteer saves a pledge for one of the donors', () => server.post('upsertPledge', newRow({ ...pledgeDraft, phone: '0551234', name: 'Chidi Okafor' }), token)],
+    ['someone changes a selected cell', () => server.editInSheet('Pledges', 5, 5, [[750]])],
+    [
+      'a volunteer deletes a row above, moving the selected rows up',
+      () => {
+        const [aisha] = server.post('load', {}, token).data.pledges;
+        server.post('deletePledge', { id: aisha.id, updatedAt: aisha.updatedAt }, token);
+      },
+    ],
+  ])('checks again before writing, and writes nothing when %s while the question is open', (_label, meanwhile) => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    server.ui.whileOpen = meanwhile;
+    addSelectedRows('Pledges', 5, 3);
+    expect(server.ui.alerts).toEqual([expect.stringMatching(/^Add 3 pledges/), `Nothing was changed: the selected rows or the tab changed while this was waiting for your answer. Select the rows and choose ${ITEM} again.`]);
+    expect(imported('Pledges')).toEqual([]);
+  });
+
+  it('never holds the lock while a question is open', () => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    addSelectedRows('Pledges', 5, 3);
+    expect(imported('Pledges')).toHaveLength(3);
+    expect(server.state.dialogsWhileLocked).toBe(0);
+    expect(server.state.lockHeld).toBe(false);
+  });
+
+  it('writes nothing while a save holds the lock', () => {
+    paste('Pledges', 5, PLEDGE_LIST);
+    const before = snapshot();
+    server.state.lockAvailable = false;
+    expect(() => addSelectedRows('Pledges', 5, 3)).toThrow('The tracker is busy. Try again in a moment.');
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('writes nothing in a tab whose columns have moved', () => {
+    paste('Payments', 4, PAYMENT_LIST);
+    const header = server.sheet('Payments').raw[0];
+    [header[2], header[3]] = [header[3], header[2]];
+    const before = snapshot();
+    expect(() => addSelectedRows('Payments', 4, 2)).toThrow('The 3rd column of the "Payments" tab should be "dateReceived"');
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('adds a few thousand rows with one read of the selection per check and one write', () => {
+    const sheet = server.sheet('Payments');
+    const rows = Array.from({ length: 3000 }, (_, i) => ['555-010-0101', '2026-09-01', i + 1, 'Cash', '']);
+    sheet.getRange(4, 2, rows.length, 5).setValues(rows);
+    server.select({ tab: 'Payments', row: 4, numRows: rows.length });
+    const getRange = vi.spyOn(sheet, 'getRange');
+    server.call('addSelectedRows');
+    expect(getRange).toHaveBeenCalledTimes(3);
+    expect(server.post('load', {}, token).data.payments).toHaveLength(3001);
   });
 });
 

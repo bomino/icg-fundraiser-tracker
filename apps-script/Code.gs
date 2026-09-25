@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 8;
+const API_VERSION = 9;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -31,6 +31,11 @@ const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
 // these is blank.
 const PHONE_IGNORED = /[\s\-().+\u2010-\u2015\u2212\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069]/g;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ADD_ROWS_ITEM = 'Add selected rows to the tracker…';
+// Longer lists would overflow the Sheet's dialog; the organiser fixes these and runs it again.
+const LISTED_AT_MOST = 10;
+// What a cell holds when Sheets couldn't work out a formula, such as text typed with a leading + or =.
+const SHEET_ERROR = /^#(ERROR!|NAME\?|VALUE!|REF!|DIV\/0!|N\/A|NUM!|NULL!)$/;
 
 class ApiError extends Error {
   constructor(code, message, extra) {
@@ -208,16 +213,16 @@ function readRows_(tab) {
   const values = sheet_(tab).getDataRange().getValues();
   assertHeaders_(tab, values[0]);
   const rows = values.slice(1);
+  const timeZone = spreadsheetTimeZone_();
   return {
-    records: rows.filter((row) => row[0] !== '').map((row) => toRecord_(tab, row)),
-    withoutId: rows.filter((row) => row[0] === '' && looksLikeEntry_(tab, row)).length,
+    records: rows.filter((row) => row[0] !== '').map((row) => toRecord_(tab, row, timeZone)),
+    withoutId: rows.filter((row) => row[0] === '' && looksLikeEntry_(tab, toRecord_(tab, row, timeZone))).length,
   };
 }
 
 // A row with no id is never loaded, so the Summary says how many look like real entries: a phone,
 // and on Payments an amount. Totals and notes rows under the data have neither, and are left out.
-function looksLikeEntry_(tab, row) {
-  const record = toRecord_(tab, row);
+function looksLikeEntry_(tab, record) {
   if (isBlankPhone_(record.phone)) return false;
   return tab !== 'Payments' || record.amountReceived !== null;
 }
@@ -249,10 +254,15 @@ function ordinal_(n) {
   return n + (suffixes[n] || 'th');
 }
 
-function toRecord_(tab, row) {
+// Asked once per read and passed down: a list pasted in with real dates can have thousands of Date cells.
+function spreadsheetTimeZone_() {
+  return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+}
+
+function toRecord_(tab, row, timeZone) {
   const record = {};
   HEADERS[tab].forEach((field, i) => {
-    record[field] = fromCell_(field, row[i]);
+    record[field] = fromCell_(field, row[i], timeZone);
   });
   return record;
 }
@@ -261,15 +271,17 @@ function toRecord_(tab, row) {
 // spreadsheet's own zone, which is how Sheets built the Date cell in the first place), junk
 // amounts become blank, and a date-column cell holding non-ISO text reads as blank rather than
 // an unparseable string the engine would otherwise compare against real ISO dates.
-function fromCell_(field, value) {
+function fromCell_(field, value, timeZone) {
   if (AMOUNT_FIELDS.indexOf(field) >= 0) return amountFromCell_(value);
-  if (Object.prototype.toString.call(value) === '[object Date]') {
-    return DATE_FIELDS.indexOf(field) >= 0
-      ? Utilities.formatDate(value, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd')
-      : Utilities.formatDate(value, 'UTC', "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+  if (isDate_(value)) {
+    return DATE_FIELDS.indexOf(field) >= 0 ? Utilities.formatDate(value, timeZone, 'yyyy-MM-dd') : Utilities.formatDate(value, 'UTC', "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
   }
   if (DATE_FIELDS.indexOf(field) >= 0) return typeof value === 'string' && isIsoDate_(value) ? value : '';
   return value === null || value === undefined ? '' : String(value);
+}
+
+function isDate_(value) {
+  return Object.prototype.toString.call(value) === '[object Date]';
 }
 
 // A real number if finite, a non-blank string only if it parses to a finite number, otherwise
@@ -307,7 +319,13 @@ function invalid_(field, message) {
 
 // Both the save check and the no-id row count ask this, so they can't disagree on what a phone is.
 function isBlankPhone_(phone) {
-  return phone.normalize('NFKC').replace(PHONE_IGNORED, '') === '';
+  return phoneKey_(phone) === '';
+}
+
+// Two phones with the same key always share a match key in the app, which also drops a US +1, so
+// a check on this key can miss a donor written both ways but never mistakes two donors for one.
+function phoneKey_(phone) {
+  return phone.normalize('NFKC').replace(PHONE_IGNORED, '').toLowerCase();
 }
 
 function isIsoDate_(value) {
@@ -360,7 +378,7 @@ function findRow_(sheet, tab, id) {
   const values = sheet.getDataRange().getValues();
   assertHeaders_(tab, values[0]);
   for (let i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(id)) return { rowNumber: i + 1, record: toRecord_(tab, values[i]) };
+    if (String(values[i][0]) === String(id)) return { rowNumber: i + 1, record: toRecord_(tab, values[i], spreadsheetTimeZone_()) };
   }
   return null;
 }
@@ -505,7 +523,7 @@ function setup() {
 // changing anything, and the Apps Script editor can't show a dialog (getUi() throws there), so
 // they can't be started from its Run button by mistake either.
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Fundraiser tracker').addItem('Start a new drive…', 'startNewDrive').addToUi();
+  SpreadsheetApp.getUi().createMenu('Fundraiser tracker').addItem('Start a new drive…', 'startNewDrive').addItem(ADD_ROWS_ITEM, 'addSelectedRows').addToUi();
 }
 
 // Keeps the finished drive in tabs named for it, which the app never reads, then empties the live
@@ -548,6 +566,244 @@ function startNewDrive() {
     'Done. The finished drive is in the tabs ending "' + label + '". Next, set the new goal and campaignName on the Settings tab, put the new volunteers on the Allowlist, and ask every volunteer to press Refresh before adding anything.',
     ui.ButtonSet.OK,
   );
+}
+
+// The organiser's catch-up for a list kept outside the tracker, pasted into Pledges or Payments
+// with column A left blank. The only code that gives a row with no id one: only rows the organiser
+// selected, only after they confirm, and only if every non-empty one passes validateRow_ (the
+// check every save runs) and the checks for what a paste quietly misreads; otherwise nothing is
+// written. It never asks while holding the lock, which would keep every volunteer's save waiting
+// on the organiser, so it checks everything again under the lock before the one write.
+function addSelectedRows() {
+  const ui = SpreadsheetApp.getUi();
+  const title = 'Add selected rows to the tracker';
+  const say = (message) => ui.alert(title, message, ui.ButtonSet.OK);
+  const selection = selectedRows_();
+  if (selection.problem) {
+    say('Nothing was changed. ' + selection.problem);
+    return;
+  }
+  const plan = planRows_(selection);
+  if (plan.problems.length > 0) {
+    say('Nothing was changed. Fix what is listed below, then select the rows and choose ' + ADD_ROWS_ITEM + ' once more:\n\n' + listed_(plan.problems));
+    return;
+  }
+  if (plan.entries.length === 0) {
+    say('Nothing was changed: the selected rows are empty.');
+    return;
+  }
+  const words = rowWords_(selection.tab, plan);
+  const warnings = plan.warnings.length === 0 ? '' : '\n\nCheck these first. They do not stop the rows being added. To leave a row out, press Cancel, delete the row and run this again:\n\n' + listed_(plan.warnings);
+  const question = 'Add ' + words.count + ' from ' + words.rows + ' to the tracker? Volunteers see ' + words.them + ' after pressing Refresh.' + warnings + '\n\nPress OK to add ' + words.them + ', or Cancel to change nothing.';
+  if (ui.alert(title, question, ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+  const mark = 'imported ' + Utilities.formatDate(new Date(), spreadsheetTimeZone_(), 'yyyy-MM-dd HH:mm');
+  const written = withLock_(() => {
+    const now = planRows_(selection);
+    if (now.problems.length > 0 || now.signature !== plan.signature) return false;
+    writeEntries_(selection, now, mark);
+    return true;
+  });
+  if (!written) {
+    say('Nothing was changed: the selected rows or the tab changed while this was waiting for your answer. Select the rows and choose ' + ADD_ROWS_ITEM + ' again.');
+    return;
+  }
+  say(
+    'Done: the tracker now counts ' + words.count + ' from ' + words.rows + ', marked "' + mark + '" in updatedBy. Ask volunteers to press Refresh, then check Data health on the Summary.\n\n' +
+      'To undo, before anyone edits ' + words.them + ', delete ' + words.rows + ': select ' + words.them + ' by the numbers at the left, right-click and choose Delete ' + words.rowWord + '.',
+  );
+}
+
+// The selected rows' position, or why they can't be used. Only the rows count: whatever columns
+// are selected, columns A to H of those rows are read.
+function selectedRows_() {
+  const again = ', then choose ' + ADD_ROWS_ITEM + ' again.';
+  const list = SpreadsheetApp.getActiveRangeList();
+  const ranges = list ? list.getRanges() : [];
+  if (ranges.length > 1) return { problem: 'Select one block of rows only' + again };
+  const sheet = ranges.length === 1 ? ranges[0].getSheet() : null;
+  if (!sheet || Object.keys(HEADERS).indexOf(sheet.getName()) < 0) return { problem: 'Select the new rows on the Pledges or Payments tab first' + again };
+  if (ranges[0].getRow() === 1) return { problem: 'The selection includes row 1, the column names. Select only the new rows below it' + again };
+  return { tab: sheet.getName(), sheet: sheet, first: ranges[0].getRow(), count: ranges[0].getNumRows() };
+}
+
+// Reads the selection and what it is checked against once each, never a row at a time, so a few
+// thousand rows take seconds. Empty rows are skipped. The signature covers what the organiser was
+// asked about, so a plan made again under the lock can tell whether anything changed meanwhile.
+function planRows_(selection) {
+  const tab = selection.tab;
+  const timeZone = spreadsheetTimeZone_();
+  const existing = rowsWithId_(tab, selection.sheet, timeZone);
+  const pledgeAt = firstRowByKey_(tab === 'Pledges' ? existing : rowsWithId_('Pledges', sheet_('Pledges'), timeZone), (record) => phoneKey_(record.phone));
+  const paymentAt = firstRowByKey_(tab === 'Payments' ? existing : [], paymentKey_);
+  const methods = tab === 'Payments' ? readSettings_().paymentMethods : [];
+  const block = selection.sheet.getRange(selection.first, 1, selection.count, HEADERS[tab].length);
+  const values = block.getValues();
+  const formats = block.getNumberFormats();
+  const plan = { values: values, entries: [], problems: [], warnings: [] };
+  values.forEach((row, i) => {
+    if (row.every(isBlankCell_)) return;
+    const rowNumber = selection.first + i;
+    const note = (list, field, text) => list.push('Row ' + rowNumber + (field ? ', ' + field + ' (column ' + columnLetter_(HEADERS[tab].indexOf(field)) + ')' : '') + ': ' + text);
+    const checked = checkRow_(tab, row, formats[i], methods, timeZone);
+    if (checked.problems.length > 0) {
+      checked.problems.forEach((problem) => note(plan.problems, problem.field, problem.text));
+      return;
+    }
+    const record = checked.record;
+    const pledge = pledgeAt.get(phoneKey_(record.phone));
+    if (tab === 'Pledges') {
+      // A donor on two pledge rows has every payment counted twice.
+      if (pledge) {
+        note(plan.problems, 'phone', pledge.selected ? 'this number is also on row ' + pledge.rowNumber + '. Keep one pledge row per donor.' : 'this number is already on the pledge in row ' + pledge.rowNumber + '. Bring in only their payments, and leave this row out.');
+        return;
+      }
+      pledgeAt.set(phoneKey_(record.phone), { rowNumber: rowNumber, selected: true });
+    } else {
+      // Two real payments can share a phone, amount and date, so neither of these stops the rows.
+      if (!pledge) note(plan.warnings, 'phone', 'no pledge has this number, so the payment may show ' + WARNING_MARK + ' phone not in Pledges and not count. Add the pledge first, or check the number.');
+      const same = paymentAt.get(paymentKey_(record));
+      if (!same) paymentAt.set(paymentKey_(record), { rowNumber: rowNumber, selected: true });
+      else if (same.selected) note(plan.warnings, '', 'row ' + same.rowNumber + ' has the same phone number, amount and date. If it is the same payment, leave one of them out.');
+      else note(plan.warnings, '', 'a payment with the same phone number, amount and date is already in the tracker, on row ' + same.rowNumber + '. If it is the same payment, leave this row out.');
+    }
+    plan.entries.push({ rowNumber: rowNumber, record: record });
+  });
+  plan.signature = JSON.stringify([values, plan.entries, plan.warnings]);
+  return plan;
+}
+
+// The rows the app loads, with their Sheet row numbers; reading them checks row 1 too.
+function rowsWithId_(tab, sheet, timeZone) {
+  const values = sheet.getDataRange().getValues();
+  assertHeaders_(tab, values[0]);
+  const rows = [];
+  values.forEach((row, i) => {
+    if (i > 0 && row[0] !== '') rows.push({ rowNumber: i + 1, record: toRecord_(tab, row, timeZone) });
+  });
+  return rows;
+}
+
+// A blank key never joins, as in the app, so a row with no phone matches nothing.
+function firstRowByKey_(rows, keyOf) {
+  const byKey = new Map();
+  rows.forEach((row) => {
+    const key = keyOf(row.record);
+    if (key !== '' && !byKey.has(key)) byKey.set(key, { rowNumber: row.rowNumber, selected: false });
+  });
+  return byKey;
+}
+
+function paymentKey_(record) {
+  const phone = phoneKey_(record.phone);
+  if (phone === '' || record.amountReceived === null) return '';
+  return [phone, Math.round(record.amountReceived * 100), record.dateReceived].join('|');
+}
+
+// Whitespace counts as empty: the organiser can't see it, and it never reaches the tracker.
+function isBlankCell_(cell) {
+  return typeof cell === 'string' && cell.trim() === '';
+}
+
+function columnLetter_(index) {
+  return String.fromCharCode(65 + index);
+}
+
+// What stops one selected row being added, as { field, text } for the organiser, or else the
+// record to write.
+function checkRow_(tab, row, formats, methods, timeZone) {
+  const refuse = (field, text) => ({ problems: [{ field: field, text: text }] });
+  // A row with an id is live: rewriting it here would skip the version check and history a save gets.
+  if (row[0] !== '') return refuse('', 'it already has an id in column A, so it is already in the tracker. Select only the new rows.');
+  // A Plain text cell would show the apostrophe toCell_ writes as part of the value.
+  const plainText = formats.map((format, i) => (format === '@' ? columnLetter_(i) : '')).filter(Boolean);
+  if (plainText.length > 0) {
+    return refuse('', 'some cells are formatted as Plain text (' + (plainText.length === 1 ? 'column ' : 'columns ') + plainText.join(', ') + '). Select the row, choose Format → Number → Automatic, then run this again.');
+  }
+  const record = toRecord_(tab, row, timeZone);
+  const problems = ENTRY_FIELDS[tab]
+    .map((field) => ({ field: field, text: cellProblem_(field, row[HEADERS[tab].indexOf(field)], record[field]) }))
+    .filter((problem) => problem.text !== '');
+  if (problems.length > 0) return { problems: problems };
+  // Keeps totals and notes rows out, as the Summary's count of rows with no id does.
+  if (!looksLikeEntry_(tab, record)) {
+    return isBlankPhone_(record.phone)
+      ? refuse('', "it has no phone number. Rows brought in this way need one, so that a totals or notes row is never counted. Add the donor's number (or a made-up one such as 000-0001), or leave the row out.")
+      : refuse('', 'it has no amount. Add the amount received, or leave the row out.');
+  }
+  if (tab === 'Payments') record.method = settingsSpelling_(record.method, methods);
+  try {
+    return { problems: [], record: validateRow_(tab, record, methods) };
+  } catch (err) {
+    if (!(err instanceof ApiError)) throw err;
+    const field = err.extra.field;
+    return refuse(field, field === 'method' ? '"' + record.method + "\" is not on the Settings tab's list (" + methods.join(', ') + '). Change it to one of those, or leave it blank.' : err.message);
+  }
+}
+
+// A cell the app would read differently from what the Sheet shows, or not at all: the ways a
+// pasted list quietly goes wrong. The value is what fromCell_ made of the cell.
+function cellProblem_(field, cell, value) {
+  const retype = 'Retype it starting with an apostrophe';
+  const plainNumber = 'Type a plain number such as 1250 or 1250.50.';
+  if (AMOUNT_FIELDS.indexOf(field) >= 0) {
+    if (value !== null || isBlankCell_(cell)) return '';
+    return isDate_(cell) ? 'the sheet turned it into a date. ' + plainNumber : '"' + cell + '" is not a plain number. ' + plainNumber;
+  }
+  if (DATE_FIELDS.indexOf(field) >= 0) {
+    if (value !== '' || isBlankCell_(cell)) return '';
+    return typeof cell === 'number'
+      ? 'the sheet holds the number ' + cell + ' here, not a date. Choose Format → Number → Date for the cell, or type the date as 2026-09-24.'
+      : 'the sheet does not read "' + cell + '" as a date. Type it as 2026-09-24.';
+  }
+  if (isDate_(cell)) return 'the sheet turned it into a date. ' + retype + (field === 'phone' ? ", such as '0551234." : '.');
+  if (field !== 'phone') return SHEET_ERROR.test(cell) ? 'it shows ' + cell + '. ' + retype + '.' : '';
+  // A phone typed without an apostrophe: a leading + makes a formula, and a number loses its leading 0.
+  if (typeof cell === 'string' && cell.charAt(0) === '#') return 'it shows ' + cell + '. ' + retype + ", such as '+1 336 555 0123.";
+  if (typeof cell === 'number' && String(Math.abs(cell)).replace(/\D/g, '').length < 10) {
+    return cell + ' has fewer than 10 digits, so the sheet may have dropped a leading 0. ' + retype + ", such as '0551234.";
+  }
+  return '';
+}
+
+// 'cash' or ' Cash ' as the Settings tab spells it; any other method is left for validateRow_.
+function settingsSpelling_(method, methods) {
+  const wanted = method.trim().toLowerCase();
+  if (wanted === '') return '';
+  const listed = methods.filter((candidate) => candidate.toLowerCase() === wanted)[0];
+  return listed === undefined ? method : listed;
+}
+
+function listed_(lines) {
+  const shown = lines.slice(0, LISTED_AT_MOST).map((line) => '• ' + line).join('\n');
+  return lines.length > LISTED_AT_MOST ? shown + '\n…and ' + (lines.length - LISTED_AT_MOST) + ' more.' : shown;
+}
+
+function rowWords_(tab, plan) {
+  const first = plan.entries[0].rowNumber;
+  const last = plan.entries[plan.entries.length - 1].rowNumber;
+  const one = plan.entries.length === 1;
+  return {
+    count: plan.entries.length + ' ' + (tab === 'Pledges' ? 'pledge' : 'payment') + (one ? '' : 's'),
+    rows: one ? 'row ' + first : 'rows ' + first + '–' + last,
+    them: one ? 'it' : 'them',
+    rowWord: one ? 'row' : 'rows',
+  };
+}
+
+// One write, in place, over the rows from the first entry to the last (so the tab never grows),
+// with the empty rows between them written back as read. A script write never runs onEdit.
+// updatedAt stays blank: assertUnchanged_ compares a blank version like any other, and Needs
+// follow-up then goes by each pledge's own dates instead of treating it as changed today.
+function writeEntries_(selection, plan, mark) {
+  const tab = selection.tab;
+  const first = plan.entries[0].rowNumber;
+  const last = plan.entries[plan.entries.length - 1].rowNumber;
+  const records = new Map(plan.entries.map((entry) => [entry.rowNumber, entry.record]));
+  const rows = plan.values.slice(first - selection.first, last - selection.first + 1).map((row, i) => {
+    const record = records.get(first + i);
+    return record ? toSheetRow_(tab, Object.assign({}, record, { id: Utilities.getUuid(), updatedAt: '', updatedBy: mark })) : row;
+  });
+  selection.sheet.getRange(first, 1, rows.length, HEADERS[tab].length).setValues(rows);
 }
 
 function ensureTab_(spreadsheet, name, headers, initialise) {
