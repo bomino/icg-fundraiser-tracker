@@ -5,6 +5,7 @@ export const IGNORED_CHARACTERS = /[\s\-().+\u2010-\u2015\u2212\u200b-\u200f\u20
 
 // Arabic-Indic and Persian digits, as an Arabic or Urdu keyboard types them. NFKC leaves these
 // alone. Both blocks start at a code point ending in 0, so each digit's value is its last hex digit.
+// Code.gs's phoneKey_ copies this and US_COUNTRY_CODE; test/contract.test.ts compares the two keys.
 const EASTERN_DIGITS = /[\u0660-\u0669\u06f0-\u06f9]/g;
 
 // The US country code in front of a North American number: '1 336 555 0123' rings the same line

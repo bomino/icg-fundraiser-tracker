@@ -1052,13 +1052,13 @@ function forTheOrganiser(): Child[] {
         ],
         [
           b('Tidy the list.'),
-          ' Keep one pledge row per donor, and one payment row per payment. Dates must be real dates, or typed like 2026-09-24. Amounts must be plain numbers such as 1250.50, with no $ or words. Payment methods must be spelled as on the Settings tab, or left empty. A phone number that starts with 0 or + must still have it. Look each donor up in ',
+          ' Keep one pledge row per donor, and one payment row per payment, and leave out totals and notes rows. Dates must be real dates, or typed like 2026-09-24. Amounts must be plain numbers such as 1250.50, with no $ or words. Payment methods must be spelled as on the Settings tab, or left empty. A phone number that starts with 0 or + must still have it. Look each donor up in ',
           b('Find donor'),
           ': if they are already in the tracker, bring in only their payments.',
         ],
         [
           b('Pledges first.'),
-          ' Put the list’s columns in this order: phone, name, date pledged, amount pledged, notes. Copy the rows. On the Pledges tab, click column B a few rows below the last row, and choose ',
+          ' Put the list’s columns in this order: phone, name, date pledged, amount pledged, notes. Copy the rows, just those five columns: the next two columns of the tab are the tracker’s own. On the Pledges tab, click column B a few rows below the last row, and choose ',
           b('Edit → Paste special → Values only'),
           '. Leave column A (id) empty. Rows pasted into it by mistake count in the tracker straight away, so delete them at once and paste again from column B.',
         ],
