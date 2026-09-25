@@ -203,6 +203,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
   - Derived columns are read-only and styled differently.
   - Red rows: duplicate pledges and not-counted payments. Amber cell: a future payment date.
   - On narrow screens the table collapses to cards.
+  - While a filter is on, "Download this list" beside "Showing N of M" saves exactly the rows on screen, filtered and sorted, to a workbook of that list (a plain table) plus an "About this list" sheet: the filter, when it was made, the figures' last load, the row count and the totals. A printout names the filter after "Showing N of M", and a paged list prints how many rows it left out.
 - **Add/edit dialog**
   - Entry fields only.
   - Payment method is a `<select>` from Settings.

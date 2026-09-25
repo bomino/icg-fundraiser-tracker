@@ -1,6 +1,7 @@
 import { todayIso } from '../dates';
-import type { Computed } from '../engine';
+import type { DerivedPayment, DerivedPledge } from '../engine';
 import { flooredGoalFraction, formatCents, formatDateTime } from '../format';
+import { toCents } from '../money';
 import type { State } from '../store';
 import type { Payment, Pledge } from '../types';
 
@@ -35,20 +36,20 @@ const LAST_CHANGED_AT = 'Last changed at';
 const LAST_CHANGED_HEADINGS = ['Last changed by', LAST_CHANGED_AT];
 const lastChanged = (row: Pledge | Payment): Cell[] => [row.updatedBy, excelLocalTime(row.updatedAt)];
 
-export function pledgeSheetRows(computed: Computed): Cell[][] {
+export function pledgeSheetRows(pledges: readonly DerivedPledge[]): Cell[][] {
   return [
     ['Phone Number', 'Donor Name', 'Date Pledged', 'Amount Pledged ($)', 'Last Payment Date', 'Amount Received ($)', 'Balance Due ($)', '# Payments', 'Status', 'Notes', 'Listed more than once', ...LAST_CHANGED_HEADINGS],
-    ...computed.pledges.map((d) => [
+    ...pledges.map((d) => [
       d.pledge.phone, d.pledge.name, excelDate(d.pledge.datePledged), d.pledge.amountPledged, excelDate(d.lastPaymentDate),
       dollars(d.receivedCents), dollars(d.balanceCents), d.paymentCount, d.status ?? '', d.pledge.notes, d.duplicate ? 'Yes' : '', ...lastChanged(d.pledge),
     ]),
   ];
 }
 
-export function paymentSheetRows(computed: Computed): Cell[][] {
+export function paymentSheetRows(payments: readonly DerivedPayment[]): Cell[][] {
   return [
     ['Phone Number', 'Donor Name', 'Date Received', 'Amount Received ($)', 'Payment Method', 'Notes', 'Counted', ...LAST_CHANGED_HEADINGS],
-    ...computed.payments.map((d) => [
+    ...payments.map((d) => [
       d.payment.phone, d.donorName, excelDate(d.payment.dateReceived), d.payment.amountReceived, d.payment.method, d.payment.notes, d.notCounted ? 'No' : 'Yes', ...lastChanged(d.payment),
     ]),
   ];
@@ -88,6 +89,40 @@ export function summarySheetRows(state: State, loadedAt: number | null): Cell[][
     [METHODS_HEADING, null],
     ...methods.map((row): Cell[] => [row.label, dollars(row.cents)]),
     ['Total (should match Payments Logged)', dollars(methodTotalCents)],
+  ];
+}
+
+/** A Pledges or Payments list exactly as the screen drew it, filtered and sorted, with its filter in words. */
+export type FilteredList =
+  | { list: 'Pledges'; filter: string; rows: readonly DerivedPledge[] }
+  | { list: 'Payments'; filter: string; rows: readonly DerivedPayment[] };
+
+// A filtered list is usually a call list, which is the kind of file that gets printed or left on a phone.
+const LIST_PRIVACY_NOTE = 'Keep this list private. Delete the file, and shred any printout of it, once you are done with it.';
+
+const sumCents = (values: readonly number[]): number => values.reduce((sum, cents) => sum + cents, 0);
+
+function listTotalRows(list: FilteredList): Cell[][] {
+  if (list.list === 'Payments') return [['Total Amount Received ($)', dollars(sumCents(list.rows.map((d) => toCents(d.payment.amountReceived) ?? 0)))]];
+  const balances = list.rows.map((d) => d.balanceCents ?? 0);
+  // Kept apart, as on the Summary, so one donor's credit never shrinks what another still owes.
+  return [
+    ['Balance Outstanding ($)', dollars(sumCents(balances.filter((cents) => cents > 0)))],
+    ['Overpaid / Credit ($)', dollars(Math.abs(sumCents(balances.filter((cents) => cents < 0))))],
+  ];
+}
+
+export function aboutListRows(list: FilteredList, loadedAt: number | null, now: Date): Cell[][] {
+  return [
+    ['List', list.list],
+    ['Filtered to', list.filter],
+    ['Made on', formatDateTime(now.getTime())],
+    // Saved as the screen showed it, without a refresh first, so its figures are only as fresh as the last load.
+    ['Figures as of', loadedAt === null ? null : formatDateTime(loadedAt)],
+    [`${list.list} on this list`, list.rows.length],
+    ...listTotalRows(list),
+    [],
+    [LIST_PRIVACY_NOTE],
   ];
 }
 
@@ -171,28 +206,69 @@ export async function buildSummarySheet(state: State, loadedAt: number | null): 
   return sheet;
 }
 
+function confidentialBook(XLSX: Xlsx, created: Date): import('xlsx').WorkBook {
+  const book = XLSX.utils.book_new();
+  // The title says confidential because the file holds donors' names, phone numbers and amounts.
+  // No Author: who pressed Download says nothing about the figures, and Last changed by already names who saved each row.
+  book.Props = { Title: 'ICG Fundraiser (confidential)', CreatedDate: created };
+  return book;
+}
+
 export async function buildWorkbook(state: State, loadedAt: number | null): Promise<import('xlsx').WorkBook> {
   const XLSX = await import('xlsx');
-  const book = XLSX.utils.book_new();
-  // The title says confidential because the file holds every donor's name, phone number and amounts.
-  // No Author: who pressed Download says nothing about the figures, and Last changed by already names who saved each row.
-  book.Props = { Title: 'ICG Fundraiser (confidential)', CreatedDate: new Date() };
+  const book = confidentialBook(XLSX, new Date());
   // Summary first, so the file opens on the totals rather than on the raw list of donors.
   XLSX.utils.book_append_sheet(book, await buildSummarySheet(state, loadedAt), 'Summary');
-  XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, pledgeSheetRows(state.computed)), 'Pledges');
-  XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, paymentSheetRows(state.computed)), 'Payments');
+  XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, pledgeSheetRows(state.computed.pledges)), 'Pledges');
+  XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, paymentSheetRows(state.computed.payments)), 'Payments');
+  return book;
+}
+
+// The rows come first, as a plain table with nothing above its headings or below its last row, so
+// Excel's sort and filter treat every row as data; what the list is goes on a sheet of its own.
+export async function buildListWorkbook(list: FilteredList, loadedAt: number | null, now: Date = new Date()): Promise<import('xlsx').WorkBook> {
+  const XLSX = await import('xlsx');
+  const book = confidentialBook(XLSX, now);
+  const rows = list.list === 'Pledges' ? pledgeSheetRows(list.rows) : paymentSheetRows(list.rows);
+  XLSX.utils.book_append_sheet(book, buildListSheet(XLSX, rows), list.list);
+  const about = aboutListRows(list, loadedAt, now);
+  const aboutSheet = XLSX.utils.aoa_to_sheet(about);
+  formatSheet(XLSX, aboutSheet, about, (r, c) => (c === 1 && isMoneyLabel(about[r][0]) ? MONEY_FORMAT : undefined));
+  XLSX.utils.book_append_sheet(book, aboutSheet, 'About this list');
   return book;
 }
 
 // The same moment as the "Figures as of" row, to the minute, so two copies from one day get two
 // names rather than a browser's "(1)"; no colons, which Windows forbids in a file name.
-export function workbookFileName(loadedAt: number | null, now: Date = new Date()): string {
+function fileNameStamp(loadedAt: number | null, now: Date): string {
   const moment = loadedAt === null ? now : new Date(loadedAt);
   const time = [moment.getHours(), moment.getMinutes()].map((part) => String(part).padStart(2, '0')).join('');
-  return `ICG-Fundraiser-${todayIso(moment)}-${time}.xlsx`;
+  return `${todayIso(moment)}-${time}`;
+}
+
+export function workbookFileName(loadedAt: number | null, now: Date = new Date()): string {
+  return `ICG-Fundraiser-${fileNameStamp(loadedAt, now)}.xlsx`;
+}
+
+// Letters and digits in any script, so a searched name survives but nothing a file system forbids
+// (such as / or :) does. Cut by characters, not UTF-16 units, so no letter is split in half.
+const MAX_FILTER_IN_FILE_NAME = 60;
+function fileNamePart(text: string): string {
+  const words = text.replace(/[^\p{L}\p{M}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
+  return Array.from(words).slice(0, MAX_FILTER_IN_FILE_NAME).join('').replace(/-+$/, '');
+}
+
+export function listFileName(list: FilteredList, loadedAt: number | null, now: Date = new Date()): string {
+  return `${['ICG', list.list, fileNamePart(list.filter), fileNameStamp(loadedAt, now)].filter((part) => part !== '').join('-')}.xlsx`;
 }
 
 export async function downloadWorkbook(state: State, loadedAt: number | null): Promise<void> {
   const XLSX = await import('xlsx');
   XLSX.writeFile(await buildWorkbook(state, loadedAt), workbookFileName(loadedAt));
+}
+
+export async function downloadList(list: FilteredList, loadedAt: number | null): Promise<void> {
+  const XLSX = await import('xlsx');
+  const now = new Date();
+  XLSX.writeFile(await buildListWorkbook(list, loadedAt, now), listFileName(list, loadedAt, now));
 }

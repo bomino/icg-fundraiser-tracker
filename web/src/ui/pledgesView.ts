@@ -7,7 +7,8 @@ import { isPending, type State, type Store } from '../store';
 import type { Pledge } from '../types';
 import { statusBadge } from './badges';
 import { h } from './dom';
-import { filterChip, showingLine, toggleChip, type ListFilter } from './filter';
+import { downloadList } from './export';
+import { describeFilter, filterChip, searchFilter, showingLine, toggleChip, type ListFilter } from './filter';
 import { openPaymentForm } from './paymentForm';
 import { openPledgeForm } from './pledgeForm';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
@@ -82,17 +83,18 @@ export function createPledgesView(deps: ListViewDeps) {
       return d.status === statusChip;
     };
     const tableSlot = h('div');
-    const showing = h('div');
+    const showing = h('div', { class: 'list-status' });
     const drawTable = () => {
       const rows = state.computed.pledges.filter(
         (d) => (!filter || filter.ids.has(d.pledge.id)) && matchesChip(d) && matchesQuery(query, [d.pledge.phone, d.pledge.name, d.pledge.notes], d.key),
       );
       // "Needs follow-up" defaults to worst-balance-first; a column click still wins once the volunteer picks one.
       const ordered = statusChip === FOLLOW_UP_CHIP && !sort ? [...rows].sort((a, b) => (b.balanceCents ?? 0) - (a.balanceCents ?? 0)) : rows;
+      const sorted = sortRows(ordered, COLUMNS, sort);
       tableSlot.replaceChildren(
         renderTable({
           columns: COLUMNS,
-          rows: sortRows(ordered, COLUMNS, sort),
+          rows: sorted,
           sort,
           rowId: (d) => d.pledge.id,
           rowClass: (d) => (d.duplicate ? 'row-danger' : undefined),
@@ -110,8 +112,16 @@ export function createPledgesView(deps: ListViewDeps) {
           },
         }),
       );
-      const line = showingLine(!!filter || query.trim() !== '' || statusChip !== ALL_CHIP, rows.length, state.computed.pledges.length);
-      showing.replaceChildren(...(line ? [line] : []));
+      const filterName = describeFilter([filter?.label, statusChip === ALL_CHIP ? '' : statusChip, searchFilter(query)]);
+      showing.replaceChildren(
+        ...showingLine({
+          filter: filterName,
+          shown: sorted.length,
+          total: state.computed.pledges.length,
+          download: () => downloadList({ list: 'Pledges', filter: filterName, rows: sorted }, deps.store.lastLoadedAt()),
+          reportError: deps.reportError,
+        }),
+      );
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', 'data-focus-key': 'pledges-search' });
     search.value = query;

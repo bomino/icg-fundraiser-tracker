@@ -145,6 +145,13 @@ describe('table', () => {
       expect(over.querySelector('.show-more')).toBeNull();
     });
 
+    it('says on paper how many rows it left out, since print hides the "Show more" button', () => {
+      const paged = (visibleCount: number) => renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount, onShowMore: vi.fn() });
+      expect(paged(TABLE_PAGE_SIZE).querySelector('.print-only')?.textContent).toBe(`${250 - TABLE_PAGE_SIZE} more rows not shown.`);
+      expect(paged(249).querySelector('.print-only')?.textContent).toBe('1 more row not shown.');
+      expect(paged(250).querySelector('.print-only')).toBeNull();
+    });
+
     it('pages the already sorted and filtered rows, not the other way round: page 1 holds the first 100 of the SORTED order', () => {
       const sorted = sortRows(many, columns, { key: 'amount', direction: 'desc' });
       const wrap = renderTable({ columns, rows: sorted, sort: { key: 'amount', direction: 'desc' }, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount: TABLE_PAGE_SIZE, onShowMore: vi.fn() });

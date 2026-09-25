@@ -56,3 +56,7 @@ a { color: var(--color-emerald); }
   .container { padding: 0; max-width: none; }
   .card, .stat-card { box-shadow: none; break-inside: avoid; }
 }
+/* What paper alone needs, such as the filter a printed list shows: on screen the controls already say it. */
+@media not print {
+  .print-only { display: none !important; }
+}

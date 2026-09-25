@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compute } from '../../web/src/engine';
 import type { State } from '../../web/src/store';
-import { DATE_SHEET_OPTIONS, buildSummarySheet, buildWorkbook, paymentSheetRows, pledgeSheetRows, summarySheetRows, workbookFileName } from '../../web/src/ui/export';
+import { DATE_SHEET_OPTIONS, aboutListRows, buildListWorkbook, buildSummarySheet, buildWorkbook, listFileName, paymentSheetRows, pledgeSheetRows, summarySheetRows, workbookFileName } from '../../web/src/ui/export';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 const utc = (year: number, month: number, day: number, hour = 0, minute = 0) => new Date(Date.UTC(year, month - 1, day, hour, minute));
@@ -9,6 +9,7 @@ const LOADED_AT = new Date(2026, 8, 24, 14, 1).getTime();
 // 7:30 PM on the downloading device's own clock, whatever time zone the tests run in; the server
 // stores it as UTC text.
 const SAVED_AT = new Date(2026, 8, 24, 19, 30).toISOString();
+const MONEY_FORMAT = '"$"#,##0.00;("$"#,##0.00)';
 
 describe('export rows', () => {
   const computed = compute(
@@ -18,12 +19,12 @@ describe('export rows', () => {
     TODAY,
   );
   it('keeps phones as text, dates as UTC-midnight Date objects, and money in dollars', () => {
-    expect(pledgeSheetRows(computed)[0]).toEqual(['Phone Number', 'Donor Name', 'Date Pledged', 'Amount Pledged ($)', 'Last Payment Date', 'Amount Received ($)', 'Balance Due ($)', '# Payments', 'Status', 'Notes', 'Listed more than once', 'Last changed by', 'Last changed at']);
-    expect(pledgeSheetRows(computed)[1]).toEqual(['0551234', 'Hamza', null, 50, utc(2025, 2, 11), 20.5, 29.5, 1, 'Partial', '', '', 'amina@example.com', utc(2026, 9, 24, 19, 30)]);
+    expect(pledgeSheetRows(computed.pledges)[0]).toEqual(['Phone Number', 'Donor Name', 'Date Pledged', 'Amount Pledged ($)', 'Last Payment Date', 'Amount Received ($)', 'Balance Due ($)', '# Payments', 'Status', 'Notes', 'Listed more than once', 'Last changed by', 'Last changed at']);
+    expect(pledgeSheetRows(computed.pledges)[1]).toEqual(['0551234', 'Hamza', null, 50, utc(2025, 2, 11), 20.5, 29.5, 1, 'Partial', '', '', 'amina@example.com', utc(2026, 9, 24, 19, 30)]);
   });
   it('marks payments that were not counted', () => {
-    expect(paymentSheetRows(computed)[0]).toEqual(['Phone Number', 'Donor Name', 'Date Received', 'Amount Received ($)', 'Payment Method', 'Notes', 'Counted', 'Last changed by', 'Last changed at']);
-    expect(paymentSheetRows(computed)[1]).toEqual(['0551234', 'Hamza', utc(2025, 2, 11), 20.5, 'Cash', '', 'Yes', 'bilal@example.com', utc(2026, 9, 24, 19, 30)]);
+    expect(paymentSheetRows(computed.payments)[0]).toEqual(['Phone Number', 'Donor Name', 'Date Received', 'Amount Received ($)', 'Payment Method', 'Notes', 'Counted', 'Last changed by', 'Last changed at']);
+    expect(paymentSheetRows(computed.payments)[1]).toEqual(['0551234', 'Hamza', utc(2025, 2, 11), 20.5, 'Cash', '', 'Yes', 'bilal@example.com', utc(2026, 9, 24, 19, 30)]);
   });
   it('leaves Last changed at blank for a row still being saved, or one with no readable time', () => {
     const undated = compute(
@@ -32,7 +33,7 @@ describe('export rows', () => {
       SETTINGS,
       TODAY,
     );
-    expect(pledgeSheetRows(undated).slice(1).map((row) => row.at(-1))).toEqual([null, null]);
+    expect(pledgeSheetRows(undated.pledges).slice(1).map((row) => row.at(-1))).toEqual([null, null]);
   });
 });
 
@@ -118,7 +119,7 @@ describe('workbook date cells', () => {
       SETTINGS,
       TODAY,
     );
-    const sheet = XLSX.utils.aoa_to_sheet(pledgeSheetRows(dated), DATE_SHEET_OPTIONS);
+    const sheet = XLSX.utils.aoa_to_sheet(pledgeSheetRows(dated.pledges), DATE_SHEET_OPTIONS);
     // Column C is Date Pledged; row 2 is Aisha, row 3 is the donor with no date yet.
     expect(sheet['C2'].t).toBe('d');
     expect(sheet['C2'].z).toBe('yyyy-mm-dd');
@@ -128,7 +129,6 @@ describe('workbook date cells', () => {
 });
 
 describe('workbook layout', () => {
-  const MONEY_FORMAT = '"$"#,##0.00;("$"#,##0.00)';
   const longNote = 'Pays in instalments after each Friday prayer until the end of Ramadan';
   const layoutPledges = [
     pledge({ phone: '555-0101', name: 'Aisha', datePledged: '2026-03-01', amountPledged: 1000, notes: longNote, updatedAt: SAVED_AT }),
@@ -220,5 +220,99 @@ describe('workbook layout', () => {
     expect(book.Sheets.Pledges['!cols']?.[2].wch).toBeGreaterThanOrEqual('2026-03-01'.length);
     // The downloading device's local time, not the UTC the server stored.
     expect(book.Sheets.Pledges['M2'].w).toBe('2026-09-24 19:30');
+  });
+});
+
+describe('a list downloaded as filtered', () => {
+  const MADE_AT = new Date(2026, 8, 24, 16, 30);
+  const listPledges = [
+    pledge({ phone: '555-0101', name: 'Aisha', amountPledged: 100 }),
+    pledge({ phone: '555-0102', name: 'Bilal', amountPledged: 50 }),
+    pledge({ phone: '555-0103', name: 'Chen', amountPledged: 300 }),
+    pledge({ phone: '555-0104', name: 'No Amount Yet' }),
+  ];
+  const listPayments = [
+    payment({ phone: '555-0101', dateReceived: '2026-07-01', amountReceived: 20, method: 'Cash' }),
+    payment({ phone: '555-0102', dateReceived: '2026-07-02', amountReceived: 80, method: 'Card' }),
+    payment({ phone: '555-0199', dateReceived: '2026-07-03', amountReceived: 12.5, method: 'Cash' }),
+    payment({ phone: '555-0103', dateReceived: '2026-07-04' }),
+  ];
+  const computed = compute(listPledges, listPayments, SETTINGS, TODAY);
+  // In the order the screen drew them, not the order they were entered: Chen, Bilal, Aisha, then the pledge with no amount.
+  const shownPledges = [2, 1, 0, 3].map((index) => computed.pledges[index]);
+  const pledgeList = { list: 'Pledges', filter: 'Needs follow-up · Search “a”', rows: shownPledges } as const;
+  const PRIVACY = 'Keep this list private. Delete the file, and shred any printout of it, once you are done with it.';
+
+  it('opens on the rows as a plain table: headings on row 1, the rows in their on-screen order, and nothing below them', async () => {
+    const book = await buildListWorkbook(pledgeList, LOADED_AT, MADE_AT);
+    expect(book.SheetNames).toEqual(['Pledges', 'About this list']);
+    const sheet = book.Sheets.Pledges;
+    expect(sheet['A1'].v).toBe('Phone Number');
+    expect(['A2', 'A3', 'A4', 'A5'].map((ref) => sheet[ref].v)).toEqual(['555-0103', '555-0102', '555-0101', '555-0104']);
+    expect(sheet['!ref']).toBe('A1:M5');
+    expect(sheet['!autofilter']).toEqual({ ref: 'A1:M5' });
+    expect(sheet['G2'].z).toBe(MONEY_FORMAT);
+  });
+
+  it('writes a payment list the same way, under its own name', async () => {
+    const book = await buildListWorkbook({ list: 'Payments', filter: 'Search “Cash”', rows: computed.payments }, LOADED_AT, MADE_AT);
+    expect(book.SheetNames).toEqual(['Payments', 'About this list']);
+    expect(book.Sheets.Payments['A1'].v).toBe('Phone Number');
+    expect(book.Sheets.Payments['!autofilter']).toEqual({ ref: 'A1:I5' });
+  });
+
+  it('says on a second sheet what the list is filtered to, when it was made, how many rows it has and what they add up to', () => {
+    expect(aboutListRows(pledgeList, LOADED_AT, MADE_AT)).toEqual([
+      ['List', 'Pledges'],
+      ['Filtered to', 'Needs follow-up · Search “a”'],
+      ['Made on', 'Sep 24, 2026, 4:30 PM'],
+      ['Figures as of', 'Sep 24, 2026, 2:01 PM'],
+      ['Pledges on this list', 4],
+      // As on the Summary: Bilal's $30 credit never shrinks what Aisha and Chen still owe.
+      ['Balance Outstanding ($)', 380],
+      ['Overpaid / Credit ($)', 30],
+      [],
+      [PRIVACY],
+    ]);
+  });
+
+  it('adds up every payment on a payment list, counted or not, and a blank amount as nothing', () => {
+    const rows = aboutListRows({ list: 'Payments', filter: 'Received Jul 1, 2026 – Jul 31, 2026', rows: computed.payments }, LOADED_AT, MADE_AT);
+    expect(rows.slice(4)).toEqual([['Payments on this list', 4], ['Total Amount Received ($)', 112.5], [], [PRIVACY]]);
+  });
+
+  it('leaves Figures as of blank, never a 1970 date, before the first load', () => {
+    expect(aboutListRows(pledgeList, null, MADE_AT)[3]).toEqual(['Figures as of', null]);
+  });
+
+  it('formats the totals on that sheet as money, and the row count as a plain number', async () => {
+    const about = (await buildListWorkbook(pledgeList, LOADED_AT, MADE_AT)).Sheets['About this list'];
+    expect(about['B6'].z).toBe(MONEY_FORMAT);
+    expect(about['B7'].z).toBe(MONEY_FORMAT);
+    expect(about['B5'].z).toBeUndefined();
+    expect(about['!autofilter']).toBeUndefined();
+  });
+
+  it('marks the file confidential, like the full download', async () => {
+    const XLSX = await import('xlsx');
+    const written = XLSX.write(await buildListWorkbook(pledgeList, LOADED_AT, MADE_AT), { type: 'buffer', bookType: 'xlsx' });
+    expect(XLSX.read(written).Props?.Title).toBe('ICG Fundraiser (confidential)');
+  });
+
+  it('names the file after the list and its filter, for the same minute as its Figures as of row', () => {
+    expect(listFileName({ list: 'Pledges', filter: 'Needs follow-up', rows: [] }, LOADED_AT)).toBe('ICG-Pledges-Needs-follow-up-2026-09-24-1401.xlsx');
+    expect(listFileName({ list: 'Payments', filter: 'Received Jul 1, 2026 – Jul 31, 2026 · Search “Cash”', rows: [] }, LOADED_AT)).toBe(
+      'ICG-Payments-Received-Jul-1-2026-Jul-31-2026-Search-Cash-2026-09-24-1401.xlsx',
+    );
+    expect(listFileName({ list: 'Pledges', filter: 'Pending', rows: [] }, null, new Date(2026, 8, 24, 16, 30))).toBe('ICG-Pledges-Pending-2026-09-24-1630.xlsx');
+  });
+
+  it('keeps only the letters and digits of the filter in the file name, in any script, and keeps it short', () => {
+    expect(listFileName({ list: 'Pledges', filter: 'Search “a/b:c?*”', rows: [] }, LOADED_AT)).toBe('ICG-Pledges-Search-a-b-c-2026-09-24-1401.xlsx');
+    expect(listFileName({ list: 'Pledges', filter: 'Search “عائشة”', rows: [] }, LOADED_AT)).toBe('ICG-Pledges-Search-عائشة-2026-09-24-1401.xlsx');
+    const long = listFileName({ list: 'Pledges', filter: `Search “${'word '.repeat(40)}”`, rows: [] }, LOADED_AT);
+    const filterPart = long.slice('ICG-Pledges-'.length, -'-2026-09-24-1401.xlsx'.length);
+    expect(filterPart.length).toBeLessThanOrEqual(60);
+    expect(filterPart).toMatch(/^Search-word-word-[\w-]*[^-]$/);
   });
 });

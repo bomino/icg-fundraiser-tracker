@@ -18,8 +18,35 @@ export function toggleChip(label: string, pressed: boolean, onToggle: () => void
   return chip;
 }
 
-/** "Showing N of M", rendered only while the caller says a filter is active. */
-export function showingLine(active: boolean, shown: number, total: number): HTMLElement | null {
-  if (!active) return null;
-  return h('p', { class: 'meta' }, `Showing ${shown} of ${total}`);
+/** The filters in force, in words, for a printout and a downloaded list; "" while none is on. */
+export function describeFilter(parts: ReadonlyArray<string | undefined>): string {
+  return parts.filter((part) => part !== undefined && part !== '').join(' · ');
+}
+
+export function searchFilter(query: string): string {
+  const text = query.trim();
+  return text === '' ? '' : `Search “${text}”`;
+}
+
+export interface ShowingOptions {
+  /** From describeFilter: the line shows only while this names a filter. */
+  filter: string;
+  shown: number;
+  total: number;
+  /** Saves the rows the caller drew, as filtered and sorted: a file that filtered for itself could quietly disagree with the screen. */
+  download: () => Promise<void>;
+  reportError(err: unknown, context?: string): void;
+}
+
+/** "Showing N of M", and a Download this list button while any row matches. */
+export function showingLine(options: ShowingOptions): HTMLElement[] {
+  if (options.filter === '') return [];
+  // Print hides the search box, chips and date range, so on paper the line names the filter itself.
+  const line = h('p', { class: 'meta' }, `Showing ${options.shown} of ${options.total}`, h('span', { class: 'print-only' }, ` · ${options.filter}`));
+  if (options.shown === 0) return [line];
+  const download = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Download this list');
+  download.addEventListener('click', () => {
+    options.download().catch((err: unknown) => options.reportError(err, "Couldn't download the file"));
+  });
+  return [line, download];
 }

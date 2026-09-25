@@ -112,6 +112,8 @@ textarea.input { resize: vertical; }
 .row-saving { margin-left: var(--space-sm); font-size: 0.75rem; font-style: italic; color: var(--color-ink-soft); }
 .cell-warning { background: var(--color-warning-tint); color: var(--color-ink); box-shadow: inset 3px 0 0 var(--color-warning); }
 .totals-band { font-size: 0.8125rem; color: var(--color-ink-soft); }
+/* Download this list sits beside "Showing N of M", so it reads as saving the list that line counts. */
+.list-status { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 /* Wraps a paged table plus its "Show more" button; a tighter gap than the view grid's own, so the button reads as part of the table rather than a new section. */
 .table-pager { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
 
