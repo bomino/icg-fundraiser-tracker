@@ -268,7 +268,7 @@ function gettingStarted(): Child[] {
       steps(
         ['Open the tracker’s web address.'],
         ['Press the ', b('Sign in with Google'), ' button and choose your Google account.'],
-        ['The Summary opens. If that takes more than a few seconds, you see ', said(SAID.stillLoading), ' Your email address shows at the top of the page on a computer.'],
+        ['The tracker opens on the Summary the first time, and after that on whichever page you last had open on that device. If that takes more than a few seconds, you see ', said(SAID.stillLoading), ' Your email address shows at the top of the page on a computer.'],
       ),
       p('Only people on the organiser’s volunteer list can open the tracker. If you see ', b(SAID.notOnListTitle), ', see ', b('When something goes wrong'), '.'),
       p('If you reload the page, you stay signed in for up to an hour, but only in that same tab. In a new tab or window you sign in again.'),

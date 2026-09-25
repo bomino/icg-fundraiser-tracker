@@ -16,7 +16,7 @@ export interface Auth {
 // person on a shared computer "Continue as <volunteer>".
 const SIGNED_OUT_FLAG = 'signedout';
 
-/** Drops the route too, so signing in again opens the Summary. */
+/** Drops the route too, so signing in again opens the view last used on this device (rememberedView in app.ts), never one the old address held, such as the Friday display. */
 export function signedOutUrl(href: string): string {
   const url = new URL(href);
   url.hash = '';
