@@ -203,6 +203,21 @@ describe('mountApp', () => {
     expect(location.reload).toHaveBeenCalledTimes(1);
   });
 
+  // A refused refresh used to be read out as an alert toast. The page is now replaced along with the
+  // control that had focus, so a screen reader says nothing about why unless focus lands on the screen.
+  it('clears the page on the auto-refresh on return too, and moves focus to its heading', async () => {
+    const { store } = fakeStore();
+    store.load.mockRejectedValueOnce(new ApiError('FORBIDDEN', 'me@example.com is not on the volunteer list.'));
+    store.lastLoadedAt.mockReturnValue(Date.now() - 10 * 60_000);
+    mountApp(root, { store, auth: fakeAuth() });
+    (root.querySelector('.row-open') as HTMLButtonElement).focus();
+
+    setVisibility('visible');
+
+    await vi.waitFor(() => expect(root.querySelector('h1')?.textContent).toBe('Not on the volunteer list'));
+    expect(document.activeElement).toBe(root.querySelector('h1'));
+  });
+
   // One mistaken Allowlist edit must not put an error screen on the projector.
   it('keeps the Friday display’s figures when its reconnect finds this account removed', async () => {
     history.replaceState(null, '', '#display');

@@ -117,6 +117,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
       body: `${err.message} If you still help with the fundraiser, ask the organiser to add your Google account back, then press Try again.`,
       action: { label: 'Try again', run: () => window.location.reload() },
     });
+    // The control that had focus went with the old page, and no alert toast says why it changed, so a
+    // screen reader hears nothing unless focus lands on the new screen.
+    const heading = root.querySelector<HTMLElement>('h1');
+    heading?.setAttribute('tabindex', '-1');
+    heading?.focus();
   };
   const reload = async () => {
     refresh.disabled = true;
