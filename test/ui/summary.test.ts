@@ -79,6 +79,29 @@ describe('summary', () => {
     expect(view.querySelector('[data-health=duplicates] button')).toBeNull();
   });
 
+  it('names each Show button after its check, so a screen reader’s list of buttons tells them apart', () => {
+    const { view } = render();
+    const show = view.querySelector('[data-health=notMatched] button') as HTMLButtonElement;
+    expect(show.textContent).toBe('Show');
+    expect(show.getAttribute('aria-label')).toBe('Show 1: Payments not matched to a pledge');
+  });
+
+  it('prints a flagged check’s count, which print would hide if it lived inside the Show button', () => {
+    const { view } = render();
+    const flagged = view.querySelector('[data-health=notMatched]') as HTMLElement;
+    const counts = [...flagged.querySelectorAll('.numeric-lg')].filter((el) => !el.closest('.btn'));
+    expect(counts.map((el) => el.textContent)).toEqual(['1']);
+    expect(flagged.children).toHaveLength(2);
+    expect(view.querySelector('[data-health=duplicates] .numeric-lg')?.textContent).toBe('0');
+  });
+
+  it('prints the goal bar, the method colours and a check’s flag even with background graphics off', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'base.css'), 'utf8');
+    const print = /@media print \{([^]*?)\n\}/.exec(css)?.[1] ?? '';
+    const selectors = /([^{}/]+)\{ -webkit-print-color-adjust: exact; print-color-adjust: exact; \}/.exec(print)?.[1] ?? '';
+    expect(selectors.split(',').map((selector) => selector.trim())).toEqual(['.progress-track', '.progress-fill', '.swatch', '.health-list li.is-flagged']);
+  });
+
   it('draws the method chart once the view is on the page', async () => {
     const { deps } = render();
     await Promise.resolve();

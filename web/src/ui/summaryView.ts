@@ -24,11 +24,15 @@ function freshness(loadedAt: number | null): HTMLElement {
 const statCard = (label: string, value: string) => h('div', { class: 'stat-card' }, h('p', { class: 'eyebrow' }, label), h('p', { class: 'numeric-xl stat-value' }, value));
 const stat = (label: string, value: string | number) => h('div', {}, h('p', { class: 'eyebrow' }, label), h('p', { class: 'numeric-lg' }, String(value)));
 
+// The count is its own number, never the button's text: print hides every button, and a flagged
+// check must not print as a bare label beside the clean checks' reassuring zeros.
 function healthItem(check: HealthCheck, deps: SummaryDeps): HTMLElement {
   const count = check.ids.length;
-  const action = count > 0 ? h('button', { type: 'button', class: 'btn btn-ghost' }, `Show ${count}`) : h('span', { class: 'numeric-lg ink-soft' }, '0');
-  if (action instanceof HTMLButtonElement) action.addEventListener('click', () => deps.showList(check.target, { label: check.label, ids: new Set(check.ids) }));
-  return h('li', { 'data-health': check.id, class: count > 0 ? 'is-flagged' : undefined }, h('span', {}, check.label), action);
+  const label = h('span', {}, check.label);
+  if (count === 0) return h('li', { 'data-health': check.id }, label, h('span', { class: 'numeric-lg ink-soft' }, '0'));
+  const show = h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': `Show ${count}: ${check.label}` }, 'Show');
+  show.addEventListener('click', () => deps.showList(check.target, { label: check.label, ids: new Set(check.ids) }));
+  return h('li', { 'data-health': check.id, class: 'is-flagged' }, label, h('span', { class: 'health-count' }, show, h('span', { class: 'numeric-lg' }, String(count))));
 }
 
 function methodTable(state: State): HTMLElement {

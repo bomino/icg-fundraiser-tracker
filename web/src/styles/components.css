@@ -177,6 +177,7 @@ textarea.input { resize: vertical; }
 .health-list li:last-child { border-bottom: 0; }
 /* A tinted block per row merged into one heavy slab when several checks fire; a warning rule per row keeps it calm. */
 .health-list li.is-flagged { background: none; box-shadow: inset 3px 0 0 var(--color-warning); }
+.health-count { display: flex; align-items: center; gap: var(--space-sm); }
 .chart-box { position: relative; width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; }
 .method-grid { display: grid; gap: var(--space-lg); grid-template-columns: minmax(180px, 240px) 1fr; align-items: center; }
 @media (max-width: 720px) {

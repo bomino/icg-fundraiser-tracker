@@ -55,6 +55,8 @@ a { color: var(--color-emerald); }
   .nav-bar, .toolbar, .btn, .banner, .toasts, .screen-only { display: none !important; }
   .container { padding: 0; max-width: none; }
   .card, .stat-card { box-shadow: none; break-inside: avoid; }
+  /* Colours that carry meaning; browsers drop backgrounds and shadows on paper unless told otherwise. */
+  .progress-track, .progress-fill, .swatch, .health-list li.is-flagged { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 /* What paper alone needs, such as the filter a printed list shows: on screen the controls already say it. */
 @media not print {
