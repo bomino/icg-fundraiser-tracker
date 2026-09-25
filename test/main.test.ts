@@ -33,7 +33,7 @@ describe('opening the tracker', () => {
   });
 
   it('loads on the sign-in this tab kept, and Try again loads again in place on that same sign-in', async () => {
-    const kept = encode({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    const kept = encode({ aud: 'client-id', exp: Math.floor(Date.now() / 1000) + 3600 });
     sessionStorage.setItem('icg-id-token', kept);
     const fetchMock = vi
       .fn<typeof fetch>()

@@ -140,7 +140,7 @@ describe('createAuth', () => {
     const auth = createAuth('client-id', document.createElement('div'));
     const pending = auth.getToken(false);
     await vi.waitFor(() => expect(renderButton).toHaveBeenCalled());
-    const credential = encode({ exp: nowSeconds() + 3600 });
+    const credential = encode({ aud: 'client-id', exp: nowSeconds() + 3600 });
     emitCredential(credential);
     await pending;
     return { auth, credential };
@@ -171,6 +171,20 @@ describe('createAuth', () => {
 
     await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
     warn.mockRestore();
+  });
+
+  // The server answers a token for another client ID with "different Google sign-in IDs… Reload the page",
+  // not UNAUTHENTICATED, so nothing would replace it: once the organiser fixes the site's ID, a reloaded tab
+  // must sign in afresh rather than resend the old token for the rest of its hour.
+  it('ignores a kept sign-in issued for another client ID, and asks again', async () => {
+    const { renderButton } = stubGoogleAccounts();
+    sessionStorage.setItem('icg-id-token', encode({ aud: 'old-client-id', exp: nowSeconds() + 3600 }));
+
+    const auth = createAuth('client-id', document.createElement('div'));
+
+    expect(auth.hasFreshToken()).toBe(false);
+    void auth.getToken(false);
+    await vi.waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
   });
 
   it.each([

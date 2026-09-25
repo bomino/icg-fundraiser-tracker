@@ -82,10 +82,14 @@ function waitForGoogle(): Promise<void> {
   });
 }
 
-function keptToken(): string | null {
+// A token for another client ID is one the server refuses as a setup mismatch rather than an expired
+// sign-in, so api.ts would never replace it: after the organiser corrects the site's ID, reloading
+// must sign in afresh.
+function keptToken(clientId: string): string | null {
   try {
     const kept = sessionStorage.getItem(KEPT_TOKEN_KEY);
-    return isFresh(kept, Date.now() / 1000) ? kept : null;
+    if (!kept || !isFresh(kept, Date.now() / 1000)) return null;
+    return decodeJwtPayload(kept).aud === clientId ? kept : null;
   } catch (err) {
     console.warn('The sign-in kept for this tab could not be read; asking again.', err);
     return null;
@@ -114,7 +118,7 @@ interface Waiter {
 }
 
 export function createAuth(clientId: string, host: HTMLElement): Auth {
-  let token = keptToken();
+  let token = keptToken(clientId);
   let waiting: Waiter[] = [];
   let initialised = false;
   // Browsers deliver the close event as a later task. `closing` only carries bookkeeping for that
