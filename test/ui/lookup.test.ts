@@ -67,6 +67,18 @@ describe('find donor', () => {
     }
   });
 
+  it('keeps each match phone left-to-right, so it reads in order after an Arabic-script name, and lets the search box follow what is typed', () => {
+    const arabic = [pledge({ id: 'a1', phone: '555-010-0101', name: 'محمد', amountPledged: 100 }), pledge({ id: 'a2', phone: '555-010-0102', name: 'محمود', amountPledged: 100 })];
+    const arabicState: State = { pledges: arabic, payments: [], settings: SETTINGS, me: 'me', computed: compute(arabic, [], SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(arabicState);
+    expect(view.querySelector('input')?.getAttribute('dir')).toBe('auto');
+    search(view, 'مح');
+    expect(Array.from(view.querySelectorAll('.match .meta')).map((phone) => [phone.textContent?.trim(), phone.getAttribute('dir')])).toEqual([
+      ['555-010-0101', 'ltr'],
+      ['555-010-0102', 'ltr'],
+    ]);
+  });
+
   it('shows each match with its status', () => {
     const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
     search(view, 'aisha');

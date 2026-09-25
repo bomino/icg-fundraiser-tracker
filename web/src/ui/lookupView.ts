@@ -122,7 +122,9 @@ export function createLookupView(deps: ListViewDeps) {
           'ul',
           { class: 'match-list' },
           ...matches.slice(0, MATCH_LIMIT).map((d) => {
-            const button = h('button', { type: 'button', class: 'match' }, d.pledge.name || '(no name)', h('span', { class: 'meta' }, `  ${d.pledge.phone}  `), statusBadge(d.status));
+            // dir isolates the phone from the name: after an Arabic-script name its digit groups would
+            // otherwise display in reverse order, and the phone is what the volunteer checks before tapping.
+            const button = h('button', { type: 'button', class: 'match' }, d.pledge.name || '(no name)', h('span', { class: 'meta', dir: 'ltr' }, `  ${d.pledge.phone}  `), statusBadge(d.status));
             button.addEventListener('click', () => {
               chosenId = d.pledge.id;
               draw();
@@ -132,7 +134,7 @@ export function createLookupView(deps: ListViewDeps) {
         ),
       );
     };
-    const input = h('input', { type: 'search', class: 'input search', id: 'lookup-input', placeholder: 'Phone number or name', autocomplete: 'off', 'data-focus-key': 'lookup-search' });
+    const input = h('input', { type: 'search', class: 'input search', id: 'lookup-input', placeholder: 'Phone number or name', autocomplete: 'off', dir: 'auto', 'data-focus-key': 'lookup-search' });
     input.value = query;
     input.addEventListener('input', () => {
       query = input.value;

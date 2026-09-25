@@ -24,15 +24,18 @@ export function field(options: FieldOptions): Field {
   const helpId = `${id}-help`;
   const errorId = `${id}-error`;
   let input: Field['input'];
+  // A name or note typed in Arabic script should align and punctuate right-to-left. Phones and dates
+  // have no letters to take a direction from, so only free-text boxes get dir=auto.
   if (options.type === 'textarea') {
-    input = h('textarea', { id, name: options.name, class: 'input', rows: 3 });
+    input = h('textarea', { id, name: options.name, class: 'input', rows: 3, dir: 'auto' });
   } else if (options.type === 'select') {
     // Keep a value that is no longer in the list so opening an old payment does not silently change it.
     const choices = options.options ?? [];
     const values = options.value && !choices.includes(options.value) ? [...choices, options.value] : choices;
     input = h('select', { id, name: options.name, class: 'input' }, h('option', { value: '' }, '— none —'), ...values.map((value) => h('option', { value }, value)));
   } else {
-    input = h('input', { id, name: options.name, class: 'input', type: options.type ?? 'text', inputmode: options.inputmode, autocomplete: 'off' });
+    const type = options.type ?? 'text';
+    input = h('input', { id, name: options.name, class: 'input', type, inputmode: options.inputmode, autocomplete: 'off', dir: type === 'text' ? 'auto' : undefined });
   }
   input.value = options.value;
   if (options.required) input.setAttribute('aria-required', 'true');

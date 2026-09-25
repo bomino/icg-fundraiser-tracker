@@ -45,6 +45,11 @@ describe('pledges view', () => {
     expect(document.body.contains(search)).toBe(true);
   });
 
+  it('lets the search box run right-to-left when the search starts in Arabic script', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    expect(view.querySelector('input[type=search]')?.getAttribute('dir')).toBe('auto');
+  });
+
   it('shows only filtered rows and a chip that clears the filter', () => {
     const clear = vi.fn();
     const view = createPledgesView({ store, reportError: vi.fn() })(state, { label: 'Donors listed more than once', ids: new Set(['p2']) }, clear);
@@ -159,6 +164,11 @@ describe('payments view', () => {
     const view = createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined);
     expect(view.querySelector('tr.row-danger')?.textContent).toContain('⚠ phone not in Pledges');
     expect(view.querySelector('td.cell-warning')).not.toBeNull();
+  });
+
+  it('lets the search box run right-to-left when the search starts in Arabic script', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(state, null, () => undefined);
+    expect(view.querySelector('input[type=search]')?.getAttribute('dir')).toBe('auto');
   });
 
   it('opens Log a payment knowing how old the list is', () => {

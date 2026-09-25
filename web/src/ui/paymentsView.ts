@@ -97,7 +97,7 @@ export function createPaymentsView(deps: ListViewDeps) {
       const line = showingLine(!!filter || query.trim() !== '' || dateFilterActive(), rows.length, state.computed.payments.length);
       showing.replaceChildren(...(line ? [line] : []));
     };
-    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
+    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', dir: 'auto', 'data-focus-key': 'payments-search' });
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;

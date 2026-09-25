@@ -114,7 +114,7 @@ export function createPledgesView(deps: ListViewDeps) {
       const line = showingLine(!!filter || query.trim() !== '' || statusChip !== ALL_CHIP, rows.length, state.computed.pledges.length);
       showing.replaceChildren(...(line ? [line] : []));
     };
-    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', 'data-focus-key': 'pledges-search' });
+    const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, name or notes', 'aria-label': 'Search pledges', dir: 'auto', 'data-focus-key': 'pledges-search' });
     search.value = query;
     search.addEventListener('input', () => {
       query = search.value;

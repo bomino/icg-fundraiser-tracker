@@ -235,7 +235,8 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 **Visual design** follows `DESIGN.md` (ICG Heritage), agreed 2026-09-23:
 - Every token (colours, dark-mode colours, type scale, radii, spacing, shadows) is mirrored as `:root` CSS custom properties in `web/src/styles/tokens.css`. Component CSS refers only to those variables, with no hex values outside the token file.
 - Light mode is the default. Dark mode follows `prefers-color-scheme` on first visit, and a nav toggle saves the user's choice in `localStorage`. Print forces the light tokens.
-- Fonts: Cormorant Garamond (500) for display headings and Inter for everything else, self-hosted through `@fontsource` so no third-party font requests are made. Amiri isn't loaded, since there's no Arabic text.
+- Fonts: Cormorant Garamond (500) for display headings and Inter for everything else, self-hosted through `@fontsource` so no third-party font requests are made. Amiri isn't loaded, since the app's own wording has no Arabic. Donor names and notes may still be typed in Arabic script; they show in the device's own Arabic font.
+- Text direction: every text box (donor name, amounts, goal), notes box and search box carries `dir="auto"`, so text that starts in Arabic script runs right-to-left and anything else stays left-to-right. Phone, date and choice fields are left alone. Find donor's match list gives each phone `dir="ltr"`, because a phone placed right after an Arabic-script name would otherwise show its digit groups in reverse order.
 - Component mapping:
   - Summary KPIs → `stat-card` (gold `numeric-xl` value, `eyebrow` label).
   - Goal → `progress-track`/`progress-fill`.

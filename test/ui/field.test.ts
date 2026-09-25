@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { field } from '../../web/src/ui/field';
+import { field, type FieldOptions } from '../../web/src/ui/field';
 
 describe('field', () => {
   it('announces the error via aria-describedby and keeps the help id once the error clears', () => {
@@ -26,5 +26,10 @@ describe('field', () => {
 
     const optional = field({ name: 'notes', label: 'Notes', value: '' });
     expect(optional.input.getAttribute('aria-required')).toBeNull();
+  });
+
+  it('lets typed text and notes run right-to-left when they start in Arabic script, leaving phone, date and choice fields alone', () => {
+    const types: FieldOptions['type'][] = [undefined, 'text', 'textarea', 'tel', 'date', 'select'];
+    expect(types.map((type) => field({ name: 'x', label: 'X', value: '', type, options: [] }).input.getAttribute('dir'))).toEqual(['auto', 'auto', 'auto', null, null, null]);
   });
 });
