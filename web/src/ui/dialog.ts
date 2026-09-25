@@ -16,10 +16,10 @@ export function openDialog(title: string, body: Node, footer: Child[]): DialogHa
   return { element: dialog, close: () => dialog.close() };
 }
 
-export function confirmDialog(message: string, confirmLabel: string, variant: 'danger' | 'primary' = 'danger'): Promise<boolean> {
+export function confirmDialog(message: string, confirmLabel: string, variant: 'danger' | 'primary' = 'danger', cancelLabel = 'Cancel'): Promise<boolean> {
   return new Promise((resolve) => {
     let confirmed = false;
-    const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Cancel');
+    const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, cancelLabel);
     const confirm = h('button', { type: 'button', class: `btn btn-${variant}` }, confirmLabel);
     const handle = openDialog('Please confirm', h('p', { class: 'body-md' }, message), [h('span', { class: 'spacer' }), cancel, confirm]);
     cancel.addEventListener('click', () => handle.close());

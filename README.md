@@ -15,6 +15,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **Friday display**: a full-screen, name-free projector view of progress toward the goal that never interrupts an announcement with a sign-in prompt.
 - **Installable**: Add to Home Screen for the ICG icon, on iPhone and Android.
 - **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
+- **No lost typing**: Cancel, Escape or Back on a form with anything typed in it asks "Discard what you typed?" before closing it.
 - **Paging at scale**: long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.
 
 ```bash
@@ -31,7 +32,7 @@ To look at every screen without a Google account or a deployed Apps Script backe
 
 ## Browser smoke tests
 
-`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, filter Pledges/Payments, the Friday display, layout at 360px). They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`.
+`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, Escape and Cancel on a half-typed form, filter Pledges/Payments, the Friday display, layout at 360px). They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`.
 
 ```bash
 npx playwright install chromium   # once, downloads a browser

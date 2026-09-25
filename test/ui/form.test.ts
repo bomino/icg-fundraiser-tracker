@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../web/src/api';
 import { h } from '../../web/src/ui/dom';
 import { field } from '../../web/src/ui/field';
-import { runForm, type FormRestore } from '../../web/src/ui/form';
+import { runForm, type FormRestore, type FormSpec } from '../../web/src/ui/form';
 import { openGoalForm } from '../../web/src/ui/goalForm';
 
 afterEach(() => {
@@ -14,7 +14,10 @@ afterEach(() => {
 
 type Draft = { name: string };
 
-function setup(onSave: (draft: Draft) => Promise<void>, options: { restore?: FormRestore; onDelete?: () => Promise<void>; busy?: () => boolean } = {}) {
+function setup(
+  onSave: (draft: Draft) => Promise<void>,
+  options: { restore?: FormRestore; onDelete?: () => Promise<void>; busy?: () => boolean; secondary?: FormSpec<Draft>['secondary'] } = {},
+) {
   const name = field({ name: 'name', label: 'Name', value: '' });
   const form = h('form', { class: 'form' }, name.wrapper);
   const reportError = vi.fn();
@@ -33,6 +36,7 @@ function setup(onSave: (draft: Draft) => Promise<void>, options: { restore?: For
     reopen,
     restore: options.restore,
     busy: options.busy,
+    secondary: options.secondary,
   });
   const submit = () => form.dispatchEvent(new Event('submit', { cancelable: true }));
   return { name, dialog, submit, reportError, reopen };
@@ -43,6 +47,14 @@ const toastButton = (label: string) => Array.from(document.querySelectorAll<HTML
 const confirmDelete = (dialog: HTMLDialogElement) => {
   (dialog.querySelector('.btn-danger') as HTMLButtonElement).click();
   (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog .btn-danger')).find((button) => !dialog.contains(button)) as HTMLButtonElement).click();
+};
+const buttonIn = (within: ParentNode, label: string) => Array.from(within.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent === label) as HTMLButtonElement;
+const discardQuestions = () => Array.from(document.querySelectorAll<HTMLDialogElement>('dialog[open]')).filter((d) => d.textContent?.includes('Discard what you typed?'));
+// Stands in for Escape, or Back on Android: jsdom has no close watcher to send the dialog a real close request.
+const requestClose = (dialog: HTMLDialogElement, cancelable = true) => {
+  const event = new Event('cancel', { cancelable });
+  dialog.dispatchEvent(event);
+  return event;
 };
 
 describe('runForm', () => {
@@ -269,6 +281,90 @@ describe('runForm', () => {
     expect(secondary.disabled).toBe(true);
     secondary.click();
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes a form with nothing typed at once, on Cancel or on Escape', () => {
+    const { dialog } = setup(async () => undefined);
+    buttonIn(dialog.element, 'Cancel').click();
+    expect(dialog.element.open).toBe(false);
+    const again = setup(async () => undefined);
+    expect(requestClose(again.dialog.element).defaultPrevented).toBe(false);
+    expect(discardQuestions()).toHaveLength(0);
+  });
+
+  it('asks before Cancel throws away typing, keeps the form on Keep editing, and closes it on Discard', async () => {
+    // #given a form with something typed in it
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    // #when Cancel is pressed
+    buttonIn(dialog.element, 'Cancel').click();
+    // #then the form stays until the volunteer answers
+    expect(dialog.element.open).toBe(true);
+    const [question] = discardQuestions();
+    buttonIn(question, 'Keep editing').click();
+    await vi.waitFor(() => expect(discardQuestions()).toHaveLength(0));
+    expect(dialog.element.open).toBe(true);
+    expect(name.input.value).toBe('Aisha');
+    buttonIn(dialog.element, 'Cancel').click();
+    buttonIn(discardQuestions()[0], 'Discard').click();
+    await vi.waitFor(() => expect(dialog.element.open).toBe(false));
+  });
+
+  it('asks before Escape or Back throws away typing', async () => {
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    expect(requestClose(dialog.element).defaultPrevented).toBe(true);
+    expect(dialog.element.open).toBe(true);
+    buttonIn(discardQuestions()[0], 'Discard').click();
+    await vi.waitFor(() => expect(dialog.element.open).toBe(false));
+  });
+
+  it('asks nothing when the browser will not let a close request be held back', () => {
+    // Chrome does this to a second Back with no tap in between: the form closes whatever the page does.
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    expect(requestClose(dialog.element, false).defaultPrevented).toBe(false);
+    expect(discardQuestions()).toHaveLength(0);
+  });
+
+  it('counts a form reopened after a failed save as typed in, so closing it asks first', () => {
+    const { dialog } = setup(async () => undefined, { restore: { values: { name: 'Aisha' }, error: new ApiError('BUSY', 'busy') } });
+    buttonIn(dialog.element, 'Cancel').click();
+    expect(dialog.element.open).toBe(true);
+    expect(discardQuestions()).toHaveLength(1);
+  });
+
+  it('asks once, even when Cancel is pressed twice', () => {
+    const { name, dialog } = setup(async () => undefined);
+    name.input.value = 'Aisha';
+    buttonIn(dialog.element, 'Cancel').click();
+    buttonIn(dialog.element, 'Cancel').click();
+    expect(requestClose(dialog.element).defaultPrevented).toBe(true);
+    expect(discardQuestions()).toHaveLength(1);
+  });
+
+  it('asks before a secondary action that discards typing, and runs it only on Discard', async () => {
+    const run = vi.fn();
+    const { name, dialog } = setup(async () => undefined, { secondary: { label: 'Log a payment', run, discardsTyping: true } });
+    buttonIn(dialog.element, 'Log a payment').click();
+    expect(run).toHaveBeenCalledTimes(1);
+    name.input.value = 'Aisha';
+    buttonIn(dialog.element, 'Log a payment').click();
+    buttonIn(discardQuestions()[0], 'Keep editing').click();
+    await vi.waitFor(() => expect(discardQuestions()).toHaveLength(0));
+    expect(run).toHaveBeenCalledTimes(1);
+    buttonIn(dialog.element, 'Log a payment').click();
+    buttonIn(discardQuestions()[0], 'Discard').click();
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2));
+  });
+
+  it('runs a secondary action that keeps the form without asking, whatever was typed', () => {
+    const run = vi.fn();
+    const { name, dialog } = setup(async () => undefined, { secondary: { label: 'Check', run } });
+    name.input.value = 'Aisha';
+    buttonIn(dialog.element, 'Check').click();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(discardQuestions()).toHaveLength(0);
   });
 
   it('reopens the goal form with the typed goal and the server field error', async () => {

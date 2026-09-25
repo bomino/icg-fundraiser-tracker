@@ -23,8 +23,11 @@ export interface FormSpec<D> {
   onSave(draft: D): Promise<void>;
   onDelete?: () => Promise<void>;
   deleteMessage: string;
-  /** A secondary footer action (e.g. "Log a payment"). Disabled once Save is pressed. */
-  secondary?: { label: string; run(): void };
+  /**
+   * A secondary footer action (e.g. "Log a payment"). Disabled once Save is pressed. Set
+   * `discardsTyping` when it closes the form, so it asks first, as Cancel does, before losing typing.
+   */
+  secondary?: { label: string; run(): void; discardsTyping?: boolean };
   /** `context` names the interrupted change, e.g. "Couldn't save Aisha", because the form has already closed by then. */
   reportError(err: unknown, context: string): void;
   /**
@@ -69,6 +72,10 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
   const dialog = openDialog(spec.title, spec.form, [secondary, remove, h('span', { class: 'spacer' }), cancel, save]);
   const buttons = [save, cancel, remove, secondary].filter((b): b is HTMLButtonElement => b !== null);
   const typedValues = () => Object.fromEntries(Object.entries(spec.fields).map(([name, f]) => [name, f.input.value]));
+  // Taken before a Reopen refills the fields, so a reopened form counts as typed in: closing it must
+  // not silently lose the very values its error toast was there to bring back.
+  const openedWith = typedValues();
+  const typedSinceOpen = () => Object.entries(typedValues()).some(([name, value]) => value !== openedWith[name]);
   // Named as the row was when opened, so a failed delete names the row that is coming back.
   const openedAs = spec.describe(spec.read().draft);
 
@@ -87,13 +94,37 @@ export function runForm<D>(spec: FormSpec<D>): DialogHandle {
     (fieldName ? spec.fields[fieldName] : Object.values(spec.fields)[0])?.input.focus();
   }
 
-  cancel.addEventListener('click', () => dialog.close());
+  let askingToDiscard = false;
+  // On a phone Cancel sits right next to Save, and Escape or Back closes a form just as easily: a
+  // stray tap at a busy table must never silently lose a payment that was being typed in.
+  const askBeforeDiscarding = (then: () => void) => {
+    if (!typedSinceOpen()) {
+      then();
+      return;
+    }
+    if (askingToDiscard) return;
+    askingToDiscard = true;
+    void confirmDialog('Discard what you typed?', 'Discard', 'danger', 'Keep editing').then((discard) => {
+      askingToDiscard = false;
+      if (discard) then();
+    });
+  };
+
+  cancel.addEventListener('click', () => askBeforeDiscarding(() => dialog.close()));
+  dialog.element.addEventListener('cancel', (event) => {
+    // Chrome won't let a page hold back a close request with no tap or keypress since the last one;
+    // the form closes regardless then, and a question would be asking about a form already gone.
+    if (!event.cancelable || !typedSinceOpen()) return;
+    event.preventDefault();
+    askBeforeDiscarding(() => dialog.close());
+  });
 
   if (secondary && spec.secondary) {
-    const run = spec.secondary.run;
+    const { run, discardsTyping } = spec.secondary;
     secondary.addEventListener('click', () => {
       if (secondary.disabled) return;
-      run();
+      if (discardsTyping) askBeforeDiscarding(run);
+      else run();
     });
   }
 

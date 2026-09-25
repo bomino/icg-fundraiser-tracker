@@ -26,6 +26,8 @@ const type = (input: HTMLInputElement, value: string) => {
   input.value = value;
   input.dispatchEvent(new Event('input'));
 };
+const openModalTitles = () => Array.from(document.querySelectorAll('dialog[open] .modal-title')).map((title) => title.textContent);
+const pressFormCancel = () => (Array.from(document.querySelectorAll<HTMLButtonElement>('dialog[open] .modal-actions button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
 
 describe('pledges view', () => {
   it('marks duplicates red and filters by search without losing the box', () => {
@@ -338,6 +340,24 @@ describe('payment form', () => {
     await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0][1]).toEqual({ id: 'chosen-id' });
   });
+
+  it('closes on Cancel at once while only the filled-in phone is there, and asks once an amount is typed', () => {
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    pressFormCancel();
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    openPaymentForm({ phone: '555-010-0103', methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=amountReceived]') as HTMLInputElement, '750');
+    pressFormCancel();
+    expect(openModalTitles()).toEqual(['Log a payment', 'Please confirm']);
+    expect(document.body.textContent).toContain('Discard what you typed?');
+  });
+
+  it('closes an edited payment opened and left alone at once on Cancel', () => {
+    const saved = payment({ id: 'y9', phone: '555-010-0103', dateReceived: '2026-09-01', amountReceived: 40, method: 'Card', notes: 'Envelope' });
+    openPaymentForm({ existing: saved, methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    pressFormCancel();
+    expect(document.querySelector('dialog[open]')).toBeNull();
+  });
 });
 
 describe('pledge form', () => {
@@ -377,7 +397,7 @@ describe('pledge form', () => {
     button.click();
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(2);
     const confirmModal = Array.from(document.querySelectorAll('dialog')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm') as HTMLDialogElement;
-    expect(confirmModal.textContent).toContain('Discard your changes to this pledge?');
+    expect(confirmModal.textContent).toContain('Discard what you typed?');
     (Array.from(confirmModal.querySelectorAll('button')).find((b) => b.textContent === 'Discard') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(document.querySelector('dialog[open]')).toBeNull());
     expect(onLogPayment).toHaveBeenCalledTimes(1);
@@ -390,10 +410,21 @@ describe('pledge form', () => {
     const button = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Log a payment') as HTMLButtonElement;
     button.click();
     const confirmModal = Array.from(document.querySelectorAll('dialog')).find((d) => d.querySelector('.modal-title')?.textContent === 'Please confirm') as HTMLDialogElement;
-    (Array.from(confirmModal.querySelectorAll('button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
+    (Array.from(confirmModal.querySelectorAll('button')).find((b) => b.textContent === 'Keep editing') as HTMLButtonElement).click();
     expect(document.querySelectorAll('dialog[open]')).toHaveLength(1);
     expect((document.querySelector('dialog[open] .modal-title') as HTMLElement).textContent).toBe('Edit pledge');
     expect(onLogPayment).not.toHaveBeenCalled();
+  });
+
+  it('asks before Cancel throws away a changed pledge, and never for one opened and left alone', () => {
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+    pressFormCancel();
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    openPledgeForm({ pledges, existing: pledges[2], onSave: vi.fn(), reportError: vi.fn() });
+    type(document.querySelector('input[name=amountPledged]') as HTMLInputElement, '350');
+    pressFormCancel();
+    expect(openModalTitles()).toEqual(['Edit pledge', 'Please confirm']);
+    expect(document.body.textContent).toContain('Discard what you typed?');
   });
 
   it('hides the Log a payment button for a pledge with no phone', () => {
