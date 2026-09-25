@@ -360,6 +360,35 @@ describe('payment form', () => {
     expect(preview.className).toContain('hint-warning');
   });
 
+  it('asks whether a phone on no pledge is a close donor’s, and uses their number only when that is pressed', () => {
+    openPaymentForm({ methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
+    const phone = document.querySelector('dialog[open] input[name=phone]') as HTMLInputElement;
+    const preview = document.querySelector('dialog[open] [data-role=donor-preview]') as HTMLElement;
+    const suggestions = document.querySelector('dialog[open] [data-role=near-matches]') as HTMLElement;
+    expect(suggestions.hidden).toBe(true);
+    type(phone, '555-010-0130');
+    expect(preview.textContent).toContain(WARN_NOT_IN_PLEDGES);
+    // A button inside the status region would be read out again on every keystroke.
+    expect(suggestions.closest('[role=status], [aria-live]')).toBeNull();
+    expect(suggestions.hidden).toBe(false);
+    const buttons = Array.from(suggestions.querySelectorAll('button'));
+    expect(buttons.map((b) => b.textContent)).toEqual(['Use their number']);
+    expect(document.getElementById(buttons[0].getAttribute('aria-describedby') ?? '')?.textContent).toBe('Is this from Chen Wei (555-010-0103)?');
+    expect(phone.value).toBe('555-010-0130');
+    buttons[0].click();
+    expect(phone.value).toBe('555-010-0103');
+    expect(preview.textContent).toBe('Donor: Chen Wei · owes $300.00 of $300.00');
+    expect(suggestions.hidden).toBe(true);
+    expect(document.activeElement).toBe(phone);
+  });
+
+  it('offers the close donor when a saved payment on no pledge is opened to be fixed', () => {
+    openPaymentForm({ existing: payment({ phone: '555-010-0130' }), methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
+    const suggestions = document.querySelector('dialog[open] [data-role=near-matches]') as HTMLElement;
+    expect(suggestions.hidden).toBe(false);
+    expect(suggestions.textContent).toContain('Is this from Chen Wei (555-010-0103)?');
+  });
+
   it('asks for the phone number while the phone holds only punctuation', () => {
     openPaymentForm({ methods: METHODS, pledges, computed: state.computed, onSave: vi.fn(), reportError: vi.fn() });
     type(document.querySelector('input[name=phone]') as HTMLInputElement, '(--)');

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { compute, duplicatePaymentKey, findByName, findByPhone, paymentsForKey } from '../../web/src/engine';
+import { compute, duplicatePaymentKey, findByName, findByPhone, nearMatches, paymentsForKey } from '../../web/src/engine';
 import { matchKey } from '../../web/src/matchKey';
-import type { Payment } from '../../web/src/types';
+import type { Payment, Pledge } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 describe('totals', () => {
@@ -205,5 +205,69 @@ describe('lookup', () => {
   it("lists a donor's payments by key", () => {
     expect(paymentsForKey(computed, '#5550100107').map((d) => d.payment.id)).toEqual(['pay']);
     expect(paymentsForKey(computed, '')).toEqual([]);
+  });
+});
+
+describe('nearMatches', () => {
+  const ids = (pledges: readonly Pledge[], phone: string) => nearMatches(pledges, phone).map((p) => p.id);
+
+  it('suggests the donor for one mistyped digit or two neighbouring digits swapped', () => {
+    const pledges = [pledge({ id: 'aisha', phone: '555-010-0123' })];
+    expect(ids(pledges, '555-010-0124')).toEqual(['aisha']);
+    expect(ids(pledges, '555-010-0132')).toEqual(['aisha']);
+    expect(ids(pledges, '555-001-0123')).toEqual(['aisha']);
+  });
+
+  it('never suggests a number two digits away or with a swap of digits that are not neighbours', () => {
+    const pledges = [pledge({ id: 'aisha', phone: '555-010-0123' })];
+    expect(ids(pledges, '555-010-0145')).toEqual([]);
+    expect(ids(pledges, '555-010-0321')).toEqual([]);
+  });
+
+  it('matches a country code on one number with a trunk 0, or nothing, on the other', () => {
+    const pledges = [pledge({ id: 'uk', phone: '+44 7700 900123' }), pledge({ id: 'us', phone: '555-010-0101' }), pledge({ id: 'ng', phone: '0803 123 4567' })];
+    expect(ids(pledges, '07700 900123')).toEqual(['uk']);
+    expect(ids(pledges, '+1 555 010 0101')).toEqual(['us']);
+    expect(ids(pledges, '+234 803 123 4567')).toEqual(['ng']);
+  });
+
+  it('never matches 0551234 with 551234: short numbers must be the same length', () => {
+    expect(ids([pledge({ phone: '0551234' })], '551234')).toEqual([]);
+    expect(ids([pledge({ phone: '551234' })], '0551234')).toEqual([]);
+  });
+
+  it('compares digits only, ignoring the letters a match key keeps', () => {
+    expect(ids([pledge({ id: 'cell', phone: '555-010-0101 cell' })], '555 010 0101')).toEqual(['cell']);
+    expect(ids([pledge({ id: 'home', phone: '555-1234 home' })], '5551234')).toEqual(['home']);
+    expect(ids([pledge({ phone: 'abcdefg' })], 'abcdefh')).toEqual([]);
+    expect(ids([pledge({ phone: '555-010-0101' })], '555-O10-0101')).toEqual([]);
+  });
+
+  it('suggests nothing for a phone a pledge already has, or a blank one', () => {
+    const pledges = [pledge({ phone: '555-010-0124' }), pledge({ phone: '(555) 010-0123' })];
+    expect(ids(pledges, '555.010.0123')).toEqual([]);
+    expect(ids([pledge({ phone: '' }), pledge({ phone: '--' })], '')).toEqual([]);
+  });
+
+  it('suggests a number on two pledges once, as the first pledge, which is the one a payment matches', () => {
+    const pledges = [pledge({ id: 'first', phone: '555-010-0123' }), pledge({ id: 'second', phone: '5550100123' })];
+    expect(ids(pledges, '555-010-0124')).toEqual(['first']);
+  });
+
+  it('lists at most 3, a country-code match before any one-digit slip', () => {
+    const pledges = [
+      pledge({ id: 'slip1', phone: '555-010-0102' }),
+      pledge({ id: 'slip2', phone: '555-010-0103' }),
+      pledge({ id: 'country', phone: '+1 555-010-0101' }),
+      pledge({ id: 'slip3', phone: '555-010-0104' }),
+    ];
+    expect(ids(pledges, '555-010-0101')).toEqual(['country', 'slip1', 'slip2']);
+  });
+
+  it('drops the one-digit slips when more than 3 numbers are one away, which says the numbers are too close to guess', () => {
+    const slips = ['555-010-0102', '555-010-0103', '555-010-0104', '555-010-0105'].map((phone) => pledge({ phone }));
+    expect(ids(slips, '555-010-0101')).toEqual([]);
+    expect(ids(slips.slice(1), '555-010-0101')).toHaveLength(3);
+    expect(ids([...slips, pledge({ id: 'country', phone: '+1 555-010-0101' })], '555-010-0101')).toEqual(['country']);
   });
 });

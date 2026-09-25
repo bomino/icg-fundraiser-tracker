@@ -53,6 +53,8 @@ textarea.input { resize: vertical; }
 .required { color: var(--color-danger); }
 .hint { font-size: 0.8125rem; padding: var(--space-sm) var(--space-md); border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--color-surface-soft); }
 .hint-warning { background: var(--color-warning-tint); color: var(--color-ink); border-color: var(--color-warning); }
+.near-matches { display: grid; gap: var(--space-sm); }
+.near-match { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
 .form { display: grid; gap: var(--space-md); }
 
 /* Cards, stats, progress */

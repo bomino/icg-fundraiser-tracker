@@ -1,6 +1,6 @@
 import type { NewRow } from '../api';
 import { todayIso } from '../dates';
-import { WARNING_MARK, WARN_NOT_IN_PLEDGES, createDonorResolver, duplicatePaymentKey, findByPhone, paymentsForKey, type Computed, type DerivedPayment, type DerivedPledge } from '../engine';
+import { WARNING_MARK, WARN_NOT_IN_PLEDGES, createDonorResolver, duplicatePaymentKey, findByPhone, nearMatches, paymentsForKey, type Computed, type DerivedPayment, type DerivedPledge } from '../engine';
 import { formatCents, formatDate, parseAmount } from '../format';
 import { newId as makeId } from '../id';
 import { matchKey } from '../matchKey';
@@ -55,6 +55,17 @@ function standing(donor: DerivedPledge | null, isNew: boolean): string {
   return ` · has paid ${formatCents(-donor.balanceCents)} more than pledged`;
 }
 
+let nearMatchCount = 0;
+
+// A question checked against the envelope or the donor at the table, never applied by itself: two real donors'
+// numbers can be one digit apart, and a wrong number would credit the wrong donor and clear the ⚠ that shows it.
+function nearMatchQuestion(pledge: Pledge, useNumber: (phone: string) => void): HTMLElement {
+  const questionId = `near-match-${++nearMatchCount}`;
+  const use = h('button', { type: 'button', class: 'btn btn-secondary', 'aria-describedby': questionId }, 'Use their number');
+  use.addEventListener('click', () => useNumber(pledge.phone));
+  return h('p', { class: 'hint near-match' }, h('span', { id: questionId }, `Is this from ${pledge.name || 'a donor with no name'} (${pledge.phone})?`), use);
+}
+
 function alreadyLoggedMessage(logged: DerivedPayment, editing: boolean): string {
   const found = `A ${formatCents(toCents(logged.payment.amountReceived))} payment from this number dated ${formatDate(logged.payment.dateReceived)} is already logged.`;
   // Cancel on an edit would keep both copies; deleting this one leaves the other.
@@ -74,6 +85,14 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     notes: field({ name: 'notes', label: 'Notes', type: 'textarea', value: existing?.notes ?? '', help: PAYMENT_HELP.notes }),
   };
   const preview = h('p', { class: 'hint', role: 'status', 'data-role': 'donor-preview' });
+  // Outside the status region: a button inside it would be read out again on every keystroke.
+  const nearMatchList = h('div', { class: 'near-matches', 'data-role': 'near-matches', hidden: true });
+  const useNumber = (phone: string) => {
+    fields.phone.input.value = phone;
+    fields.phone.input.dispatchEvent(new Event('input'));
+    // The pressed button goes with the suggestions; the volunteer lands back on the number it filled in.
+    fields.phone.input.focus();
+  };
   // Shows, before saving, exactly what the Donor Name column will say, so a mistyped phone is caught at the door.
   const updatePreview = () => {
     const phone = fields.phone.input.value;
@@ -87,6 +106,10 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     if (blank) preview.textContent = 'Type the phone number to find the donor.';
     else if (warning) preview.textContent = `${donor} — this payment will not be counted until that is fixed.${walkIn}`;
     else preview.textContent = `Donor: ${donor || '(no name on the pledge)'}${standing(findByPhone(options.computed, phone), !existing)}`;
+    // "No amount on Pledges" comes from an exact match, so that donor is already known.
+    const near = donor === WARN_NOT_IN_PLEDGES ? nearMatches(options.pledges, phone) : [];
+    nearMatchList.replaceChildren(...near.map((pledge) => nearMatchQuestion(pledge, useNumber)));
+    nearMatchList.hidden = near.length === 0;
   };
   fields.phone.input.addEventListener('input', updatePreview);
   updatePreview();
@@ -112,7 +135,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
 
   const onDelete = options.onDelete;
   const onAddAnother = options.onAddAnother;
-  const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, fields.dateReceived.wrapper, fields.amountReceived.wrapper, alreadyLogged, fields.method.wrapper, fields.notes.wrapper);
+  const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, nearMatchList, fields.dateReceived.wrapper, fields.amountReceived.wrapper, alreadyLogged, fields.method.wrapper, fields.notes.wrapper);
   runForm<PaymentDraft>({
     title: existing ? 'Edit payment' : 'Log a payment',
     form,
