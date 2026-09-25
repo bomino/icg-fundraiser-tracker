@@ -374,7 +374,7 @@ function howTo(): Child[] {
       'Record a donor who won’t give a phone number',
       p('The phone number is how the tracker links a donor’s payments to their pledge, so without one no payment can be logged for them. If a donor won’t give theirs, give them a made-up number instead.'),
       steps(
-        ['Add their pledge with ', b('000-0001'), ' as the phone number. If an amber note says it is already on another pledge, try ', b('000-0002'), ', then ', b('000-0003'), ', and so on, until no note appears.'],
+        ['Add their pledge, or open it if it is already on ', b('Pledges'), ', and type ', b('000-0001'), ' as the phone number. If an amber note says it is already on another pledge, try ', b('000-0002'), ', then ', b('000-0003'), ', and so on, until no note appears.'],
         ['In Notes, write that the number is made up, for example “No phone given — made-up number”.'],
         ['Use the same made-up number every time you log a payment from this donor.'],
       ),
