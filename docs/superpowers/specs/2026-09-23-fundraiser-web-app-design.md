@@ -167,6 +167,8 @@ Each non-zero item links to the Pledges or Payments view, filtered to the rows t
 - The input is normalized with `matchKey`, and the result is the **first** Pledges row with that key. That row's fields are shown (name, date pledged, amount, last payment date, received, balance, # payments, status, notes), or "Not found".
 - Beyond the workbook: the lookup shows the matched donor's payment history. When the input is not a whole phone number, the lookup lists the candidate rows instead: a name substring (case-insensitive) or phone digits found anywhere in a row's key, the same rule as the list searches. The list shows at most 20 rows with "Showing 20 of N — keep typing to narrow it down.", so a one-letter search at event scale stays instant without a debounce. With no candidates, the app says "No donor found." and offers **Add a pledge**, prefilled with the typed text as the phone only when it is a phone number and nothing else (all digits once `matchKey` strips its formatting; any letter means a name). The exact-key rule above (`findByPhone`) is unchanged, because the parity fixture asserts it.
 - The donor card's phone is a `tel:` link, built from the phone's digits and `+` only because the field is free text, and left as plain text when it has no digits.
+- A negative balance shows on the card as "Credit $50.00", not as the accounting "($50.00)".
+- The donor card prints as a statement for the donor (a narrowing of §9's "receipts and emails" exclusion, for printing only). **Print** calls `window.print()`, and the print rules, scoped to the Find donor view, add the heading "Islamic Center of Greensboro — pledge statement, printed <date>" and a **Total paid** line, and leave off the search, the pledge and payment notes, the duplicate warning and Amount received. Total paid is the sum of the listed payments, not the donor's `receivedCents`, which is blank for a pledge with no amount. The statement has no tax-acknowledgment wording until the organiser and treasurer ask for it.
 - The lookup searches the volunteer's own last load, so a donor another volunteer has just pledged looks missing, and a second pledge for them double-counts (§5.2). When the last load is over 2 minutes old, "No donor found." adds "Your list was last updated N minutes ago. If they pledged with another volunteer since then, press Refresh before adding a pledge." A server-side duplicate-phone warning on create is deferred until duplicates show up in real use.
 
 ## 6. Testing
@@ -279,7 +281,7 @@ The Vite `base` is set to the repo name.
 - offline use
 - an edit history beyond `updatedAt`/`updatedBy`
 - roles or permissions
-- receipts and emails
+- receipts and emails, apart from the printable donor statement on the Find donor card (§5.7), which carries no tax-acknowledgment wording
 - multiple campaigns
 - importing an xlsx
 - editing `paymentMethods` or the allowlist from the app

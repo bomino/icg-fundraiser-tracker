@@ -51,8 +51,15 @@ a { color: var(--color-emerald); }
   }
 }
 
+/* Find donor prints as a statement a donor may be handed: it gains a heading and a Total paid line,
+   and loses the search and everything written for volunteers (notes, warnings). */
+@media not print {
+  .lookup-view .print-only { display: none; }
+}
+
 @media print {
   .nav-bar, .toolbar, .btn, .banner, .toasts { display: none !important; }
+  .lookup-view .print-hidden { display: none !important; }
   .container { padding: 0; max-width: none; }
   .card, .stat-card { box-shadow: none; break-inside: avoid; }
 }

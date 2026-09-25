@@ -8,6 +8,8 @@ export interface Column<R> {
   numeric?: boolean;
   derived?: boolean;
   cellClass?: (row: R) => string | undefined;
+  /** Goes on the heading as well as every cell, so one rule can hide the whole column, e.g. when printing. */
+  columnClass?: string;
 }
 
 export interface SortState {
@@ -71,7 +73,8 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
       const sorted = options.sort?.key === column.key ? options.sort.direction : null;
       const button = h('button', { type: 'button' }, column.label);
       button.addEventListener('click', () => options.onSort(column.key));
-      return h('th', { scope: 'col', class: column.numeric ? 'num' : undefined, 'aria-sort': sorted === null ? undefined : sorted === 'asc' ? 'ascending' : 'descending' }, button);
+      const classes = [column.numeric ? 'num' : '', column.columnClass ?? ''].filter(Boolean).join(' ');
+      return h('th', { scope: 'col', class: classes || undefined, 'aria-sort': sorted === null ? undefined : sorted === 'asc' ? 'ascending' : 'descending' }, button);
     }),
   );
   const body = h(
@@ -84,7 +87,7 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
         'tr',
         { 'data-id': options.rowId(row), class: pending ? 'row-pending' : options.rowClass?.(row) },
         ...options.columns.map((column, index) => {
-          const classes = [column.numeric ? 'num' : '', column.derived ? 'derived' : '', column.cellClass?.(row) ?? ''].filter(Boolean).join(' ');
+          const classes = [column.numeric ? 'num' : '', column.derived ? 'derived' : '', column.columnClass ?? '', column.cellClass?.(row) ?? ''].filter(Boolean).join(' ');
           const content = column.display ? column.display(row) : String(column.value(row) ?? '');
           const cell = (...children: Child[]) => h('td', { 'data-label': column.label, class: classes || undefined }, ...children);
           if (index !== 0) return cell(content);

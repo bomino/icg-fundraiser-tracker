@@ -7,7 +7,11 @@ import { createLookupView } from '../../web/src/ui/lookupView';
 import type { PaymentDraft, Pledge, PledgeDraft } from '../../web/src/types';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
-afterEach(() => document.body.replaceChildren());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  document.body.replaceChildren();
+});
 
 const pledges = [
   pledge({ id: 'p1', phone: '555-010-0101', name: '<b>Aisha</b>', amountPledged: 100 }),
@@ -26,6 +30,15 @@ const loadedMinutesAgo = (minutes: number) => {
   const loadedAt = Date.now() - minutes * 60_000;
   return () => loadedAt;
 };
+// What the print stylesheet leaves on paper, and what the screen shows without the print-only parts.
+const without = (view: HTMLElement, selector: string) => {
+  const copy = view.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll(selector).forEach((hidden) => hidden.remove());
+  return copy;
+};
+const onPaper = (view: HTMLElement) => without(view, '.print-hidden, .toolbar, .btn');
+const onScreen = (view: HTMLElement) => without(view, '.print-only');
+const cardRows = (root: Element) => Object.fromEntries(Array.from(root.querySelectorAll('.lookup-card dt')).map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
 
 describe('find donor', () => {
   it('finds by phone in any format and shows payment history as text', () => {
@@ -197,5 +210,53 @@ describe('find donor', () => {
     const saving = Array.from(view.querySelectorAll('.lookup-card tbody tr')).filter((tr) => tr.classList.contains('row-pending'));
     expect(saving).toHaveLength(1);
     expect(saving[0].textContent).toContain('Saving…');
+  });
+
+  it('prints the donor card as a statement under the masjid name, leaving off notes and warnings, with Total paid added up from the payments listed', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 24, 12));
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    // A blank Amount pledged leaves Amount received blank, and a second pledge on the number raises the duplicate warning.
+    const donorPledges = [
+      pledge({ phone: '555-010-0201', name: 'Bilal Ahmed', amountPledged: null, notes: 'Asked to stay anonymous' }),
+      pledge({ phone: '555 010 0201', name: 'Bilal A.', amountPledged: 100 }),
+    ];
+    const donorPayments = [
+      payment({ phone: '5550100201', dateReceived: '2026-07-10', amountReceived: 25.1, method: 'Cash', notes: 'Left with the imam' }),
+      payment({ phone: '555-010-0201', dateReceived: '2026-08-10', amountReceived: 14.9, method: 'Check' }),
+    ];
+    const donorState: State = { pledges: donorPledges, payments: donorPayments, settings: SETTINGS, me: 'me', computed: compute(donorPledges, donorPayments, SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(donorState);
+    search(view, '555-010-0201');
+
+    expect(cardRows(onScreen(view))).toMatchObject({ 'Amount received': '', Notes: 'Asked to stay anonymous' });
+    expect(onScreen(view).querySelector('.hint-warning')?.textContent).toContain('more than one pledge');
+    expect(onScreen(view).textContent).not.toContain('pledge statement');
+
+    const paper = onPaper(view);
+    expect(paper.querySelector('.lookup-card')?.firstElementChild?.textContent).toBe('Islamic Center of Greensboro — pledge statement, printed Sep 24, 2026');
+    expect(Object.keys(cardRows(paper))).toEqual(['Phone', 'Date pledged', 'Amount pledged', 'Total paid', 'Balance due', 'Last payment', '# Payments', 'Status']);
+    expect(cardRows(paper)['Total paid']).toBe('$40.00');
+    expect(Array.from(paper.querySelectorAll('th')).map((th) => th.textContent)).toEqual(['Date', 'Amount', 'Method']);
+    for (const internal of ['Asked to stay anonymous', 'Left with the imam', 'more than one pledge', 'Find a donor', 'Search']) expect(paper.textContent, internal).not.toContain(internal);
+
+    (Array.from(view.querySelectorAll('button')).find((b) => b.textContent === 'Print') as HTMLButtonElement).click();
+    expect(print).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an overpaid donor’s balance as a Credit, not an amount in brackets', () => {
+    const overpaid = [pledge({ phone: '555-010-0301', name: 'Hana', amountPledged: 100 })];
+    const overpayments = [payment({ phone: '555-010-0301', dateReceived: '2026-08-01', amountReceived: 150, method: 'Cash' })];
+    const overpaidState: State = { pledges: overpaid, payments: overpayments, settings: SETTINGS, me: 'me', computed: compute(overpaid, overpayments, SETTINGS, TODAY) };
+    const view = createLookupView({ store: {} as Store, reportError: vi.fn() })(overpaidState);
+    search(view, '555-010-0301');
+    expect(cardRows(view)).toMatchObject({ Credit: '$50.00' });
+    expect(cardRows(view)).not.toHaveProperty('Balance due');
+    expect(view.textContent).not.toContain('($50.00)');
+
+    const owing = createLookupView({ store: {} as Store, reportError: vi.fn() })(state);
+    search(owing, '(555) 010 0101');
+    expect(cardRows(owing)).toMatchObject({ 'Balance due': '$60.00' });
+    expect(cardRows(owing)).not.toHaveProperty('Credit');
   });
 });
