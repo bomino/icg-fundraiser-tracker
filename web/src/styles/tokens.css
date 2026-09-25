@@ -11,7 +11,8 @@
   /* Not --color-rule: a field's fill matches the card or dialog under it, so its border is its only edge and needs 3:1. */
   --color-field-border: #948a6e;
   --color-rule-strong: #d4c79e;
-  --color-gold: #a87c0a;
+  /* Also small text (the Summary totals at 22px on phones, Help's step numbers), so the lightest shade of this gold that reaches 4.5:1 on the page. */
+  --color-gold: #926c09;
   --color-gold-soft: #c69b2a;
   --color-gold-tint: #f7eecf;
   --color-emerald: #2d5e3e;
@@ -26,6 +27,7 @@
   --color-payment-card: #6b4d8c;
   --color-payment-online: #a8651f;
   --chart-1: #2d5e3e;
+  /* The original, brighter gold: a slice is not text, so it needs only 3:1 against the card. */
   --chart-2: #a87c0a;
   --chart-3: #3a5a8c;
   --chart-4: #8b2e2e;

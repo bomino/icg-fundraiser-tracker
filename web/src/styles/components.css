@@ -30,6 +30,9 @@ html { scroll-padding-top: 88px; }
   .tabs { order: 3; flex-basis: 100%; justify-content: space-between; gap: 0; margin-top: var(--space-xs); scrollbar-width: none; }
   .tab { padding: var(--space-sm) var(--space-xs); }
 }
+/* At 320px (a small phone, or Display Zoom) the tabs would need about 306px of the 288px left, cutting Help in half with no scrollbar to show it.
+   Each tab stays over 24px wide, the minimum touch target. */
+@media (max-width: 340px) { .tab { padding-inline: 2px; font-size: 0.75rem; } }
 
 /* Buttons */
 .btn { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 10px 20px; font: 500 0.8125rem/1.4 var(--font-ui); letter-spacing: 0.01em; cursor: pointer; min-height: 40px; transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
@@ -72,6 +75,8 @@ textarea.input { resize: vertical; }
   .stat-card { padding: var(--space-md); }
   .stat-card .numeric-xl { font-size: 1.375rem; }
 }
+/* Side by side at 320px a card has about 100px for its total, and $14,450.00 would spill over its edge. */
+@media (max-width: 340px) { .grid-stats { grid-template-columns: 1fr; } }
 /* The sunken track barely differs from the card (1.04:1 in dark), so a ring marks where the bar ends. */
 .progress-track { height: 6px; border-radius: var(--radius-full); background: var(--color-surface-sunken); overflow: hidden; outline: 1px solid var(--color-ink-muted); outline-offset: -1px; }
 .progress-fill { height: 100%; border-radius: var(--radius-full); background: var(--color-emerald); transition: width 200ms ease; }

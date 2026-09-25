@@ -39,6 +39,8 @@ const pairs: [foreground: string, background: string, minimum: number, where: st
   ['danger', 'danger-tint', TEXT, 'a not-counted donor name in a red row'],
   ['ink', 'danger-tint', TEXT, 'the other text and labels in a red row'],
   ['ink', 'warning-tint', TEXT, 'a future-dated payment date and its label on phones'],
+  ['gold', 'surface', TEXT, 'the Summary totals, which shrink to 22px on phones'],
+  ['gold', 'bg', TEXT, 'the Help contents and step numbers'],
   ['field-border', 'surface', NON_TEXT, 'an input edge in a card or dialog'],
   ['field-border', 'bg', NON_TEXT, 'an input edge on the page'],
   ['ink-soft', 'bg', NON_TEXT, 'the ring that shows where the Friday progress bar ends'],

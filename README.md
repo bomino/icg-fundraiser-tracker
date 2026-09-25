@@ -31,7 +31,7 @@ To look at every screen without a Google account or a deployed Apps Script backe
 
 ## Browser smoke tests
 
-`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, including from an open pledge, filter Pledges/Payments, the Friday display, layout at 360px, keyboard focus kept clear of the sticky header and a dialog's pinned buttons). They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`.
+`e2e/*.spec.ts` are [Playwright](https://playwright.dev) specs that drive demo mode in a real Chromium browser (add a pledge, log a payment, including from an open pledge, filter Pledges/Payments, the Friday display, layout on 360px and 320px phones, keyboard focus kept clear of the sticky header and a dialog's pinned buttons, and an [axe](https://github.com/dequelabs/axe-core) accessibility scan of every tab in both themes). They are separate from the unit tests: `npm run check` never runs them, and they don't run under `npm test`.
 
 ```bash
 npx playwright install chromium   # once, downloads a browser
