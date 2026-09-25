@@ -49,6 +49,10 @@ The outstanding total sums only positive per-donor balances, not `pledged - rece
 
 A donor entered on two Pledges rows has their payments counted once per row — both rows show the full received amount, inflating totals and usually producing a phantom `Overpaid` credit. This is inherent to the one-row-per-donor model, not a bug; it's flagged by the "Donors listed more than once" health check, which also drives the unmatched-payments figure negative and can produce a spurious credit.
 
+### When a phone number isn't one donor
+
+The phone number is the donor's ID, so the guidance for the cases where it isn't lives in wording, not code. A donor who won't give a number gets a made-up one such as `000-0001` (then `000-0002`…), used on every payment and noted in Notes (Help's How-to topic and the "Pledges missing a phone number" fix). This relies on the phone being checked for length only, so don't add a format check that rejects it. Two people sharing a household phone either keep one pledge with each share in Notes or use their own numbers (the pledge form's duplicate hint). A raised pledge keeps its original Date Pledged, or it trips "Donors whose payments predate their pledge" (Help's Edit topic and that check's fix).
+
 ### Health checks
 
 `computeHealth` in `web/src/engine/summary.ts` returns seven checks. Six are original and covered by the parity fixture; the seventh is app-only (v1.1) and excluded from it (see "Testing the engine" below):

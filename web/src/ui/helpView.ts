@@ -74,7 +74,15 @@ const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
   },
   pledgeNoPhone: {
     meaning: 'A pledge has an amount but no phone number, so no payment can ever be matched to it.',
-    fix: ['Open the pledge and add the donor’s phone number.'],
+    fix: [
+      'Open the pledge and add the donor’s phone number. If the donor won’t give a number, use a made-up one such as ',
+      b('000-0001'),
+      ' (then ',
+      b('000-0002'),
+      '…), use it on every payment too, and say so in Notes. See ',
+      b('Record a donor who won’t give a phone number'),
+      ' in How to….',
+    ],
   },
   paymentIncomplete: {
     meaning: 'A payment has a phone number but no date, or no amount. A payment without an amount adds nothing to any total.',
@@ -86,7 +94,7 @@ const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
   },
   predatesPledge: {
     meaning: 'A donor’s most recent payment is dated before their Date Pledged. One of the dates is probably wrong.',
-    fix: ['Check the Date Pledged on the pledge and the dates on the donor’s payments, and correct whichever is wrong.'],
+    fix: ['Check the Date Pledged on the pledge and the dates on the donor’s payments, and correct whichever is wrong. If the donor raised their pledge, set Date Pledged back to the date of their first promise.'],
   },
   possibleDuplicatePayments: {
     meaning: 'Two or more payments share the same phone number, amount and date. That is often the same payment typed in twice, but two real installments of the same amount on the same day are possible — check, it may be fine.',
@@ -323,7 +331,7 @@ function howTo(): Child[] {
         ['Amount pledged ($)', PLEDGE_HELP.amountPledged],
         ['Notes', PLEDGE_HELP.notes],
       ),
-      note('If the phone number is already on another pledge, an amber note appears: ', said(`${SAID.duplicateHint} …`), ' Do not save a second pledge for the same donor — edit the existing one instead.'),
+      note('If the phone number is already on another pledge, an amber note appears: ', said(`${SAID.duplicateHint} …`), ' Do not save a second pledge for the same donor — edit the existing one instead. If it is someone else in the same household, either add their amount to that pledge and write each person’s share in Notes, or use their own phone number.'),
     ),
     topic(
       'Log a payment',
@@ -363,8 +371,19 @@ function howTo(): Child[] {
       p('When you learn the amount, edit the pledge and replace the 0.'),
     ),
     topic(
+      'Record a donor who won’t give a phone number',
+      p('The phone number is how the tracker links a donor’s payments to their pledge, so without one no payment can be logged for them. If a donor won’t give theirs, give them a made-up number instead.'),
+      steps(
+        ['Add their pledge with ', b('000-0001'), ' as the phone number. If an amber note says it is already on another pledge, try ', b('000-0002'), ', then ', b('000-0003'), ', and so on, until no note appears.'],
+        ['In Notes, write that the number is made up, for example “No phone given — made-up number”.'],
+        ['Use the same made-up number every time you log a payment from this donor.'],
+      ),
+      note('The made-up number shows wherever a phone number does, including Needs follow-up and the downloaded copy. The note tells anyone who sees it not to call it.'),
+    ),
+    topic(
       'Edit a pledge or payment',
       steps(['Find the row on Pledges or Payments (use the search box).'], ['Tap the row. The form opens with its current values.'], ['Change what you need and press ', b('Save'), '.']),
+      note('When a donor raises their pledge, change the Amount pledged but keep the original Date pledged, and write the increase and its date in Notes. Changing Date pledged to today makes their earlier payments look as if they came before the pledge.'),
     ),
     topic(
       'Delete a pledge or payment',
