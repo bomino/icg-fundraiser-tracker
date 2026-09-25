@@ -35,6 +35,14 @@ function healthItem(check: HealthCheck, deps: SummaryDeps): HTMLElement {
   return h('li', { 'data-health': check.id, class: 'is-flagged' }, label, h('span', { class: 'health-count' }, show, h('span', { class: 'numeric-lg' }, String(count))));
 }
 
+// Unmatched is logged minus received, so it drops below zero when a donor on two pledge rows has
+// their payments counted on both. It is a net: one cause can hide the other, so both sentences
+// send the reader to Data health, which lists each check on its own.
+function unmatchedNote(unmatchedCents: number): string {
+  const cause = unmatchedCents > 0 ? 'Some logged money is not counted toward any pledge.' : 'More money is counted toward pledges than was logged — usually a donor listed twice, so their payments count twice.';
+  return `${cause} The Data Health list below shows where.`;
+}
+
 function methodTable(state: State): HTMLElement {
   const slots = chartSlots(state.computed.methods);
   const { methodTotalCents } = state.computed;
@@ -114,7 +122,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
       { class: `card${totals.unmatchedCents !== 0 ? ' is-flagged' : ''}`, 'data-role': 'unmatched' },
       h('h2', { class: 'heading-md' }, 'Reconciliation'),
       h('div', { class: 'stat-row' }, stat('Payments logged', formatCents(totals.loggedCents)), stat('Unmatched payments', formatCents(totals.unmatchedCents))),
-      totals.unmatchedCents !== 0 ? h('p', { class: 'body-md' }, 'Some logged money is not counted toward any pledge. The Data Health list below shows where.') : null,
+      totals.unmatchedCents !== 0 ? h('p', { class: 'body-md' }, unmatchedNote(totals.unmatchedCents)) : null,
     ),
     h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Data health'), h('p', { class: 'meta' }, 'Every figure below should read 0. Anything higher needs a look.'), h('ul', { class: 'health-list' }, ...health.map((check) => healthItem(check, deps)))),
     h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Collected by payment method'), h('div', { class: 'method-grid' }, hasPayments ? h('div', { class: 'chart-box' }, canvas) : h('p', { class: 'empty' }, 'No payments yet.'), methodTable(state))),

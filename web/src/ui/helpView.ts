@@ -230,7 +230,7 @@ function theScreens(): Child[] {
         [b('Goal'), ' — how much has been received against the fundraiser goal, with a progress bar. ', b('Edit goal'), ' changes the target.'],
         [b('The four totals'), ' — Total pledged, Total received, Balance outstanding, and Overpaid / credit. ', b('Understanding the numbers'), ' explains each one.'],
         [b('Donors'), ' — how many donors have pledged, and how many are Fully paid, Partial, Pending or Overpaid.'],
-        [b('Reconciliation'), ' — Payments logged (every payment typed in) next to Unmatched payments (money not counted toward any pledge). Unmatched should be $0.00; the card turns amber when it is not.'],
+        [b('Reconciliation'), ' — Payments logged (every payment typed in) next to Unmatched payments (Payments logged minus Total received). Unmatched should be $0.00. When it is not, the card turns amber and says whether some money is not being counted or is being counted twice.'],
         [b('Data health'), ' — seven checks. ', said(SAID.healthIntro), ' The last one is a prompt to double-check rather than a certain problem. Tap ', b('Show'), ' next to a check to see just the rows it found.'],
         [b('Collected by payment method'), ' — a chart and table of money by Cash, Card and so on. Payments with no method appear as ', b('No method recorded'), '. The last row, ', said(SAID.methodTotal), ', should equal Payments logged.'],
         [b('Download .xlsx'), ' — fetches the latest figures, then saves a copy of everything as an Excel file.'],

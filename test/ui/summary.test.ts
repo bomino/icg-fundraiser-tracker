@@ -79,6 +79,22 @@ describe('summary', () => {
     expect(view.querySelector('[data-health=duplicates] button')).toBeNull();
   });
 
+  it('says logged money is not counted when Unmatched is above zero', () => {
+    const { view } = render();
+    expect(view.querySelector('[data-role=unmatched] .body-md')?.textContent).toBe('Some logged money is not counted toward any pledge. The Data Health list below shows where.');
+  });
+
+  it('says money is counted twice, not missing, when a donor listed twice drives Unmatched below zero', () => {
+    const listedTwice = [pledge({ id: 'p1', phone: '1', amountPledged: 100 }), pledge({ id: 'p2', phone: '1', amountPledged: 100 })];
+    const paid = [payment({ id: 'y1', phone: '1', amountReceived: 40, method: 'Cash' })];
+    const twiceState: State = { pledges: listedTwice, payments: paid, settings: SETTINGS, me: 'me@example.com', computed: compute(listedTwice, paid, SETTINGS, TODAY) };
+    const deps = { store: loadedStore(), reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+    const card = renderSummary(twiceState, deps).querySelector('[data-role=unmatched]') as HTMLElement;
+    expect(card.textContent).toContain('($40.00)');
+    expect(card.classList.contains('is-flagged')).toBe(true);
+    expect(card.querySelector('.body-md')?.textContent).toBe('More money is counted toward pledges than was logged — usually a donor listed twice, so their payments count twice. The Data Health list below shows where.');
+  });
+
   it('names each Show button after its check, so a screen reader’s list of buttons tells them apart', () => {
     const { view } = render();
     const show = view.querySelector('[data-health=notMatched] button') as HTMLButtonElement;
