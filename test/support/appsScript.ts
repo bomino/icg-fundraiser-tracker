@@ -136,6 +136,8 @@ export function createServer() {
   });
   vm.runInContext(readFileSync(new URL('../../apps-script/Code.gs', import.meta.url), 'utf8'), context, { filename: 'Code.gs' });
   const call = <T>(name: string, ...args: unknown[]): T => (context[name] as (...a: unknown[]) => T)(...args);
+  // Code.gs's top-level consts are not properties of the context, only visible to code run inside it.
+  const evaluate = <T>(expression: string): T => vm.runInContext(expression, context) as T;
   call('setup');
 
   // A real-looking JWT (header.payload.sig), so Code.gs's cheap local decode of the payload
@@ -168,5 +170,5 @@ export function createServer() {
     call('onEdit', { range, user: { getEmail: () => email } });
   }
 
-  return { sheets, cache, state, call, tokenFor, setTokenResponse, post, editInSheet, sheet: (name: string) => sheets.get(name) as FakeSheet };
+  return { sheets, cache, state, call, evaluate, tokenFor, setTokenResponse, post, editInSheet, sheet: (name: string) => sheets.get(name) as FakeSheet };
 }
