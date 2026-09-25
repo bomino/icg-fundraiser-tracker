@@ -2,8 +2,6 @@ import { whenNoDialogOpen } from './dialog';
 import { h } from './dom';
 
 const LIFETIME_MS = { info: 4000, error: 8000 } as const;
-// Long enough to read, notice and press the action; short enough not to pile up over a session.
-const ACTION_LIFETIME_MS = 30_000;
 const READY_CHECK_MS = 500;
 
 export interface ToastAction {
@@ -23,7 +21,9 @@ function region(kind: 'info' | 'error'): HTMLElement {
       h('div', { id: 'toasts', class: 'toast-region', role: 'status', 'aria-live': 'polite' }),
       h('div', { id: 'toasts-alert', class: 'toast-region', role: 'alert', 'aria-live': 'assertive' }),
     );
-    document.body.append(stack);
+    // Fixed to the bottom of the screen, so only the tab order moves: Reopen comes before the page's
+    // hundred or so row buttons instead of after them.
+    document.body.prepend(stack);
   }
   return stack.querySelector<HTMLElement>(kind === 'error' ? '#toasts-alert' : '#toasts') as HTMLElement;
 }
@@ -87,7 +87,8 @@ export function showToast(message: string, kind: 'info' | 'error' = 'info', acti
   });
   dismiss.addEventListener('click', close);
   syncReady();
+  // No expiry: the row is already gone from the list, so Reopen holds the only copy of what was typed,
+  // and the toast may have landed unseen behind a form or the Friday display. Losing it is the
+  // volunteer's choice (Dismiss), never a timer's.
   region(kind).append(toast);
-  // For an action toast the stakes are higher still: Reopen is the only way back to the typing.
-  expireOutsideDialogs(toast, ACTION_LIFETIME_MS, close);
 }

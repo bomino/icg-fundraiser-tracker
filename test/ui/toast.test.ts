@@ -64,21 +64,21 @@ describe('showToast', () => {
   it('only polls readiness when the action has a readiness check', () => {
     vi.useFakeTimers();
     showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
     showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn(), ready: () => true });
-    expect(vi.getTimerCount()).toBe(3);
+    expect(vi.getTimerCount()).toBe(1);
   });
 
-  it('returns focus to the page when an action toast expires while focused', () => {
+  it('keeps an action toast, with focus still on it, until it is dismissed', () => {
+    // #given a failed save's toast, with the volunteer's focus on its Reopen button
     vi.useFakeTimers();
-    const main = document.createElement('main');
-    main.id = 'main';
-    document.body.append(main);
     showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
     button('Reopen').focus();
-    vi.advanceTimersByTime(30_000);
-    expect(toasts()).toHaveLength(0);
-    expect(document.activeElement).toBe(main);
+    // #when the volunteer turns away to talk to the next donor
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    // #then the only copy of what was typed is still one press away
+    expect(toasts()).toHaveLength(1);
+    expect(document.activeElement).toBe(button('Reopen'));
   });
 
   it('leaves no lasting focus stop on the page area once focus moves on', () => {
@@ -115,22 +115,21 @@ describe('showToast', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  it('does not let an action toast expire while a dialog makes it unreachable, and gives it 30 seconds from when the dialog closes', async () => {
-    // #given an action toast, and a form dialog opened over the page (which makes the toast inert)
+  it('keeps an action toast that landed unseen, behind a form or the Friday display, after both are gone', async () => {
+    // #given an action toast, shown while a form is open and the Friday display hides every toast
     vi.useFakeTimers();
-    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
     const dialog = document.createElement('dialog');
     document.body.append(dialog);
     dialog.showModal();
-    // #when its 30 seconds run out, and the dialog closes 15 seconds later
-    await vi.advanceTimersByTimeAsync(45_000);
-    expect(toasts()).toHaveLength(1);
+    document.body.dataset.display = '';
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    // #when the form closes and the display is left long afterwards
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
     dialog.close();
-    // #then it lasts a full 30 seconds from that moment
-    await vi.advanceTimersByTimeAsync(29_999);
+    delete document.body.dataset.display;
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    // #then the toast is still there to be seen and acted on
     expect(toasts()).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(toasts()).toHaveLength(0);
   });
 
   it('holds a plain error toast while a dialog is open, and gives it its usual 8 seconds from when the dialog closes', async () => {
@@ -161,12 +160,31 @@ describe('showToast', () => {
     expect(toasts()).toHaveLength(0);
   });
 
-  it('keeps an action toast well past the usual error lifetime, but not beyond 30 seconds', () => {
+  it('removes a plain error toast after its 8 seconds, but keeps an action toast until it is dismissed', () => {
     vi.useFakeTimers();
+    showToast('Could not create the export.', 'error');
     showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
-    vi.advanceTimersByTime(29_999);
-    expect(toasts()).toHaveLength(1);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(8000);
+    expect(toasts().map((toast) => toast.classList.contains('toast-with-action'))).toEqual([true]);
+    button('Dismiss').click();
     expect(toasts()).toHaveLength(0);
+  });
+
+  it('puts the toasts first on the page, so a keyboard reaches Reopen before the list rows', () => {
+    const app = document.createElement('div');
+    app.id = 'app';
+    app.append(document.createElement('button'));
+    document.body.append(app);
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    showToast('Saved.');
+    expect(document.body.firstElementChild?.classList.contains('toasts')).toBe(true);
+    expect(document.querySelectorAll('.toasts')).toHaveLength(1);
+  });
+
+  it('caps the toast stack at half the screen and scrolls it, so a pile of failures never covers a phone', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'components.css'), 'utf8');
+    const rule = /\.toasts \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toContain('max-height: 50vh;');
+    expect(rule).toContain('overflow-y: auto;');
   });
 });

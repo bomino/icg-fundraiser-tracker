@@ -152,8 +152,9 @@ textarea.input { resize: vertical; }
 @media (max-width: 720px) { .modal { padding: var(--space-lg); } .modal-actions { bottom: calc(-1 * var(--space-lg)); margin-bottom: calc(-1 * var(--space-lg)); padding-bottom: var(--space-lg); } }
 
 /* Toasts, banners, chips */
-.toasts { position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%); display: grid; gap: var(--space-sm); z-index: 50; width: min(480px, calc(100vw - 32px)); }
-/* A dismissed or expired toast hands focus back to the page area, which is a landmark, not a control. */
+/* A failed save's toast stays until it is dealt with, so an outage can stack several; past half the screen they scroll rather than cover the list. */
+.toasts { position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%); display: grid; gap: var(--space-sm); z-index: 50; width: min(480px, calc(100vw - 32px)); max-height: 50vh; overflow-y: auto; }
+/* A dismissed toast hands focus back to the page area, which is a landmark, not a control. */
 #main:focus { outline: none; }
 .toast-region { display: grid; gap: var(--space-sm); }
 .toast-region:empty { display: none; }
