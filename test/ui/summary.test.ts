@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
@@ -10,8 +12,12 @@ const pledges = [pledge({ id: 'p1', phone: '1', amountPledged: 100 })];
 const payments = [payment({ id: 'y1', phone: '1', amountReceived: 40, method: 'Cash' }), payment({ id: 'y2', phone: '9', amountReceived: 10, method: 'Card' })];
 const state: State = { pledges, payments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, payments, SETTINGS, TODAY) };
 
-function render(shown: State = state) {
-  const deps = { store: {} as Store, reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+const LOADED_AT = new Date(2026, 8, 24, 14, 1).getTime();
+
+const loadedStore = (loadedAt: number | null = LOADED_AT) => ({ lastLoadedAt: () => loadedAt }) as unknown as Store;
+
+function render(shown: State = state, loadedAt: number | null = LOADED_AT) {
+  const deps = { store: loadedStore(loadedAt), reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
   const view = renderSummary(shown, deps);
   document.body.replaceChildren(view);
   return { view, deps };
@@ -29,7 +35,7 @@ describe('summary', () => {
     const nearlyThere = [pledge({ id: 'p1', phone: '1', amountPledged: 100 })];
     const nearlyPayments = [payment({ id: 'y1', phone: '1', amountReceived: 99.96, method: 'Cash' })];
     const nearlyState: State = { pledges: nearlyThere, payments: nearlyPayments, settings: { ...SETTINGS, goal: 100 }, me: 'me@example.com', computed: compute(nearlyThere, nearlyPayments, { ...SETTINGS, goal: 100 }, TODAY) };
-    const deps = { store: {} as Store, reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+    const deps = { store: loadedStore(), reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
     const view = renderSummary(nearlyState, deps);
     expect(view.textContent).toContain('99.9% of goal received');
     expect(view.textContent).not.toContain('100.0% of goal received');
@@ -40,14 +46,28 @@ describe('summary', () => {
     const nearlyPayments = [payment({ id: 'y1', phone: '1', amountReceived: 99.96, method: 'Cash' })];
     const goal100 = { ...SETTINGS, goal: 100 };
     const nearlyState: State = { pledges: nearlyThere, payments: nearlyPayments, settings: goal100, me: 'me@example.com', computed: compute(nearlyThere, nearlyPayments, goal100, TODAY) };
-    const deps = { store: {} as Store, reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+    const deps = { store: loadedStore(), reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
     const view = renderSummary(nearlyState, deps);
     expect(view.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow')).toBe('99.9');
   });
 
-  it('says truthfully that other volunteers’ changes need a refresh', () => {
+  it('says when the figures were last refreshed, and truthfully that other volunteers’ changes need a refresh', () => {
     const { view } = render();
-    expect(view.querySelector('.view-header .eyebrow')?.textContent).toBe('Live from the shared sheet — tap Refresh for others’ changes');
+    expect(view.querySelector('.view-header .eyebrow')?.textContent).toBe('Updated Sep 24, 2026, 2:01 PM — tap Refresh for others’ changes');
+  });
+
+  it('prints the time the figures were refreshed, but not the prompt to tap a button paper does not have', () => {
+    const { view } = render();
+    const eyebrow = view.querySelector('.view-header .eyebrow') as HTMLElement;
+    expect(eyebrow.classList.contains('screen-only')).toBe(false);
+    expect(eyebrow.querySelector('.screen-only')?.textContent).toBe(' — tap Refresh for others’ changes');
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'base.css'), 'utf8');
+    expect(css).toMatch(/@media print \{\s*[^{}]*\.screen-only[^{}]*\{ display: none !important; \}/);
+  });
+
+  it('shows no refresh time, never a 1970 one, before the first load', () => {
+    const { view } = render(state, null);
+    expect(view.querySelector('.view-header .eyebrow')?.textContent).toBe('Not yet loaded — tap Refresh for others’ changes');
   });
 
   it('highlights unmatched money and links a health problem to its rows', () => {
@@ -78,6 +98,61 @@ describe('summary', () => {
   it('shows no note when every row has an id, or when the server does not say', () => {
     expect(render({ ...state, rowsWithoutId: { pledges: 0, payments: 0 } }).view.querySelector('[data-role=rows-without-id]')).toBeNull();
     expect(render().view.querySelector('[data-role=rows-without-id]')).toBeNull();
+  });
+
+  it('says logged money is not counted when Unmatched is above zero', () => {
+    const { view } = render();
+    expect(view.querySelector('[data-role=unmatched] .body-md')?.textContent).toBe('Some logged money is not counted toward any pledge. The Data Health list below shows where.');
+  });
+
+  it('says money is counted twice, not missing, when a donor listed twice drives Unmatched below zero', () => {
+    const listedTwice = [pledge({ id: 'p1', phone: '1', amountPledged: 100 }), pledge({ id: 'p2', phone: '1', amountPledged: 100 })];
+    const paid = [payment({ id: 'y1', phone: '1', amountReceived: 40, method: 'Cash' })];
+    const twiceState: State = { pledges: listedTwice, payments: paid, settings: SETTINGS, me: 'me@example.com', computed: compute(listedTwice, paid, SETTINGS, TODAY) };
+    const deps = { store: loadedStore(), reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+    const card = renderSummary(twiceState, deps).querySelector('[data-role=unmatched]') as HTMLElement;
+    expect(card.textContent).toContain('($40.00)');
+    expect(card.classList.contains('is-flagged')).toBe(true);
+    expect(card.querySelector('.body-md')?.textContent).toBe('More money is counted toward pledges than was logged — usually a donor listed twice, so their payments count twice. The Data Health list below shows where.');
+  });
+
+  it('gives neither note, and no highlight, when Unmatched is exactly zero', () => {
+    const matched = [payment({ id: 'y1', phone: '1', amountReceived: 40, method: 'Cash' })];
+    const balancedState: State = { pledges, payments: matched, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, matched, SETTINGS, TODAY) };
+    const deps = { store: loadedStore(), reportError: vi.fn(), showList: vi.fn(), exportWorkbook: vi.fn(async () => undefined), drawChart: vi.fn() };
+    const card = renderSummary(balancedState, deps).querySelector('[data-role=unmatched]') as HTMLElement;
+    expect(card.textContent).toContain('$0.00');
+    expect(card.classList.contains('is-flagged')).toBe(false);
+    expect(card.querySelector('.body-md')).toBeNull();
+  });
+
+  it('names each Show button after its check, so a screen reader’s list of buttons tells them apart', () => {
+    const { view } = render();
+    const show = view.querySelector('[data-health=notMatched] button') as HTMLButtonElement;
+    expect(show.textContent).toBe('Show');
+    expect(show.getAttribute('aria-label')).toBe('Show 1: Payments not matched to a pledge');
+  });
+
+  it('gives the Goal card a heading, so heading navigation reaches the headline figure', () => {
+    const { view } = render();
+    const heading = view.querySelector('[role=progressbar]')?.closest('.card')?.querySelector('h2');
+    expect({ text: heading?.textContent, eyebrow: heading?.classList.contains('eyebrow') }).toEqual({ text: 'Goal', eyebrow: true });
+  });
+
+  it('prints a flagged check’s count, which print would hide if it lived inside the Show button', () => {
+    const { view } = render();
+    const flagged = view.querySelector('[data-health=notMatched]') as HTMLElement;
+    const counts = [...flagged.querySelectorAll('.numeric-lg')].filter((el) => !el.closest('.btn'));
+    expect(counts.map((el) => el.textContent)).toEqual(['1']);
+    expect(flagged.children).toHaveLength(2);
+    expect(view.querySelector('[data-health=duplicates] .numeric-lg')?.textContent).toBe('0');
+  });
+
+  it('prints the goal bar, the method colours and a check’s flag even with background graphics off', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'base.css'), 'utf8');
+    const print = /@media print \{([^]*?)\n\}/.exec(css)?.[1] ?? '';
+    const selectors = /([^{}/]+)\{ -webkit-print-color-adjust: exact; print-color-adjust: exact; \}/.exec(print)?.[1] ?? '';
+    expect(selectors.split(',').map((selector) => selector.trim())).toEqual(['.progress-track', '.progress-fill', '.swatch', '.health-list li.is-flagged']);
   });
 
   it('draws the method chart once the view is on the page', async () => {

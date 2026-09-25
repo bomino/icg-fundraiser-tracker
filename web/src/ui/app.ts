@@ -111,11 +111,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
       return tab;
     }),
   );
-  const themeButton = h('button', { type: 'button', class: 'btn btn-ghost', 'aria-pressed': String(currentTheme() === 'dark') }, currentTheme() === 'dark' ? 'Light mode' : 'Dark mode');
+  // Named for the mode it switches to, so it carries no aria-pressed: in dark mode that would
+  // announce "Light mode, pressed", reporting the opposite of the truth.
+  const themeButton = h('button', { type: 'button', class: 'btn btn-ghost' }, currentTheme() === 'dark' ? 'Light mode' : 'Dark mode');
   themeButton.addEventListener('click', () => {
-    const theme = toggleTheme();
-    themeButton.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
-    themeButton.setAttribute('aria-pressed', String(theme === 'dark'));
+    themeButton.textContent = toggleTheme() === 'dark' ? 'Light mode' : 'Dark mode';
   });
   const main = h('main', { class: 'container', id: 'main' });
   const refresh = h('button', { type: 'button', class: 'btn btn-ghost' }, 'Refresh');
@@ -134,19 +134,50 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
     // screen reader hears nothing unless focus lands on the new screen.
     focusHeading(root);
   };
+  // Shared while it runs, so a Download pressed mid-Refresh waits for that load instead of starting another.
+  let loading: Promise<void> | null = null;
+  const load = () =>
+    (loading ??= (async () => {
+      refresh.disabled = true;
+      refresh.textContent = 'Refreshing…';
+      try {
+        await deps.store.load();
+      } finally {
+        refresh.disabled = false;
+        refresh.textContent = 'Refresh';
+        loading = null;
+      }
+    })());
   const reload = async () => {
-    refresh.disabled = true;
-    refresh.textContent = 'Refreshing…';
     try {
-      await deps.store.load();
+      await load();
     } catch (err) {
       // Only a refresh, and never on the projector: a save refused this way keeps its Reopen, so one
       // mistaken Allowlist edit cannot throw away every volunteer's unsaved entry or blank the display.
       if (err instanceof ApiError && err.code === 'FORBIDDEN' && !exitDisplay) showRemoved(err);
       else reportError(err);
+    }
+  };
+  // Refreshed first: a laptop kept on the collection table all evening never leaves the tab, so it
+  // never reloads on its own, and its copy would lack every other volunteer's entries. A failed
+  // refresh rejects, so no out-of-date file is made. Built from the store afterwards, not from the
+  // state the Summary was drawn with, which the refresh has just replaced.
+  let exporting = false;
+  const exportWorkbook = async () => {
+    if (exporting) return;
+    exporting = true;
+    try {
+      const pressed = document.activeElement;
+      await load();
+      // The refresh redrew the Summary, button included, which would drop a keyboard volunteer back to
+      // the top of the page; one who has moved on meanwhile keeps their new focus.
+      if (pressed instanceof HTMLElement && !pressed.isConnected && document.activeElement === document.body) {
+        main.querySelector<HTMLElement>('[data-focus-key="download"]')?.focus();
+      }
+      const state = deps.store.state();
+      if (state) await downloadWorkbook(state, deps.store.lastLoadedAt());
     } finally {
-      refresh.disabled = false;
-      refresh.textContent = 'Refresh';
+      exporting = false;
     }
   };
   refresh.addEventListener('click', () => {
@@ -257,7 +288,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): void {
       : renderSummary(state, {
           store: deps.store,
           reportError,
-          exportWorkbook: downloadWorkbook,
+          exportWorkbook,
           drawChart: drawMethodChart,
           showList: (target, targetFilter) => {
             listFilter = { view: target, filter: targetFilter };

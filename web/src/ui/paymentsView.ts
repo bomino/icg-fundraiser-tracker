@@ -5,7 +5,8 @@ import { isPending, type State } from '../store';
 import type { Payment } from '../types';
 import { methodBadge } from './badges';
 import { h } from './dom';
-import { filterChip, showingLine, type ListFilter } from './filter';
+import { downloadList } from './export';
+import { describeFilter, filterChip, searchFilter, showingLine, type ListFilter } from './filter';
 import { openPaymentForm, type PaymentCarry } from './paymentForm';
 import type { ListViewDeps } from './pledgesView';
 import { SEARCH_DEBOUNCE_MS, matchesQuery } from './search';
@@ -19,6 +20,12 @@ const COLUMNS: Column<DerivedPayment>[] = [
   { key: 'method', label: 'Method', value: (d) => d.payment.method, display: (d) => methodBadge(d.payment.method) },
   { key: 'notes', label: 'Notes', value: (d) => d.payment.notes, cellClass: () => 'cell-wrap' },
 ];
+
+function dateRangeFilter(from: string, to: string): string {
+  if (from !== '' && to !== '') return `Received ${formatDate(from)} – ${formatDate(to)}`;
+  if (from !== '') return `Received from ${formatDate(from)}`;
+  return to === '' ? '' : `Received up to ${formatDate(to)}`;
+}
 
 export function createPaymentsView(deps: ListViewDeps) {
   let query = '';
@@ -78,7 +85,7 @@ export function createPaymentsView(deps: ListViewDeps) {
     };
     const tableSlot = h('div');
     // The region stays put while drawTable swaps the line inside it, so a screen reader hears each new count.
-    const showing = h('div', { role: 'status' });
+    const showing = h('div', { class: 'list-status', role: 'status' });
     const drawTable = () => {
       const rows = state.computed.payments.filter(
         (d) =>
@@ -86,10 +93,11 @@ export function createPaymentsView(deps: ListViewDeps) {
           matchesDateRange(d) &&
           matchesQuery(query, [d.payment.phone, d.donorName, d.payment.notes, d.payment.method], d.key),
       );
+      const sorted = sortRows(rows, COLUMNS, sort);
       tableSlot.replaceChildren(
         renderTable({
           columns: COLUMNS,
-          rows: sortRows(rows, COLUMNS, sort),
+          rows: sorted,
           sort,
           rowId: (d) => d.payment.id,
           rowClass: (d) => (d.notCounted ? 'row-danger' : undefined),
@@ -107,8 +115,16 @@ export function createPaymentsView(deps: ListViewDeps) {
           },
         }),
       );
-      const line = showingLine(!!filter || query.trim() !== '' || dateFilterActive(), rows.length, state.computed.payments.length);
-      showing.replaceChildren(...(line ? [line] : []));
+      const filterName = describeFilter([filter?.label, dateRangeFilter(dateFrom, dateTo), searchFilter(query)]);
+      showing.replaceChildren(
+        ...showingLine({
+          filter: filterName,
+          shown: sorted.length,
+          total: state.computed.payments.length,
+          download: () => downloadList({ list: 'Payments', filter: filterName, rows: sorted }, deps.store.lastLoadedAt()),
+          reportError: deps.reportError,
+        }),
+      );
     };
     const search = h('input', { type: 'search', class: 'input search', placeholder: 'Search phone, donor, method or notes', 'aria-label': 'Search payments', 'data-focus-key': 'payments-search' });
     search.value = query;

@@ -114,6 +114,8 @@ textarea.input { resize: vertical; }
 .row-saving { margin-left: var(--space-sm); font-size: 0.75rem; font-style: italic; color: var(--color-ink-soft); }
 .cell-warning { background: var(--color-warning-tint); color: var(--color-ink); box-shadow: inset 3px 0 0 var(--color-warning); }
 .totals-band { font-size: 0.8125rem; color: var(--color-ink-soft); }
+/* Download this list sits beside "Showing N of M", so it reads as saving the list that line counts. */
+.list-status { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 /* Wraps a paged table plus its "Show more" button; a tighter gap than the view grid's own, so the button reads as part of the table rather than a new section. */
 .table-pager { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
 
@@ -179,6 +181,7 @@ textarea.input { resize: vertical; }
 .health-list li:last-child { border-bottom: 0; }
 /* A tinted block per row merged into one heavy slab when several checks fire; a warning rule per row keeps it calm. */
 .health-list li.is-flagged { background: none; box-shadow: inset 3px 0 0 var(--color-warning); }
+.health-count { display: flex; align-items: center; gap: var(--space-sm); }
 .chart-box { position: relative; width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; }
 .method-grid { display: grid; gap: var(--space-lg); grid-template-columns: minmax(180px, 240px) 1fr; align-items: center; }
 @media (max-width: 720px) {

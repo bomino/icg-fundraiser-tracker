@@ -1,5 +1,5 @@
 import type { HealthCheck, MethodRow } from '../engine';
-import { flooredGoalFraction, formatCents, formatFlooredPercent } from '../format';
+import { flooredGoalFraction, formatCents, formatDateTime, formatFlooredPercent } from '../format';
 import type { State, Store } from '../store';
 import type { RowsWithoutId } from '../types';
 import { chartSlots } from './chartSlots';
@@ -11,18 +11,37 @@ export interface SummaryDeps {
   store: Store;
   reportError(err: unknown, context?: string): void;
   showList(view: 'pledges' | 'payments', filter: ListFilter): void;
-  exportWorkbook(state: State): Promise<void>;
+  exportWorkbook(): Promise<void>;
   drawChart(canvas: HTMLCanvasElement, rows: readonly MethodRow[]): void;
+}
+
+// Printed too, so a handout says which moment its figures come from; only the prompt to tap
+// Refresh, a button paper doesn't have, stays on screen.
+function freshness(loadedAt: number | null): HTMLElement {
+  const updated = loadedAt === null ? 'Not yet loaded' : `Updated ${formatDateTime(loadedAt)}`;
+  return h('p', { class: 'eyebrow' }, updated, h('span', { class: 'screen-only' }, ' — tap Refresh for others’ changes'));
 }
 
 const statCard = (label: string, value: string) => h('div', { class: 'stat-card' }, h('p', { class: 'eyebrow' }, label), h('p', { class: 'numeric-xl stat-value' }, value));
 const stat = (label: string, value: string | number) => h('div', {}, h('p', { class: 'eyebrow' }, label), h('p', { class: 'numeric-lg' }, String(value)));
 
+// The count is its own number, never the button's text: print hides every button, and a flagged
+// check must not print as a bare label beside the clean checks' reassuring zeros.
 function healthItem(check: HealthCheck, deps: SummaryDeps): HTMLElement {
   const count = check.ids.length;
-  const action = count > 0 ? h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': `health:${check.id}` }, `Show ${count}`) : h('span', { class: 'numeric-lg ink-soft' }, '0');
-  if (action instanceof HTMLButtonElement) action.addEventListener('click', () => deps.showList(check.target, { label: check.label, ids: new Set(check.ids) }));
-  return h('li', { 'data-health': check.id, class: count > 0 ? 'is-flagged' : undefined }, h('span', {}, check.label), action);
+  const label = h('span', {}, check.label);
+  if (count === 0) return h('li', { 'data-health': check.id }, label, h('span', { class: 'numeric-lg ink-soft' }, '0'));
+  const show = h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': `Show ${count}: ${check.label}`, 'data-focus-key': `health:${check.id}` }, 'Show');
+  show.addEventListener('click', () => deps.showList(check.target, { label: check.label, ids: new Set(check.ids) }));
+  return h('li', { 'data-health': check.id, class: 'is-flagged' }, label, h('span', { class: 'health-count' }, show, h('span', { class: 'numeric-lg' }, String(count))));
+}
+
+// Unmatched is logged minus received, so it drops below zero when a donor on two pledge rows has
+// their payments counted on both. It is a net: one cause can hide the other, so both sentences
+// send the reader to Data health, which lists each check on its own.
+function unmatchedNote(unmatchedCents: number): string {
+  const cause = unmatchedCents > 0 ? 'Some logged money is not counted toward any pledge.' : 'More money is counted toward pledges than was logged — usually a donor listed twice, so their payments count twice.';
+  return `${cause} The Data Health list below shows where.`;
 }
 
 // The server never sends these rows, so no health check can count them. A neutral note rather
@@ -73,9 +92,9 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
 
   const editGoal = h('button', { type: 'button', class: 'btn btn-ghost', 'data-focus-key': 'summary-edit-goal' }, 'Edit goal');
   editGoal.addEventListener('click', () => openGoalForm(state.settings.goal, (goal) => deps.store.setGoal(goal), deps.reportError));
-  const download = h('button', { type: 'button', class: 'btn btn-secondary' }, 'Download .xlsx');
+  const download = h('button', { type: 'button', class: 'btn btn-secondary', 'data-focus-key': 'download' }, 'Download .xlsx');
   download.addEventListener('click', () => {
-    deps.exportWorkbook(state).catch(deps.reportError);
+    deps.exportWorkbook().catch((err: unknown) => deps.reportError(err, "Couldn't download the file"));
   });
 
   const hasPayments = methods.some((row) => row.cents > 0);
@@ -90,11 +109,11 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
   return h(
     'section',
     { class: 'view' },
-    h('header', { class: 'view-header' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Live from the shared sheet — tap Refresh for others’ changes'), h('h1', { class: 'display-md' }, 'Fundraiser summary')), h('div', { class: 'toolbar' }, h('a', { href: '#display', class: 'btn btn-ghost' }, 'Friday display'), download)),
+    h('header', { class: 'view-header' }, h('div', {}, freshness(deps.store.lastLoadedAt()), h('h1', { class: 'display-md' }, 'Fundraiser summary')), h('div', { class: 'toolbar' }, h('a', { href: '#display', class: 'btn btn-ghost' }, 'Friday display'), download)),
     h(
       'section',
       { class: 'card' },
-      h('div', { class: 'view-header' }, h('p', { class: 'eyebrow' }, 'Goal'), editGoal),
+      h('div', { class: 'view-header' }, h('h2', { class: 'eyebrow' }, 'Goal'), editGoal),
       h('p', {}, h('span', { class: 'numeric-xl gold' }, formatCents(totals.receivedCents)), h('span', { class: 'ink-soft' }, ` received of ${formatCents(totals.goalCents ?? 0)}`)),
       h('div', { class: 'progress-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': announcedPercent, 'aria-label': 'Progress toward goal' }, h('div', { class: 'progress-fill', style: `width: ${progress * 100}%` })),
       h('p', { class: 'meta' }, `${formatFlooredPercent(totals.receivedCents, totals.goalCents ?? 0)} of goal received`),
@@ -118,7 +137,7 @@ export function renderSummary(state: State, deps: SummaryDeps): HTMLElement {
       { class: `card${totals.unmatchedCents !== 0 ? ' is-flagged' : ''}`, 'data-role': 'unmatched' },
       h('h2', { class: 'heading-md' }, 'Reconciliation'),
       h('div', { class: 'stat-row' }, stat('Payments logged', formatCents(totals.loggedCents)), stat('Unmatched payments', formatCents(totals.unmatchedCents))),
-      totals.unmatchedCents !== 0 ? h('p', { class: 'body-md' }, 'Some logged money is not counted toward any pledge. The Data Health list below shows where.') : null,
+      totals.unmatchedCents !== 0 ? h('p', { class: 'body-md' }, unmatchedNote(totals.unmatchedCents)) : null,
     ),
     h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Data health'), h('p', { class: 'meta' }, 'Every figure below should read 0. Anything higher needs a look.'), h('ul', { class: 'health-list' }, ...health.map((check) => healthItem(check, deps))), rowsWithoutIdNote(state.rowsWithoutId)),
     h('section', { class: 'card' }, h('h2', { class: 'heading-md' }, 'Collected by payment method'), h('div', { class: 'method-grid' }, hasPayments ? h('div', { class: 'chart-box' }, canvas) : h('p', { class: 'empty' }, 'No payments yet.'), methodTable(state))),

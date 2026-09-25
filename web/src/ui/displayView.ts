@@ -33,9 +33,11 @@ function figures(state: State): HTMLElement[] {
 }
 
 /**
- * The projector view for jumu'ah announcements. It refreshes on its own only while the current
- * sign-in will last the whole load, and holds sign-in prompts back otherwise: ID tokens expire
- * hourly, and a Google dialog popping up mid-announcement is the failure this mode exists to avoid.
+ * The projector view for jumu'ah announcements. It refreshes on entry, and again whenever its
+ * figures reach DISPLAY_REFRESH_MS old, because the tab may not have reloaded since morning data
+ * entry. It does so only while the current sign-in will last the whole load, and holds sign-in
+ * prompts back otherwise: ID tokens expire hourly, and a Google dialog popping up mid-announcement
+ * is the failure this mode exists to avoid.
  * Returns the teardown, which undoes every timer, listener and hold it set up.
  */
 export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
@@ -43,6 +45,8 @@ export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
   let loading = false;
   let reconnecting = false;
   let closed = false;
+  // A failed load leaves lastLoadedAt behind, so without this the 30-second check would retry an outage every 30 seconds.
+  let lastAttemptAt = 0;
 
   const stack = h('div', { class: 'friday-stack' });
   const updated = h('span', { class: 'friday-updated meta' });
@@ -73,6 +77,7 @@ export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
   function tick() {
     if (closed || loading || reconnecting || document.visibilityState !== 'visible' || !deps.auth.hasFreshToken()) return;
     loading = true;
+    lastAttemptAt = Date.now();
     deps.store
       .load()
       .catch((err: unknown) => console.warn('The display could not refresh; it keeps the last figures.', err))
@@ -99,10 +104,10 @@ export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
     }
   }
 
-  function onVisibility() {
+  function refreshIfDue() {
     if (document.visibilityState !== 'visible') return;
-    const loadedAt = deps.store.lastLoadedAt();
-    if (loadedAt === null || Date.now() - loadedAt >= DISPLAY_REFRESH_MS) tick();
+    const lastTried = Math.max(deps.store.lastLoadedAt() ?? 0, lastAttemptAt);
+    if (Date.now() - lastTried >= DISPLAY_REFRESH_MS) tick();
     showStatus();
   }
 
@@ -110,19 +115,20 @@ export function mountDisplay(root: HTMLElement, deps: DisplayDeps): () => void {
   const state = deps.store.state();
   if (state) render(state);
   staleNote.addEventListener('click', () => void reconnect());
-  const refreshTimer = setInterval(tick, DISPLAY_REFRESH_MS);
-  const staleTimer = setInterval(showStatus, STALE_CHECK_MS);
-  document.addEventListener('visibilitychange', onVisibility);
+  const checkTimer = setInterval(refreshIfDue, STALE_CHECK_MS);
+  document.addEventListener('visibilitychange', refreshIfDue);
   const unsubscribe = deps.store.subscribe(render);
   document.body.dataset.display = 'friday';
   root.replaceChildren(view);
   releasePrompts = deps.auth.suppressPrompts();
+  // Only once prompts are held back: a server that rejects the token makes api.ts ask for a new
+  // one, and that must not open sign-in on the projector.
+  refreshIfDue();
 
   return () => {
     closed = true;
-    clearInterval(refreshTimer);
-    clearInterval(staleTimer);
-    document.removeEventListener('visibilitychange', onVisibility);
+    clearInterval(checkTimer);
+    document.removeEventListener('visibilitychange', refreshIfDue);
     unsubscribe();
     releasePrompts();
     delete document.body.dataset.display;

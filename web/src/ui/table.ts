@@ -122,7 +122,9 @@ export function renderTable<R>(options: TableOptions<R>): HTMLElement {
     options.onShowMore?.();
     focusAfterShowMore(revealedRowId);
   });
-  return h('div', { class: 'table-pager' }, table, showMore);
+  // Print hides the button, and a printed list must not just stop as if it were complete.
+  const leftOut = h('p', { class: 'meta print-only' }, `${remaining} more ${remaining === 1 ? 'row' : 'rows'} not shown.`);
+  return h('div', { class: 'table-pager' }, table, showMore, leftOut);
 }
 
 /** Escapes an id or focus key for use in a CSS attribute selector; ids here are UUIDs, so this rarely needs to escape anything, but a stray character should not throw. */

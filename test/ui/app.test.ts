@@ -464,6 +464,16 @@ describe('mountApp', () => {
     vi.unstubAllGlobals();
   });
 
+  it('names the theme button after the mode it switches to, with no pressed state to contradict that name', () => {
+    mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+    const theme = Array.from(root.querySelectorAll<HTMLButtonElement>('.nav-actions button')).find((button) => button.textContent === 'Dark mode') as HTMLButtonElement;
+    expect(theme.hasAttribute('aria-pressed')).toBe(false);
+    theme.click();
+    expect({ label: theme.textContent, pressed: theme.hasAttribute('aria-pressed') }).toEqual({ label: 'Light mode', pressed: false });
+    theme.click();
+    expect(theme.textContent).toBe('Dark mode');
+  });
+
   it('links to the Friday display from the Summary', () => {
     history.replaceState(null, '', '#summary');
     mountApp(root, { store: fakeStore().store, auth: fakeAuth() });

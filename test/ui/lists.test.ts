@@ -57,6 +57,13 @@ describe('pledges view', () => {
     expect(clear).toHaveBeenCalled();
   });
 
+  it('names the filter chip starting with its visible words, so a voice-control user can say what they see', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(state, { label: 'Donors listed more than once', ids: new Set(['p2']) }, () => undefined);
+    const chip = view.querySelector('.chip') as HTMLButtonElement;
+    expect(chip.textContent).toBe('Showing: Donors listed more than once ×');
+    expect(chip.getAttribute('aria-label')).toBe('Showing: Donors listed more than once, clear filter');
+  });
+
   it('opens the payment form pre-filled after Log a payment closes the pledge dialog, without stacking dialogs', () => {
     const view = createPledgesView({ store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);
