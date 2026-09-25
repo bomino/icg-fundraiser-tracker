@@ -63,9 +63,35 @@ async function expectEachFieldClearOfFooter(page: Page, dialog: Locator): Promis
   expect(checked).toBeGreaterThan(3);
 }
 
+// A failed save's toast never expires, so it can sit at the bottom of the screen while the volunteer
+// works on. Shown through the app's own module, which the dev server serves at this path.
+async function showFailedSaveToast(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const toastModule = '/src/ui/toast.ts';
+    const { showToast }: typeof import('../web/src/ui/toast') = await import(toastModule);
+    showToast("Couldn't save the payment from 555-1234. Could not reach the tracker. Check your connection and try again.", 'error', { label: 'Reopen', run: () => undefined });
+  });
+}
+
 for (const [device, viewport] of VIEWPORTS) {
   test.describe(`on a ${device}`, () => {
     test.use({ viewport });
+
+    test("Tab down the Pledges list keeps each focused row above a failed save's toast", async ({ page }) => {
+      await openApp(page, 'pledges');
+      await showFailedSaveToast(page);
+      const toast = page.locator('.toast');
+      await expect(toast).toBeVisible();
+      await page.locator('tbody .row-open').first().focus();
+
+      let checked = 0;
+      for (let row = await focusedRow(page); row !== null; row = await focusedRow(page)) {
+        expect(row.bottom, `row ${checked + 1}`).toBeLessThanOrEqual((await edges(toast)).top);
+        checked++;
+        await page.keyboard.press('Tab');
+      }
+      expect(checked).toBeGreaterThan(5);
+    });
 
     test('Shift+Tab up the Pledges list keeps each focused row below the nav bar', async ({ page }) => {
       await openApp(page, 'pledges');

@@ -11,6 +11,18 @@ export interface ToastAction {
   ready?: () => boolean;
 }
 
+// The stack is fixed over the bottom of the page, and a failed save's toast never expires. Focusing a control
+// scrolls it only as far as the page's bottom scroll padding, so that padding follows the toasts' height, and a
+// control reached with Tab stops above them rather than under them (WCAG 2.4.11).
+function padPageForToasts(stack: HTMLElement) {
+  // jsdom, which the unit tests run in, has no ResizeObserver, and no layout to measure.
+  if (typeof ResizeObserver !== 'function') return;
+  new ResizeObserver(() => {
+    const height = stack.querySelector('.toast') ? Math.ceil(stack.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty('--toasts-height', `${height}px`);
+  }).observe(stack);
+}
+
 // Confirmations are announced politely; failures interrupt, since the form that caused them has already closed.
 function toastStack(): HTMLElement {
   let stack = document.querySelector<HTMLElement>('.toasts');
@@ -24,6 +36,7 @@ function toastStack(): HTMLElement {
     // Fixed to the bottom of the screen, so only the tab order moves: Reopen comes before the page's
     // hundred or so row buttons instead of after them.
     document.body.prepend(stack);
+    padPageForToasts(stack);
   }
   return stack;
 }

@@ -191,6 +191,11 @@ textarea.input { resize: vertical; }
 /* A failed save's toast stays until it is dealt with, so an outage can stack several; past half the screen they scroll rather than cover the list. */
 /* The live regions stay in the page even when empty, since one that appears together with its message is often not announced;
    the empty stack still takes up a strip above the page, so only the toasts themselves take taps. */
+/* toast.ts sets --toasts-height from the stack while a toast is on screen, as a failed save's stays until it is dealt with.
+   Focusing a control scrolls it only as far as the bottom scroll padding, so without this a control reached with Tab
+   stops under the toasts; the page gains the same room at its end, so its last rows can scroll clear of them too. */
+html:has(.toast) { scroll-padding-bottom: calc(var(--toasts-height, 0px) + 2 * var(--space-md)); }
+body { padding-bottom: var(--toasts-height, 0px); }
 .toasts { position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%); display: grid; gap: var(--space-sm); z-index: 50; width: min(480px, calc(100vw - 32px)); max-height: 50vh; overflow-y: auto; pointer-events: none; }
 /* A dismissed toast hands focus back to the page area, which is a landmark, not a control. */
 #main:focus { outline: none; }
