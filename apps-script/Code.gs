@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 7;
+const API_VERSION = 8;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -175,8 +175,9 @@ function allowlist_() {
 
 function sheet_(name) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  // setup() only adds tabs, so following it after a rename would leave the records stranded in the renamed tab.
-  if (!sheet) throw new ApiError('INTERNAL', 'The "' + name + '" tab is missing. If it was renamed, rename it back to "' + name + '". Run setup() only when setting up a new Sheet.');
+  // Volunteers see this too, so it names who can fix it. It never suggests setup(): that only adds tabs,
+  // and run after a rename it would leave the records stranded in the renamed one (docs/SETUP.md says so).
+  if (!sheet) throw new ApiError('INTERNAL', 'The "' + name + '" tab is missing. The organiser needs to rename it back to "' + name + '", or copy it back if it was deleted.');
   return sheet;
 }
 

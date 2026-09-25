@@ -47,6 +47,7 @@ const CODE_GS_HASHES: readonly string[] = [
   '875937965d9f8822f143f71bc1270714d2c4f4102523890c87c1397ffdb7e159',
   '1f6654d9250f990f1f0478c13aa8725746785757b87e42eec817899c0a905fc6',
   '0f0571ffd3e3c74627f2cb79d5c0bfa53fda1d52ea85fc9af7e4b9a4c661a227',
+  'a98140747f76c94a3c124e2eb7f390a538c5792a357a7e02efe8d8f29aadeb1a',
 ];
 
 describe('API_VERSION', () => {
@@ -599,12 +600,13 @@ describe('sheet layout', () => {
     expect(server.sheet('Pledges').raw).toEqual(before);
   });
 
-  it('asks for a renamed tab to be renamed back rather than recreated by setup()', () => {
+  // Volunteers see it too, so it names who can fix it, in plain words, and never a script function to run.
+  it('asks the organiser to rename a renamed tab back, or copy a deleted one back, rather than recreate it', () => {
     server.sheets.set('Donor pledges', server.sheet('Pledges'));
     server.sheets.delete('Pledges');
     expect(server.post('load', {}, token).error).toEqual({
       code: 'INTERNAL',
-      message: 'The "Pledges" tab is missing. If it was renamed, rename it back to "Pledges". Run setup() only when setting up a new Sheet.',
+      message: 'The "Pledges" tab is missing. The organiser needs to rename it back to "Pledges", or copy it back if it was deleted.',
     });
   });
 });
