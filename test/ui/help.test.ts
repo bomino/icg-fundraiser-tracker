@@ -161,14 +161,17 @@ describe('createHelpView', () => {
     expect(howTo?.textContent).toContain(`${GENERAL_DONATIONS.phone} as the phone number and ${GENERAL_DONATIONS.name} as the donor name`);
     const warning = Array.from(view.querySelectorAll('#help-warnings dt')).find((term) => term.textContent === WARN_NOT_IN_PLEDGES);
     expect(warning?.nextElementSibling?.textContent).toContain(`${NO_PHONE_MONEY_TOPIC} in How to…`);
+    const overpaid = Array.from(view.querySelectorAll('#help-how-to .help-topic')).find((topic) => topic.querySelector('h3')?.textContent === 'Handle a donor who paid more than they pledged');
+    expect(overpaid?.textContent).toContain(`${NO_PHONE_MONEY_TOPIC} in How to…`);
   });
 
   it('warns about the side effects the General donations pledge really has', () => {
     const howTo = Array.from(createHelpView().querySelectorAll('#help-how-to .help-topic')).find((topic) => topic.querySelector('h3')?.textContent === NO_PHONE_MONEY_TOPIC);
-    for (const effect of [STATUS.overpaid, 'Overpaid / credit', HEALTH_LABELS.possibleDuplicatePayments, 'Unmatched payments stays at $0.00']) expect(howTo?.textContent).toContain(effect);
+    for (const effect of [STATUS.overpaid, 'Overpaid / credit', HEALTH_LABELS.possibleDuplicatePayments, 'Unmatched payments stays at $0.00', 'Needs follow-up']) expect(howTo?.textContent).toContain(effect);
 
     const general = pledge({ id: 'general', phone: GENERAL_DONATIONS.phone, name: GENERAL_DONATIONS.name, amountPledged: 0 });
     const aisha = pledge({ phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 1000, datePledged: '2026-09-01' });
+    expect(needsFollowUp(compute([general], [], SETTINGS, TODAY).pledges[0], TODAY)).toBe(true);
     const payments = [
       payment({ phone: '555-010-0101', amountReceived: 500, dateReceived: '2026-09-05' }),
       payment({ phone: GENERAL_DONATIONS.phone, amountReceived: 1200, dateReceived: '2026-08-28' }),

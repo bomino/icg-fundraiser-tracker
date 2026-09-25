@@ -388,13 +388,13 @@ function howTo(): Child[] {
       'Record money with no phone number (collection box, walk-in)',
       p('Some money has no donor to link it to: cash from the collection box, or a gift from someone who has not pledged and leaves no number. Log all of it under one shared pledge named General donations, so it still counts toward the goal.'),
       steps(
-        ['The first time only: on ', b('Pledges'), ', press ', b('Add pledge'), '. Type ', b('000-000-0000'), ' as the phone number and ', b('General donations'), ' as the donor name, enter ', b('0'), ' in Amount pledged, and clear the Date pledged box so it is empty. Save.'],
+        ['The first time only: on ', b('Pledges'), ', press ', b('Add pledge'), '. Type ', b('000-000-0000'), ' as the phone number and ', b('General donations'), ' as the donor name, enter ', b('0'), ' in Amount pledged, and clear the Date pledged box so it is empty. Save. Do this only when you have a gift to log, because until it has one it shows under ', b('Needs follow-up'), '.'],
         ['Log the money as a payment with ', b('000-000-0000'), ' as the phone number. The line under it should show “Donor: General donations”. For the collection box, one payment for each count is enough; say where the money came from in Notes, for example “Collection box, Jumu’ah”.'],
         ['If you already logged such money under another number, open that payment and change its phone number to ', b('000-000-0000'), '.'],
       ),
       p('This money counts toward Total received, the goal and the Friday display, and Unmatched payments stays at $0.00. Two things look odd but are expected:'),
       bullets(
-        ['General donations shows as ', b(STATUS.overpaid), ' and counts as one Overpaid donor, and all its money is added to ', b('Overpaid / credit'), ' on the Summary, because its pledge amount is 0.'],
+        ['General donations shows as ', b(STATUS.overpaid), ' and counts as one Overpaid donor, and all its money is added to ', b('Overpaid / credit'), ' on the Summary, because its pledge amount is 0. Leave it at 0: raising it would add to Total pledged and to the count of donors who pledged.'],
         ['Two gifts of the same amount on the same day, such as two $20 gifts on a Friday, appear under ', b(HEALTH_LABELS.possibleDuplicatePayments), '. That is a false alarm: keep both.'],
       ),
       note('Date pledged stays empty so that no gift, however old, is flagged as coming before the pledge. Someone who has pledged, or will pay over time, needs their own made-up number instead: see ', b('Record a donor who won’t give a phone number'), ' in How to….'),
@@ -431,6 +431,7 @@ function howTo(): Child[] {
         ['If the donor really did give more, you can raise their Amount pledged to match, or leave it. Either is fine — ask the organiser which they prefer.'],
       ),
       p('The extra money is shown under ', b('Overpaid / credit'), ' on the Summary. It never hides what other donors still owe.'),
+      note('General donations is the exception: it always shows Overpaid, and its Amount pledged stays 0. See ', b('Record money with no phone number (collection box, walk-in)'), ' in How to….'),
     ),
     topic(
       'A check bounced or money was given back',
