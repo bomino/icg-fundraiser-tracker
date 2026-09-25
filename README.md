@@ -17,6 +17,7 @@ A web app for masjid fundraiser volunteers. Volunteers sign in with Google and r
 - **Resilient saves**: a save is retried automatically if Google's servers hiccup, and a retry that actually landed is recognised rather than resurfaced as an error.
 - **No lost typing**: Cancel, Escape or Back on a form with anything typed in it asks "Discard what you typed?" before closing it.
 - **Phone corrections that don't strand payments**: changing the phone number on a pledge says how many payments were logged under the old number, and how to move them to the new one, before anything is saved.
+- **Near-miss phone numbers**: when a payment's number is on no pledge but is one digit off a donor's, has two digits swapped, or differs only by a country code or a leading 0, the payment form asks "Is this from …?" and fills in that donor's number on a tap, never by itself.
 - **Pledge and pay at once**: a new pledge's **Save and log a payment** saves it and opens the payment form already matched to that donor, with the cursor in the amount, so the phone number is typed only once. Any payment form opened for a known donor starts in the amount too.
 - **Save and add another** on a new pledge or payment: saves it and opens an empty form for the next one, keeping the date (and the payment method), for typing up a stack of cards or envelopes.
 - **Paging at scale**: long lists show 100 rows with a "Show more" button; search, sort and filters still cover every row.
