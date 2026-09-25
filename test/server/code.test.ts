@@ -306,9 +306,11 @@ describe('writes', () => {
 
   it('updates when the caller saw the latest version', () => {
     const saved = server.post('upsertPledge', newRow(pledgeDraft), token).data;
-    const updated = server.post('upsertPledge', { ...pledgeDraft, name: 'Aisha R.', id: saved.id, updatedAt: saved.updatedAt }, token);
-    expect(updated.data).toMatchObject({ id: saved.id, name: 'Aisha R.' });
+    const updated = server.post('upsertPledge', { ...pledgeDraft, phone: '0551234', name: 'Aisha R.', notes: '=1+1', id: saved.id, updatedAt: saved.updatedAt }, token);
+    expect(updated.data).toMatchObject({ id: saved.id, phone: '0551234', name: 'Aisha R.' });
     expect(server.post('load', {}, token).data.pledges).toHaveLength(1);
+    // The edit path writes the row itself, so it needs the same raw check as a create.
+    expect(server.sheet('Pledges').raw[1]).toEqual(PLEDGE_COLUMNS.map((column) => (typeof updated.data[column] === 'number' ? updated.data[column] : `'${updated.data[column]}`)));
   });
 
   it('refuses a stale update and returns the current row', () => {
