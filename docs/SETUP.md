@@ -29,7 +29,7 @@ One-time setup, about 30 minutes. You need a Google account (the organiser's) an
 2. Set **Execute as: Me** and **Who has access: Anyone**. "Anyone" only lets the request reach the script. The script itself rejects anyone who isn't signed in and on the Allowlist.
 3. Copy the **Web app URL**. It ends in `/exec`.
 
-When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL. Update `Code.gs` (as a new deployment version) and the website in the same sitting: if the two don't match, adding new pledges and payments breaks.
+When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ → Version: New version**. That keeps the same URL. In the new version's **Description**, type the short id of the commit you're deploying (`git rev-parse --short HEAD`), so you can tell later which version goes with which commit. Update `Code.gs` (as a new deployment version) and the website in the same sitting: if the two don't match, adding new pledges and payments breaks.
 
 ## 4. Publish the site
 
@@ -38,6 +38,14 @@ When you change `Code.gs` later, use **Deploy → Manage deployments → ✎ →
 3. In the repository, go to **Settings → Pages → Source: GitHub Actions**.
 4. **Settings → Secrets and variables → Actions → Variables**: add `VITE_SCRIPT_URL` (from step 3) and `VITE_GOOGLE_CLIENT_ID` (from step 2).
 5. **Actions → Test and deploy → Run workflow**. When it finishes, the site is at `https://<user>.github.io/<repo>/`. If the run shows as failed, open it: when only the **e2e** job (the browser tests) failed, the **deploy** job still published the site.
+
+## Undoing a bad update
+
+If an update breaks the app, go back to the last version that worked. If the bad update changed `apps-script/Code.gs` as well as the site, roll back both in the same sitting: undoing only one of them leaves the two out of step, and adding pledges and payments breaks.
+
+1. **The site.** Run `git revert <bad commit>` and push to `main`; the workflow tests and publishes the older code as usual. For a quicker stopgap, open the last good run on `main` under **Actions → Test and deploy** and press **Re-run jobs → Re-run all jobs** (possible for 30 days after the run; if it fails, use `git revert`). Revert anyway before anyone pushes again, or the next push publishes the bad update again. Don't use **Run workflow** on a tag or another branch: the `github-pages` environment only lets the default branch (`main`) publish.
+2. **`Code.gs`.** In Apps Script, go to **Deploy → Manage deployments → ✎ → Version**, pick the last number that worked, usually the previous one (its **Description** names the commit it came from), then press **Deploy**. The URL stays the same. Then paste the matching older `Code.gs` (`apps-script/Code.gs` on the reverted `main`) back into the editor, or the next **New version** brings the bad code back.
+3. If adding a pledge or payment then says *Someone else deleted this row*, the two are still out of step (see Troubleshooting).
 
 ## Local development
 
