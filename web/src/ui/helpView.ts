@@ -455,7 +455,7 @@ function howTo(): Child[] {
       'Find out how much came in this week',
       steps(['Go to ', b('Payments'), ' and tap ', b('This week'), '.'], ['Read the line above the list, for example “Showing 12 of 340 · $1,200.00 logged”. The line under it splits that by method.']),
       p('The week starts on Saturday, so on a Friday it covers the whole week since the last Jumu’ah. For any other stretch, such as one evening or a month for a board meeting, set ', b('From'), ' and ', b('To'), ' yourself.'),
-      note('The figure counts every payment in those dates, even one with a ', b('⚠'), ' warning, which Total received leaves out. If you announce it next to Total received, fix those rows first.'),
+      note('The figure counts every payment in those dates, even one with a ', b('⚠'), ' warning, which Total received leaves out. If you announce it next to Total received, fix those rows first. A payment typed with no date, or the wrong one, is left out, so if the figure seems low, look for one.'),
     ),
     topic(
       'Download a copy',
