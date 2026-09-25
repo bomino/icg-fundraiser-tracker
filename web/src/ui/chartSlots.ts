@@ -1,15 +1,17 @@
 import type { MethodRow } from '../engine';
 
 const PALETTE_SIZE = 6;
-const NEUTRAL_SLOT = 7;
+// "No method recorded" and "Other / unlisted" are not methods, so each has its own neutral, never a method's hue however many are listed.
+const NEUTRAL_SLOTS: Record<Exclude<MethodRow['kind'], 'method'>, number> = { none: 7, unlisted: 8 };
 
-// The doughnut and the table beside it must agree on colours, so both derive them here.
+// The ring and the table beside it must agree on colours, so both derive them here. Methods arrive in their
+// Settings order and each keeps that place's slot, so a method's colour holds while one before it has no money.
 export function chartSlots(rows: readonly MethodRow[]): Map<string, number> {
   const slots = new Map<string, number>();
-  rows
-    .filter((row) => row.cents > 0 && row.kind !== 'none')
-    .forEach((row, index) => slots.set(row.label, (index % PALETTE_SIZE) + 1));
-  // Blank-method money gets the neutral slot, so it never shares a hue with a real method (it sits beside slot 1 in the ring).
-  rows.filter((row) => row.cents > 0 && row.kind === 'none').forEach((row) => slots.set(row.label, NEUTRAL_SLOT));
+  let place = 0;
+  for (const row of rows) {
+    const slot = row.kind === 'method' ? (place++ % PALETTE_SIZE) + 1 : NEUTRAL_SLOTS[row.kind];
+    if (row.cents > 0) slots.set(row.label, slot);
+  }
   return slots;
 }

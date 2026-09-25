@@ -5,7 +5,7 @@ import { compute } from '../../web/src/engine';
 import type { State, Store } from '../../web/src/store';
 import { mountApp, parseRoute } from '../../web/src/ui/app';
 import { renderMessageScreen } from '../../web/src/ui/screens';
-import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
+import { SETTINGS, TODAY, pledge } from '../support/factories';
 
 const pledges = [pledge({ id: 'p1', phone: '555-010-0101', name: 'Aisha Rahman', amountPledged: 100 })];
 
@@ -267,22 +267,6 @@ describe('mountApp', () => {
     history.replaceState(null, '', '#summary');
     mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
     expect(root.querySelector('main a[href="#display"]')?.textContent).toBe('Friday display');
-  });
-
-  it('tears down the method chart’s theme listener when leaving Summary, so it does not outlive its canvas', async () => {
-    history.replaceState(null, '', '#summary');
-    const paymentsList = [payment({ id: 'y1', phone: '555-010-0101', amountReceived: 40, method: 'Cash' })];
-    const state: State = { pledges, payments: paymentsList, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, paymentsList, SETTINGS, TODAY) };
-    const store = { state: () => state, subscribe: () => () => undefined, load: vi.fn(async () => undefined), lastLoadedAt: vi.fn(() => Date.now()) } as unknown as Store;
-    const removeSpy = vi.spyOn(document, 'removeEventListener');
-    mountApp(root, { store, auth: fakeAuth() });
-    await Promise.resolve();
-    expect(root.querySelector('canvas')).not.toBeNull();
-
-    history.replaceState(null, '', '#pledges');
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-    expect(removeSpy).toHaveBeenCalledWith('themechange', expect.any(Function));
-    removeSpy.mockRestore();
   });
 
   it('keeps focus, text and caret in the search box when the store publishes', () => {

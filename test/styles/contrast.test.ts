@@ -65,6 +65,15 @@ describe('colour tokens', () => {
     expect(light['chart-7']).toBe('#8a9690');
     expect(dark['chart-7']).toBe('#8a8270');
   });
+
+  it.each([
+    ['light', light],
+    ['dark', dark],
+  ])('tells the "Other / unlisted" slice from the "No method recorded" one by lightness, since both are neutral (%s)', (_theme, palette) => {
+    expect(palette['chart-8'], '--chart-8').toBeDefined();
+    expect(contrast(palette['chart-8'], palette['chart-7'])).toBeGreaterThanOrEqual(2);
+    expect(contrast(palette['chart-8'], palette['color-surface'])).toBeGreaterThanOrEqual(NON_TEXT);
+  });
 });
 
 describe('component colours', () => {
@@ -83,6 +92,11 @@ describe('component colours', () => {
 
   it('writes the Friday stale note in ink, keeping the warning colour on its border', () => {
     expect(componentsCss).toMatch(/\.friday-stale \{[^}]*border: 1px solid var\(--color-warning\);[^}]*color: var\(--color-ink\);/);
+  });
+
+  it('prints the payment-method ring and its key, which are drawn only as backgrounds', () => {
+    expect(componentsCss).toMatch(/\.method-ring \{[^}]*print-color-adjust: exact;/);
+    expect(componentsCss).toMatch(/\.swatch \{[^}]*print-color-adjust: exact;/);
   });
 
   it('rings both progress bars inside their own edge, since neither track stands out from what is behind it', () => {
@@ -109,7 +123,7 @@ describe('high-contrast themes', () => {
       /\.chip-toggle\[aria-pressed='true'\]:focus-visible \{ outline-color: Highlight; \}/,
     ],
     ['underlines only the current tab', /\.tab \{ border-bottom-color: Canvas; \}\s*\.tab\[aria-current='page'\] \{ border-bottom-color: Highlight; \}/],
-    ['keeps the chart key in the colours of its slices', /\.swatch \{ forced-color-adjust: none; \}/],
+    ["keeps the payment-method ring and its key in the chart colours, since the theme would drop the ring's gradient", /\.method-ring, \.swatch \{ forced-color-adjust: none; \}/],
   ])('%s', (_what, rule) => {
     expect(forcedColors).toMatch(rule);
   });

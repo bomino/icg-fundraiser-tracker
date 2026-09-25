@@ -41,7 +41,7 @@ colors:
   payment-card: "#6b4d8c"     # Muted aubergine — replaces neon purple
   payment-online: "#a8651f"   # Burnt orange — replaces neon orange
 
-  # --- Chart palette (used by Chart.js) ---
+  # --- Chart palette (the Summary's payment-method ring) ---
   chart-1: "#2d5e3e"          # emerald
   chart-2: "#a87c0a"          # gold
   chart-3: "#3a5a8c"          # indigo
@@ -49,6 +49,7 @@ colors:
   chart-5: "#6b4d8c"          # aubergine
   chart-6: "#a8651f"          # burnt orange
   chart-7: "#8a9690"          # neutral grey — "No method recorded"; its own value, not ink-muted
+  chart-8: "#4a4640"          # dark neutral — "Other / unlisted"; darker than chart-7 so the two neutrals differ by lightness
 
 # Dark-mode token overrides. Same semantic names; different values.
 # Each entry below is the dark-mode value of the matching token in `colors`
@@ -92,7 +93,7 @@ colors-dark:
   payment-card: "#9b7ec4"
   payment-online: "#d4914a"
 
-  # --- Chart palette (used by Chart.js — lifted for dark) ---
+  # --- Chart palette (lifted for dark) ---
   chart-1: "#5a9b6f"
   chart-2: "#d4af37"
   chart-3: "#7591c4"
@@ -100,6 +101,7 @@ colors-dark:
   chart-5: "#9b7ec4"
   chart-6: "#d4914a"
   chart-7: "#8a8270"
+  chart-8: "#c9c1ad"            # lighter than chart-7 here, again further from the page
 
 typography:
   display-xl:
@@ -372,7 +374,7 @@ The palette is rooted in three pillars: **ivory** (the institutional surface), *
 
 The **payment method palette** replaces the previous neon set with institutional muted tones: emerald, indigo, aubergine, burnt orange. They harmonize with each other and with the brand greens/golds, so the donut chart in the report doesn't look like a clown.
 
-The **chart palette** is reusable across visualizations. Drawn from the same six muted hues; no two adjacent slices clash. A seventh, neutral grey (`chart-7`) marks payments with no method recorded. It keeps its own value rather than borrowing `ink-muted`, which is now dark enough for text and would sit too close to the emerald Cash slice.
+The **chart palette** is reusable across visualizations. Drawn from the same six muted hues; no two adjacent slices clash. Each listed payment method takes the colour of its place in the Settings list (the first `chart-1`, the second `chart-2`, and so on, starting over after six), so a method keeps its colour while a method listed before it has no money yet. A seventh, neutral grey (`chart-7`) marks payments with no method recorded. It keeps its own value rather than borrowing `ink-muted`, which is now dark enough for text and would sit too close to the emerald Cash slice. An eighth, darker neutral (`chart-8`) marks "Other / unlisted" money, recorded under a method since removed from Settings; it never borrows a real method's colour, and it differs from `chart-7` by lightness because the two can sit side by side. The list badges keep their own `payment-*` colours by method name, so a badge and its ring slice need not match.
 
 ### Dark mode — the same logic, recalibrated
 
@@ -389,7 +391,7 @@ Dark mode isn't a 1:1 inversion. Every token was chosen for its specific semanti
 
 The brand wordmark gradient (`gold → emerald`) uses the dark-mode token values, so it stays readable on the dark background.
 
-The **chart palette** is lifted across the board — Chart.js charts running on dark mode use the dark `chart-*` values automatically (the JS reads CSS variables on render).
+The **chart palette** is lifted across the board — the payment-method ring uses the dark `chart-*` values automatically, because its gradient names the CSS variables rather than their values, so a theme switch recolours it without a redraw.
 
 **Print mode forces light theme.** A printed report on paper should always look like the light theme regardless of what the screen showed; the print stylesheet overrides `--bg`, `--surface`, `--ink`, etc., to their light values.
 
@@ -466,7 +468,7 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 
 **Tables**: rows are 48px tall minimum, separated by 1px `rule` dividers (no zebra striping — strips scream "tech app"), header row uses `eyebrow` typography with letter-spacing. A row tinted `danger-tint` (a duplicate pledge, a payment that isn't counted) switches its `ink-soft` and `ink-muted` text to `ink`, because in the light theme neither reaches 4.5:1 on the tint. A cell tinted `warning-tint` (a payment dated in the future) does the same for its column label on phones, which in `ink-muted` falls below 4.5:1 in both themes.
 
-**Charts** (Chart.js): grid lines drop to `rule` color at 50% opacity; tick labels use `ink-muted`; bars/lines use the `chart-1`..`chart-6` palette. The dark-theme cyan bars are gone.
+**Charts** (no chart library): the Summary's one chart, money collected by payment method, is a ring drawn in CSS: a `conic-gradient` with a hard stop between slices, each slice sized by its method's share and coloured `var(--chart-N)`, and the hole cut out with a `mask` so the card shows through. It is an image to screen readers (`role="img"` with a label), and the table beside it carries every amount, so it has no hover tooltip. Very small slices can look slightly soft at their edges. It and its key print in colour (`print-color-adjust: exact`), since browsers otherwise leave backgrounds off paper. A future chart with axes drops its grid lines to `rule` at 50% opacity, uses `ink-muted` for tick labels, and takes its colours from the `chart-*` palette.
 
 **Dashboard tiles** (`dash-tile`): the four large clickable cards on the admin dashboard (Add or edit donations, Bulk upload donations, Manage projects, Manage categories). Same `card` foundation, but tap-target sized for stubby fingers and arranged on a `md:grid-cols-2 lg:grid-cols-4` grid so they reflow gracefully across phone, tablet, and desktop.
 
@@ -488,18 +490,18 @@ The **chart palette** is lifted across the board — Chart.js charts running on 
 ### Don't
 
 - **Don't use glass morphism, blur backgrounds, or semi-transparent overlays.** They date the design and print poorly.
-- **Don't add gradients except on the wordmark.** The brand wordmark uses a `linear-gradient(to right, gold, emerald)` for the "ICG Fundraising" text only. Nothing else gets a gradient.
+- **Don't add gradients except on the wordmark.** The brand wordmark uses a `linear-gradient(to right, gold, emerald)` for the "ICG Fundraising" text only. Nothing else gets a gradient. (The payment-method ring is drawn with a `conic-gradient`, but its hard stops leave every slice one flat colour; nothing blends.)
 - **Don't use neon or saturated brand colors.** All colors in this system are muted antique versions of their references. If a color looks bright, it's wrong.
 - **Don't decorate.** No icon next to every label. No shimmer animations. No drop shadows on text. No emoji as section dividers (the `🔒` admin banner stays — it carries meaning. Sectional emoji do not.)
 - **Don't use bg-clip text** *except for the wordmark.* It's a brand signature, not a heading style.
 - **Don't add geometric Islamic patterns.** We discussed this — we picked the restrained register, not the decorative one. A pattern background on the hero would tip into "Islamic-themed template." The dignity comes from typography and whitespace.
-- **Don't animate things that don't need to move.** A subtle `fade-in 200ms` on chart load is fine. Anything else (numbers counting up, cards floating in, parallax) breaks the institutional register.
+- **Don't animate things that don't need to move.** The Summary redraws on every save, so its payment-method ring appears without a fade or sweep that would replay each time. Anything else (numbers counting up, cards floating in, parallax) breaks the institutional register.
 - **Don't pure-black anywhere.** All "black" is `ink` (#1a2e1f). A subtle warmth keeps the page feeling printed.
 
 ## Implementation notes
 
 - **CSS variables drive everything.** The full token set is mirrored as `:root` custom properties (`--color-ink`, `--space-lg`, `--radius-md`, etc.). All component CSS references variables; no hex codes outside the variable definitions.
-- **High-contrast themes are honoured, not fought.** Windows high-contrast themes (`forced-colors: active`) swap every colour for the viewer's own and drop backgrounds to the page colour, so anything shown only as a fill would vanish. One `@media (forced-colors: active)` block at the end of `components.css` paints the progress fill and the pressed status chip in the system `Highlight` colour (the chip filled, not outlined, so its focus ring still shows, and that ring set back to `Highlight`: opting the chip out of the theme would otherwise leave it brand gold), underlines only the current tab, and keeps the chart key's dots in the chart's own colours. System colour keywords (`Highlight`, `Canvas`) follow the viewer's theme, so they are the one colour value allowed outside the variables.
+- **High-contrast themes are honoured, not fought.** Windows high-contrast themes (`forced-colors: active`) swap every colour for the viewer's own and drop backgrounds to the page colour, so anything shown only as a fill would vanish. One `@media (forced-colors: active)` block at the end of `components.css` paints the progress fill and the pressed status chip in the system `Highlight` colour (the chip filled, not outlined, so its focus ring still shows, and that ring set back to `Highlight`: opting the chip out of the theme would otherwise leave it brand gold), underlines only the current tab, and keeps the payment-method ring and its key's dots in the chart's own colours (the theme would drop the ring's gradient outright, and the key must still match it). System colour keywords (`Highlight`, `Canvas`) follow the viewer's theme, so they are the one colour value allowed outside the variables.
 - **Tailwind CDN stays** for utility classes, but a `tailwind.config` block in each HTML extends the theme to map our tokens to Tailwind names (`text-ink`, `bg-surface`, `rounded-md` already aligned to our scale).
-- **Chart.js theme** is configured once in a shared init function that reads the CSS variables, so charts pick up the palette automatically.
+- **Chart colours are CSS variables, not values read by script.** The payment-method ring's gradient names `var(--chart-N)`, so it follows the theme with no listener and no redraw.
 - **No build step, no NPM dependencies.** Same constraint as the rest of the project — the design system is just a CSS variables block and a Tailwind config.

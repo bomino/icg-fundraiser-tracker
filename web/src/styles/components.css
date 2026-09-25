@@ -188,7 +188,9 @@ textarea.input { resize: vertical; }
 .health-list li:last-child { border-bottom: 0; }
 /* A tinted block per row merged into one heavy slab when several checks fire; a warning rule per row keeps it calm. */
 .health-list li.is-flagged { background: none; box-shadow: inset 3px 0 0 var(--color-warning); }
-.chart-box { position: relative; width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; }
+/* The hole is masked out rather than painted in the card colour, so it stays see-through in every theme.
+   A mask reads only opacity, so currentColor stands in for any solid colour. Browsers leave backgrounds off paper unless told. */
+.method-ring { width: 100%; max-width: 240px; aspect-ratio: 1; margin: 0 auto; border-radius: var(--radius-full); mask: radial-gradient(closest-side, transparent 61.5%, currentColor 62%); print-color-adjust: exact; }
 .method-grid { display: grid; gap: var(--space-lg); grid-template-columns: minmax(180px, 240px) 1fr; align-items: center; }
 @media (max-width: 720px) {
   .method-grid { grid-template-columns: 1fr; }
@@ -200,7 +202,7 @@ textarea.input { resize: vertical; }
   .method-grid .data-table td:first-child { text-align: left; }
   .method-grid .data-table td::before { content: none; }
 }
-.swatch { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); margin-right: var(--space-sm); background: var(--color-rule-strong); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); margin-right: var(--space-sm); background: var(--color-rule-strong); print-color-adjust: exact; }
 .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-xl); }
 @media (max-width: 720px) { .stat-row { gap: var(--space-md) var(--space-lg); } }
 
@@ -298,12 +300,13 @@ body[data-display] .toasts { display: none; }
 
 /* Windows high-contrast themes replace every background with the page colour, so what shows only as a fill takes a system colour instead.
    The pressed chip is filled, not outlined, so its focus ring still shows; opting it out would keep that ring brand gold, which a custom theme's page colour can hide.
-   Every tab's transparent border would turn visible, leaving the current one told apart by colour alone. */
+   Every tab's transparent border would turn visible, leaving the current one told apart by colour alone.
+   The payment-method ring's gradient would be dropped outright, so the ring and its key keep the chart colours and still match each other. */
 @media (forced-colors: active) {
   .progress-fill { forced-color-adjust: none; background: Highlight; }
   .chip-toggle[aria-pressed='true'] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
   .chip-toggle[aria-pressed='true']:focus-visible { outline-color: Highlight; }
   .tab { border-bottom-color: Canvas; }
   .tab[aria-current='page'] { border-bottom-color: Highlight; }
-  .swatch { forced-color-adjust: none; }
+  .method-ring, .swatch { forced-color-adjust: none; }
 }

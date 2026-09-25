@@ -241,7 +241,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
   - Delete → `button-danger` behind a themed confirm dialog. `window.confirm` is never used.
   - Status badges: Paid → `badge-active`, Partial/Pending → `badge-inactive`, Overpaid → `badge-category`.
   - Row flags: red → `danger-tint`, amber → `warning-tint`.
-- Charts: Chart.js 4 draws a doughnut for "Collected by Payment Method", coloured from the `chart-*` variables and re-themed when the mode changes. The exact figures stay beside it in a table, because the chart is a visual aid, not the record.
+- Charts: "Collected by Payment Method" is a ring drawn in CSS (a `conic-gradient` with a masked hole), with no chart library. Its slices name the `chart-*` variables, so it follows the theme without a redraw. Each listed method takes the colour of its place in the Settings list, so its colour holds while an earlier method has no money; "No method recorded" and "Other / unlisted" each have their own neutral colour. The exact figures stay beside it in a table, because the chart is a visual aid, not the record, so the ring has no hover tooltip. (This replaced a Chart.js doughnut, which was most of the app's download for one small chart and redrew with an animation on every save.)
 - Deliberate deviations from DESIGN.md's implementation notes: the app keeps its Vite build and npm dependencies, and uses no Tailwind (plain CSS against the tokens). Those notes describe a different, build-free project.
 
 ## 8. Repository and deployment

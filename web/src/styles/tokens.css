@@ -34,6 +34,9 @@
   /* "No method recorded" is not a method; a neutral slice keeps it from sharing a hue with a real one.
      Its own grey, not ink-muted: the text token is dark enough to read, which puts it too close to the emerald Cash slice. */
   --chart-7: #8a9690;
+  /* "Other / unlisted" (methods since removed from Settings) is not a listed method either, so it takes a second neutral.
+     Both neutrals can sit side by side in the ring, so this one is set further from the page than chart-7 to differ by lightness. */
+  --chart-8: #4a4640;
   --color-scrim: rgba(26, 46, 31, 0.2);
   --shadow-rest: 0 1px 2px rgba(26, 46, 31, 0.04), 0 4px 16px rgba(26, 46, 31, 0.05);
   --shadow-lift: 0 4px 8px rgba(26, 46, 31, 0.06), 0 16px 40px rgba(26, 46, 31, 0.1);
@@ -93,6 +96,7 @@
     --chart-5: #9b7ec4;
     --chart-6: #d4914a;
     --chart-7: #8a8270;
+    --chart-8: #c9c1ad;
     --color-scrim: rgba(10, 8, 4, 0.55);
     --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
     --shadow-lift: 0 4px 8px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45);
