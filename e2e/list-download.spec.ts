@@ -18,11 +18,11 @@ test('Download this list saves the filtered rows, and a printout names the filte
   // The heading row plus the four June payments the screen shows.
   expect(XLSX.utils.sheet_to_json(book.Sheets.Payments, { header: 1 })).toHaveLength(5);
 
-  // innerText, unlike textContent, leaves out what the current media hides.
-  const line = page.locator('.list-status p.meta');
-  await expect(line).toHaveText(/^Showing 4 of \d+$/, { useInnerText: true });
+  // innerText, unlike textContent, leaves out what the current media hides. The line after it splits the money by method.
+  const line = page.locator('.list-status p.meta').first();
+  await expect(line).toHaveText(/^Showing 4 of \d+ · \$1,550\.00 logged$/, { useInnerText: true });
   await page.emulateMedia({ media: 'print' });
-  await expect(line).toHaveText(/^Showing 4 of \d+ · Received Jun 1, 2026 – Jun 30, 2026$/, { useInnerText: true });
+  await expect(line).toHaveText(/^Showing 4 of \d+ · \$1,550\.00 logged · Received Jun 1, 2026 – Jun 30, 2026$/, { useInnerText: true });
   await expect(downloadButton).toBeHidden();
 });
 

@@ -10,7 +10,7 @@ import { AUTO_REFRESH_AFTER_MS, mountApp, parseRoute } from '../../web/src/ui/ap
 import { DISPLAY_STALE_AFTER_MS } from '../../web/src/ui/displayView';
 import { PAYMENT_HELP, PLEDGE_HELP } from '../../web/src/ui/help';
 import { HELP_SECTIONS, QUOTED_MESSAGES, createHelpView } from '../../web/src/ui/helpView';
-import { TABLE_PAGE_SIZE } from '../../web/src/ui/table';
+import { PHONE_TABLE_PAGE_SIZE, TABLE_PAGE_SIZE } from '../../web/src/ui/table';
 import { SITE_API_VERSION, SITE_COMMIT } from '../../web/src/version';
 import { SETTINGS, TODAY, pledge } from '../support/factories';
 
@@ -157,7 +157,7 @@ describe('createHelpView', () => {
   it('gives the same day, row, minute and second figures the app uses', () => {
     const text = createHelpView().textContent ?? '';
     expect(text).toContain(`last ${FOLLOW_UP_AFTER_DAYS} days`);
-    expect(text).toContain(`first ${TABLE_PAGE_SIZE} rows`);
+    expect(text).toContain(`first ${TABLE_PAGE_SIZE} rows at a time (${PHONE_TABLE_PAGE_SIZE} on a phone`);
     // Each minutes figure is tied to its own sentence, or one constant changing to the other's value would still pass.
     expect(text).toContain(`after ${DISPLAY_STALE_AFTER_MS / 60_000} minutes a small note says`);
     expect(text).toContain(`come back to it after ${AUTO_REFRESH_AFTER_MS / 60_000} minutes`);

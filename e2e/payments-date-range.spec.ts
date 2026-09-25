@@ -1,5 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { openApp } from './support/app';
+
+// innerText leaves out the filter's name, which the line carries only for paper. The line after it splits the money by method.
+const showingLine = (page: Page) => page.locator('.list-status p.meta').first();
 
 test('the Payments date range filters the table to that window', async ({ page }) => {
   await openApp(page, 'payments');
@@ -13,7 +16,7 @@ test('the Payments date range filters the table to that window', async ({ page }
   await page.getByLabel('From').fill('2026-06-01');
   await page.getByLabel('To').fill('2026-06-30');
 
-  await expect(page.getByText(`Showing 4 of ${totalCount} · $1,550.00 logged`, { exact: true })).toBeVisible();
+  await expect(showingLine(page)).toHaveText(`Showing 4 of ${totalCount} · $1,550.00 logged`, { useInnerText: true });
   await expect(page.getByText('Cash $700.00 · Card $250.00 · Check $600.00', { exact: true })).toBeVisible();
   await expect(rows).toHaveCount(4);
   // Selecting by the cell's data-label (not column position) survives a column being reordered.
@@ -41,7 +44,7 @@ test('Today narrows Payments to today and adds up its money by method', async ({
   await expect(page.getByLabel('From')).toHaveValue('2026-06-20');
   await expect(page.getByLabel('To')).toHaveValue('2026-06-20');
   await expect(rows).toHaveCount(1);
-  await expect(page.getByText(`Showing 1 of ${totalCount} · $200.00 logged`, { exact: true })).toBeVisible();
+  await expect(showingLine(page)).toHaveText(`Showing 1 of ${totalCount} · $200.00 logged`, { useInnerText: true });
   await expect(page.getByText('Cash $200.00', { exact: true })).toBeVisible();
 });
 
@@ -59,6 +62,6 @@ test('This week narrows Payments to Saturday through today and adds up its money
   await expect(page.getByLabel('From')).toHaveValue('2026-08-22');
   await expect(page.getByLabel('To')).toHaveValue('2026-08-28');
   await expect(rows).toHaveCount(3);
-  await expect(page.getByText(`Showing 3 of ${totalCount} · $550.00 logged`, { exact: true })).toBeVisible();
+  await expect(showingLine(page)).toHaveText(`Showing 3 of ${totalCount} · $550.00 logged`, { useInnerText: true });
   await expect(page.getByText('Cash $300.00 · No method recorded $250.00', { exact: true })).toBeVisible();
 });

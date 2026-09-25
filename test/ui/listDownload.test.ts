@@ -8,7 +8,7 @@ import { downloadList, type FilteredList } from '../../web/src/ui/export';
 import type { ListFilter } from '../../web/src/ui/filter';
 import { createPaymentsView } from '../../web/src/ui/paymentsView';
 import { createPledgesView } from '../../web/src/ui/pledgesView';
-import { TABLE_PAGE_SIZE } from '../../web/src/ui/table';
+import { tablePageSize } from '../../web/src/ui/table';
 import { SETTINGS, TODAY, payment, pledge } from '../support/factories';
 
 vi.mock(import('../../web/src/ui/export'), async (importOriginal) => ({ ...(await importOriginal()), downloadList: vi.fn(async () => undefined) }));
@@ -94,7 +94,7 @@ describe('Download this list on Pledges', () => {
     const manyState: State = { pledges: many, payments: [], settings: SETTINGS, me: 'me@example.com', computed: compute(many, [], SETTINGS, TODAY) };
     const view = createPledgesView({ store, reportError: vi.fn() })(manyState, { label: 'Pledges missing a phone number', ids: new Set(many.slice(0, 120).map((p) => p.id)) }, () => undefined);
     document.body.append(view);
-    expect(view.querySelectorAll('tbody tr')).toHaveLength(TABLE_PAGE_SIZE);
+    expect(view.querySelectorAll('tbody tr')).toHaveLength(tablePageSize());
     downloadButton(view)?.click();
     expect(downloaded().rows).toHaveLength(120);
   });

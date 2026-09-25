@@ -403,14 +403,14 @@ describe('payments view: date range', () => {
     expect(view.textContent).toContain('Showing 2 of 4');
   });
 
-  it('announces the "Showing N of M" line from a status region that stays put, so a screen reader hears each new count', () => {
+  it('announces the "Showing N of M" line from a status region that stays put, so a screen reader hears each new count and its money', () => {
     const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
     document.body.append(view);
     const status = view.querySelector('[role=status]') as HTMLElement;
     expect(status.textContent).toBe('');
     type(dateInput(view, 'payments-date-from'), '2026-06-01');
     expect(view.querySelector('[role=status]')).toBe(status);
-    expect(onScreenText(status)).toBe('Showing 2 of 4');
+    expect([...status.querySelectorAll('p')].map(onScreenText)).toEqual(['Showing 2 of 4 · $50.00 logged', 'No method recorded\u00A0$50.00']);
   });
 
   it('keeps Download this list out of that status region, which would read it out again with every new count', () => {
@@ -479,7 +479,7 @@ describe('payments view: money in the filtered rows', () => {
   const nightState: State = { pledges, payments: nightPayments, settings: SETTINGS, me: 'me@example.com', computed: compute(pledges, nightPayments, SETTINGS, TODAY) };
   const ids = (view: HTMLElement) => [...view.querySelectorAll('tbody tr')].map((tr) => tr.getAttribute('data-id'));
   const dateInput = (view: HTMLElement, key: string) => view.querySelector(`input[type=date][data-focus-key="${key}"]`) as HTMLInputElement;
-  const metaLines = (view: HTMLElement) => [...view.querySelectorAll('p.meta')].map((line) => line.textContent);
+  const metaLines = (view: HTMLElement) => [...view.querySelectorAll('p.meta')].map(onScreenText);
 
   it('adds up every filtered payment, not-counted ones too, and splits it by the methods that took money', () => {
     const view = createPaymentsView({ store, reportError: vi.fn() })(nightState, null, () => undefined);

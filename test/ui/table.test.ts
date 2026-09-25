@@ -161,7 +161,7 @@ describe('table', () => {
 
     it('says on paper how many rows it left out, since print hides the "Show more" button', () => {
       const paged = (visibleCount: number) => renderTable({ columns, rows: many, sort: null, rowId: (r) => r.id, onSort: () => undefined, empty: 'none', visibleCount, onShowMore: vi.fn() });
-      expect(paged(TABLE_PAGE_SIZE).querySelector('.print-only')?.textContent).toBe(`${250 - TABLE_PAGE_SIZE} more rows not shown.`);
+      expect(paged(tablePageSize()).querySelector('.print-only')?.textContent).toBe(`${250 - tablePageSize()} more rows not shown.`);
       expect(paged(249).querySelector('.print-only')?.textContent).toBe('1 more row not shown.');
       expect(paged(250).querySelector('.print-only')).toBeNull();
     });
