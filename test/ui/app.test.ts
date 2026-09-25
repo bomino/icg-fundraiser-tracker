@@ -153,6 +153,13 @@ describe('mountApp', () => {
     expect(refresh.disabled).toBe(false);
   });
 
+  it('builds the toast live regions at startup, so the first "Saved." lands in a region a screen reader is already watching', () => {
+    mountApp(root, { store: fakeStore().store, auth: fakeAuth() });
+    expect(document.getElementById('toasts')?.getAttribute('role')).toBe('status');
+    expect(document.getElementById('toasts-alert')?.getAttribute('role')).toBe('alert');
+    expect(document.querySelectorAll('.toasts .toast')).toHaveLength(0);
+  });
+
   it('auto-refreshes on return to the tab only when the data is over two minutes old', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-23T12:00:00Z'));

@@ -64,7 +64,8 @@ export function createPaymentsView(deps: ListViewDeps) {
       return true;
     };
     const tableSlot = h('div');
-    const showing = h('div');
+    // The region stays put while drawTable swaps the line inside it, so a screen reader hears each new count.
+    const showing = h('div', { role: 'status' });
     const drawTable = () => {
       const rows = state.computed.payments.filter(
         (d) =>

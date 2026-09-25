@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { showToast } from '../../web/src/ui/toast';
+import { mountToasts, showToast } from '../../web/src/ui/toast';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -132,14 +132,61 @@ describe('showToast', () => {
     expect(toasts()).toHaveLength(1);
   });
 
-  it('holds a plain error toast while a dialog is open, and gives it its usual 8 seconds from when the dialog closes', async () => {
-    // #given a plain error toast, shown while the volunteer is typing in a form
+  it('adds a failure only once the form in front of it closes, so a screen reader announces it, and gives it 8 seconds from then', async () => {
+    // #given a plain error toast, shown while the volunteer is typing in a form that makes the page behind it inert
     vi.useFakeTimers();
     const dialog = document.createElement('dialog');
     document.body.append(dialog);
     dialog.showModal();
     showToast('Could not create the export.', 'error');
-    // #when its 8 seconds run out, and the dialog closes a while later
+    // #when the form stays open well past 8 seconds
+    await vi.advanceTimersByTimeAsync(20_000);
+    // #then the failure has not been put where nobody can hear it
+    expect(toasts()).toHaveLength(0);
+    dialog.close();
+    // #and it arrives once the form closes, lasting a full 8 seconds from that moment
+    await vi.advanceTimersByTimeAsync(7_999);
+    expect(toasts().map((toast) => toast.textContent)).toEqual(['Could not create the export.']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it('holds a failed save’s Reopen back while a form is open, then adds it to the alert region once the form closes', async () => {
+    const dialog = document.createElement('dialog');
+    document.body.append(dialog);
+    dialog.showModal();
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(toasts()).toHaveLength(0);
+    dialog.close();
+    await vi.waitFor(() => expect(document.getElementById('toasts-alert')?.querySelector('.toast-message')?.textContent).toBe('Could not save.'));
+    expect(button('Reopen')).toBeDefined();
+  });
+
+  it('waits out a form that replaces a closing one in the next task, as "Log a payment" does', async () => {
+    // #given a pledge form whose open attribute drops before its close event, which then opens the payment form
+    const pledgeForm = document.createElement('dialog');
+    const paymentForm = document.createElement('dialog');
+    document.body.append(pledgeForm, paymentForm);
+    pledgeForm.showModal();
+    showToast('Could not save.', 'error', { label: 'Reopen', run: vi.fn() });
+    pledgeForm.removeAttribute('open');
+    setTimeout(() => paymentForm.showModal(), 0);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // #then the failure waits behind the payment form rather than landing in a page about to go inert
+    expect(toasts()).toHaveLength(0);
+    paymentForm.close();
+    await vi.waitFor(() => expect(toasts()).toHaveLength(1));
+  });
+
+  it('still keeps a plain error toast that a form opened over, and gives it 8 seconds from when the form closes', async () => {
+    // #given a plain error toast, shown just before the volunteer opens the next form
+    vi.useFakeTimers();
+    showToast('Could not create the export.', 'error');
+    const dialog = document.createElement('dialog');
+    document.body.append(dialog);
+    dialog.showModal();
+    // #when its 8 seconds run out behind the form, and the form closes a while later
     await vi.advanceTimersByTimeAsync(20_000);
     expect(toasts()).toHaveLength(1);
     dialog.close();
@@ -188,5 +235,23 @@ describe('showToast', () => {
     const rule = /\.toasts \{([^}]*)\}/.exec(css)?.[1] ?? '';
     expect(rule).toContain('max-height: 50vh;');
     expect(rule).toContain('overflow-y: auto;');
+  });
+
+  it('builds both live regions before any message, and showToast then uses them', () => {
+    mountToasts();
+    const status = document.getElementById('toasts') as HTMLElement;
+    const alert = document.getElementById('toasts-alert') as HTMLElement;
+    expect([status.childElementCount, alert.childElementCount]).toEqual([0, 0]);
+    showToast('Saved.');
+    showToast('Could not save.', 'error');
+    expect(document.querySelectorAll('.toasts')).toHaveLength(1);
+    expect([status.textContent, alert.textContent]).toEqual(['Saved.', 'Could not save.']);
+  });
+
+  it('keeps the empty live regions in the page, and lets taps through the empty stack to the page below', () => {
+    const css = readFileSync(join(process.cwd(), 'web', 'src', 'styles', 'components.css'), 'utf8');
+    expect(css).not.toMatch(/\.toast-region:empty/);
+    expect(/\.toasts \{([^}]*)\}/.exec(css)?.[1]).toContain('pointer-events: none;');
+    expect(/\.toast \{([^}]*)\}/.exec(css)?.[1]).toContain('pointer-events: auto;');
   });
 });

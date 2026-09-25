@@ -534,7 +534,7 @@ function workingTogether(): Child[] {
 
 function whenSomethingGoesWrong(): Child[] {
   return [
-    p('Most problems are a dropped connection. When a save fails, a red message appears at the bottom of the screen, starting ', said(`${SAID.couldNotSave} …`), ' and saying what was being saved — the donor’s name (or phone number) for a pledge, “the payment from” and the phone number for a payment, or “the goal” — followed by one of the messages below. The row goes back to how it was.'),
+    p('Most problems are a dropped connection. When a save fails, a red message appears at the bottom of the screen, starting ', said(`${SAID.couldNotSave} …`), ' and saying what was being saved — the donor’s name (or phone number) for a pledge, “the payment from” and the phone number for a payment, or “the goal” — followed by one of the messages below. The row goes back to how it was. If you are already typing in another form, the message appears as soon as you close that form.'),
     p('Press ', b('Reopen'), ' on that message: the form comes back with everything you typed, and you can press ', b('Save'), ' again; saving it this way never adds the row twice. The message does not go away on its own: it holds the only copy of what you typed, so it stays until you press Reopen or ', b('Dismiss'), '. Dismiss throws that copy away — press it only if you no longer need the entry. If the message has gone (for example, because the page was closed or reloaded), check the list first — do not add the row again from scratch without looking, or it may end up there twice.'),
     p('A delete that fails shows ', said(`${SAID.couldNotDelete} …`), ' and the row comes back. Open it and delete it again.'),
     problemTable(),

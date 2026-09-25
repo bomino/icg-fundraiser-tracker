@@ -49,17 +49,7 @@ function until(blocked: () => boolean): Promise<void> {
   });
 }
 
-/** Resolves once no modal is open, e.g. so a toast does not time out while a form makes it unreachable. */
-export function whenNoDialogOpen(): Promise<void> {
-  return until(dialogOpen);
-}
-
-/**
- * Resolves once it is safe to open an unrequested question: no modal open (so it never lands on the
- * form a volunteer is typing in) and not in the Friday display (so no donor name reaches the projector).
- */
-export async function whenSafeToAsk(): Promise<void> {
-  const blocked = () => dialogOpen() || document.body.dataset.display !== undefined;
+async function untilSettled(blocked: () => boolean): Promise<void> {
   for (;;) {
     await until(blocked);
     // A dialog's open attribute drops before its close event, whose handler may open the next form
@@ -67,4 +57,20 @@ export async function whenSafeToAsk(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (!blocked()) return;
   }
+}
+
+/**
+ * Resolves once no modal is open. An open form makes the rest of the page inert, so a toast added
+ * then is never announced, and one that times out then is never seen.
+ */
+export function whenNoDialogOpen(): Promise<void> {
+  return untilSettled(dialogOpen);
+}
+
+/**
+ * Resolves once it is safe to open an unrequested question: no modal open (so it never lands on the
+ * form a volunteer is typing in) and not in the Friday display (so no donor name reaches the projector).
+ */
+export function whenSafeToAsk(): Promise<void> {
+  return untilSettled(() => dialogOpen() || document.body.dataset.display !== undefined);
 }

@@ -12,6 +12,7 @@ import { destroyMethodChart, drawMethodChart } from './methodChart';
 import { createPaymentsView } from './paymentsView';
 import { createPledgesView } from './pledgesView';
 import { renderSummary } from './summaryView';
+import { mountToasts } from './toast';
 
 export type ViewName = 'summary' | 'pledges' | 'payments' | 'find' | 'help';
 /** The Friday display is a route but not a tab: it replaces the whole app shell. */
@@ -66,6 +67,7 @@ function adoptDisplayParam() {
 }
 
 export function mountApp(root: HTMLElement, deps: AppDeps): void {
+  mountToasts();
   let listFilter: { view: ViewName; filter: ListFilter } | null = null;
   let exitDisplay: (() => void) | null = null;
   let shellShown = false;

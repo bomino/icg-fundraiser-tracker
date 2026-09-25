@@ -130,6 +130,18 @@ describe('pledges view: status chips and follow-up', () => {
     expect(view.textContent).toContain('Showing 1 of 4');
   });
 
+  it('announces the "Showing N of M" line from a status region that stays put, so a screen reader hears each new count', () => {
+    const view = createPledgesView({ store, reportError: vi.fn() })(followUpState, null, () => undefined);
+    document.body.append(view);
+    const status = view.querySelector('[role=status]') as HTMLElement;
+    expect(status.textContent).toBe('');
+    chip(view, 'Paid').click();
+    expect(view.querySelector('[role=status]')).toBe(status);
+    expect(status.textContent).toBe('Showing 1 of 4');
+    chip(view, 'Pending').click();
+    expect(status.textContent).toBe('Showing 2 of 4');
+  });
+
   it('arriving with a drill-down filter resets an active status chip to All, so the filtered rows are not hidden behind it', () => {
     const view = createPledgesView({ store, reportError: vi.fn() });
     document.body.append(view(followUpState, null, () => undefined));
@@ -206,6 +218,16 @@ describe('payments view: date range', () => {
     expect(view.textContent).not.toContain('Showing');
     type(dateInput(view, 'payments-date-from'), '2026-06-01');
     expect(view.textContent).toContain('Showing 2 of 4');
+  });
+
+  it('announces the "Showing N of M" line from a status region that stays put, so a screen reader hears each new count', () => {
+    const view = createPaymentsView({ store, reportError: vi.fn() })(rangeState, null, () => undefined);
+    document.body.append(view);
+    const status = view.querySelector('[role=status]') as HTMLElement;
+    expect(status.textContent).toBe('');
+    type(dateInput(view, 'payments-date-from'), '2026-06-01');
+    expect(view.querySelector('[role=status]')).toBe(status);
+    expect(status.textContent).toBe('Showing 2 of 4');
   });
 
   it('arriving with a drill-down filter clears an active date range, so out-of-range/undated rows are not hidden behind it', () => {
@@ -299,6 +321,19 @@ describe('payment form', () => {
     type(phone, '123');
     expect(preview.textContent).toContain('⚠ phone not in Pledges');
     expect(preview.className).toContain('hint-warning');
+  });
+
+  it('leaves the donor preview untouched while each digit gives the same answer, so a screen reader says the warning once', () => {
+    openPaymentForm({ methods: METHODS, pledges, onSave: vi.fn(), reportError: vi.fn() });
+    const phone = document.querySelector('input[name=phone]') as HTMLInputElement;
+    const preview = document.querySelector('[data-role=donor-preview]') as HTMLElement;
+    type(phone, '5');
+    const said = preview.firstChild;
+    type(phone, '55');
+    type(phone, '555');
+    expect(preview.firstChild).toBe(said);
+    type(phone, '555-010-0103');
+    expect(preview.textContent).toBe('Donor: Chen Wei');
   });
 
   it('asks for the phone number while the phone holds only punctuation', () => {

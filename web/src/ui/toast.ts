@@ -12,7 +12,7 @@ export interface ToastAction {
 }
 
 // Confirmations are announced politely; failures interrupt, since the form that caused them has already closed.
-function region(kind: 'info' | 'error'): HTMLElement {
+function toastStack(): HTMLElement {
   let stack = document.querySelector<HTMLElement>('.toasts');
   if (!stack) {
     stack = h(
@@ -25,7 +25,20 @@ function region(kind: 'info' | 'error'): HTMLElement {
     // hundred or so row buttons instead of after them.
     document.body.prepend(stack);
   }
-  return stack.querySelector<HTMLElement>(kind === 'error' ? '#toasts-alert' : '#toasts') as HTMLElement;
+  return stack;
+}
+
+/**
+ * Builds both live regions before any message is shown: a region that joins the page together with
+ * its first message is often not announced, and "Saved." is the only word that a background save landed.
+ * showToast still builds them on demand, so a page that never calls this still gets its toasts.
+ */
+export function mountToasts(): void {
+  toastStack();
+}
+
+function region(kind: 'info' | 'error'): HTMLElement {
+  return toastStack().querySelector<HTMLElement>(kind === 'error' ? '#toasts-alert' : '#toasts') as HTMLElement;
 }
 
 // Removing a focused toast would drop keyboard focus onto <body>; the page's main area is the nearest sensible place.
@@ -41,9 +54,9 @@ function returnFocusToPage() {
   main.focus();
 }
 
-// An open modal makes a toast inert and draws the volunteer's eye away from it, and carrying on with
-// the next entry is exactly when a background failure lands; expiring then means it is never seen.
-// So a toast that expires while any dialog is open gets its full lifetime again once the last one closes.
+// A form opened over a toast makes it inert and draws the volunteer's eye away from it; expiring then
+// means it is never seen. So a toast that expires while any dialog is open gets its full lifetime
+// again once the last one closes.
 function expireOutsideDialogs(toast: HTMLElement, lifetimeMs: number, close: () => void) {
   const expire = () => {
     if (!toast.isConnected) return;
@@ -57,6 +70,13 @@ function expireOutsideDialogs(toast: HTMLElement, lifetimeMs: number, close: () 
 }
 
 export function showToast(message: string, kind: 'info' | 'error' = 'info', action?: ToastAction): void {
+  // A failure usually lands while the volunteer is typing the next entry, and the open form makes the
+  // toasts inert: one added then is never announced, not even once the form closes. So it waits for
+  // the page to be live again.
+  if (kind === 'error' && document.querySelector('dialog[open]')) {
+    void whenNoDialogOpen().then(() => showToast(message, kind, action));
+    return;
+  }
   if (!action) {
     const toast = h('div', { class: `toast toast-${kind}` }, message);
     region(kind).append(toast);
@@ -88,7 +108,7 @@ export function showToast(message: string, kind: 'info' | 'error' = 'info', acti
   dismiss.addEventListener('click', close);
   syncReady();
   // No expiry: the store has already rolled the change back, so Reopen holds the only copy of what was typed,
-  // and the toast may have landed unseen behind a form or the Friday display. Losing it is the
+  // and the toast may have gone unseen behind a later form or the Friday display. Losing it is the
   // volunteer's choice (Dismiss), never a timer's.
   region(kind).append(toast);
 }
