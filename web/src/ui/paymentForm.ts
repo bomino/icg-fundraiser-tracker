@@ -16,6 +16,9 @@ import { staleListAge } from './staleList';
 
 // Saving is right when the pledge is only newer than this list: payments are matched to pledges afresh on every load.
 const SAVE_ANYWAY = 'If they pledged with another volunteer, save this payment anyway — it will match once your list refreshes. Do not add a second pledge.';
+// A pledge this form listed a moment ago is not with another volunteer, and adding it again could enter it twice: most
+// likely its save failed and the store took it back out, and its own Reopen retries it under the same id.
+const PLEDGE_TAKEN_BACK = "This number's pledge has just been taken off your list, most likely because it could not be saved. Do not add it again: press Cancel, then press Reopen on the red message.";
 
 /** What "Save and add another" keeps for the next new payment; every other box starts empty. */
 export type PaymentCarry = Pick<PaymentDraft, 'dateReceived' | 'method'>;
@@ -93,6 +96,8 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   let computed = options.computed;
   let pledgesLoadedAt = options.pledgesLoadedAt ?? null;
   let resolveDonor = createDonorResolver(pledges);
+  // Every number this form's list has held, so a pledge taken off it while the form is open is told from one never there.
+  const listedKeys = new Set(pledges.map((pledge) => matchKey(pledge.phone)));
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
     dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : options.carried?.dateReceived ?? todayIso(), help: PAYMENT_HELP.dateReceived }),
@@ -122,9 +127,11 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
     // A walk-in donor's number is right but has no pledge; the one-step path records both without typing it twice.
     // Never on an existing payment: that path would enter the same money a second time.
     const walkIn = !existing && donor === WARN_NOT_IN_PLEDGES ? " If this donor hasn't pledged yet, press Cancel and use Pledges → Add pledge → Save and log a payment." : '';
+    const takenBack = donor === WARN_NOT_IN_PLEDGES && listedKeys.has(matchKey(phone));
+    const advice = takenBack ? ` ${PLEDGE_TAKEN_BACK}` : `${mayBeNewPledge(donor) ? ` ${SAVE_ANYWAY}` : ''}${walkIn}`;
     const text =
       blank ? 'Type the phone number to find the donor.'
-      : warning ? `${donor} — this payment will not be counted until that is fixed.${mayBeNewPledge(donor) ? ` ${SAVE_ANYWAY}` : ''}${walkIn}`
+      : warning ? `${donor} — this payment will not be counted until that is fixed.${advice}`
       : `Donor: ${donor || '(no name on the pledge)'}${standing(findByPhone(computed, phone), !existing)}`;
     // Every partial number gives the same warning; rewriting it on each digit could have a screen reader repeat it.
     if (preview.textContent !== text) preview.textContent = text;
@@ -164,6 +171,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   const store = options.store;
   const follow = (state: State) => {
     pledges = state.pledges;
+    for (const pledge of pledges) listedKeys.add(matchKey(pledge.phone));
     computed = state.computed;
     pledgesLoadedAt = store?.lastLoadedAt() ?? pledgesLoadedAt;
     resolveDonor = createDonorResolver(pledges);
