@@ -158,4 +158,4 @@ No new field is planned (the design spec fixes the schema), but a Pledges or Pay
 ## Conventions
 
 - Keep volunteer-facing wording plain — most users have no spreadsheet experience.
-- Requires Node 22.22.2+ on the 22 line, 24.15+, or 26+ (the `jsdom` dev dependency's engine requirement).
+- Requires Node 22.22.2+ on the 22 line, 24.15+, or 26+ (the `jsdom` dev dependency's engine requirement). CI installs with `npm ci --engine-strict`, so a new dependency whose `engines` the runner's Node 22 doesn't meet fails CI; a local install only warns.

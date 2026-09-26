@@ -18,7 +18,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # A runner below package.json's Node floor fails here rather than only warning. The flag lives
+      # here, not in an .npmrc, so a local install on an older Node still warns and goes ahead.
+      - run: npm ci --engine-strict
       # The same gate as local development, so the two can't drift apart.
       - run: npm run check
         env:
@@ -69,7 +71,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --engine-strict
       - name: Resolve the installed Playwright version
         id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"

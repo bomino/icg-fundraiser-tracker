@@ -48,6 +48,11 @@ describe('the deploy workflow', () => {
     expect(workflow.indexOf('uses: actions/upload-pages-artifact')).toBeLessThan(deployJob);
     expect(workflow.slice(deployJob)).toContain('needs: build');
   });
+
+  it('installs with --engine-strict in both jobs, so a runner below the Node floor in package.json fails instead of warning', () => {
+    const installs = workflow.split('\n').filter((line) => /\bnpm (ci|install)\b/.test(line));
+    expect(installs.map((line) => line.trim())).toEqual(['- run: npm ci --engine-strict', '- run: npm ci --engine-strict']);
+  });
 });
 
 describe.skipIf(!bashReadsEnv)('the repository variables check', () => {

@@ -37,7 +37,7 @@ npm run dev      # local app: open /?demo (see Demo mode below)
 npm run check    # typecheck + tests + build
 ```
 
-Requires Node 22.22.2+ on the 22 line, 24.15+, or 26+ (the `jsdom` dev dependency's engine requirement; `npm install` warns with `EBADENGINE` outside that range).
+Requires Node 22.22.2+ on the 22 line, 24.15+, or 26+ (the `jsdom` dev dependency's engine requirement; `npm install` warns with `EBADENGINE` outside that range, while CI installs with `--engine-strict` and fails there instead).
 
 ## Releasing
 
