@@ -13,6 +13,8 @@ export interface FieldOptions {
   help?: string;
   type?: 'text' | 'tel' | 'date' | 'textarea' | 'select';
   inputmode?: string;
+  /** A date box's latest date (YYYY-MM-DD): the picker greys out later days. The form's own validation still decides. */
+  max?: string;
   options?: readonly string[];
   required?: boolean;
 }
@@ -35,7 +37,7 @@ export function field(options: FieldOptions): Field {
     input = h('select', { id, name: options.name, class: 'input' }, h('option', { value: '' }, '— none —'), ...values.map((value) => h('option', { value }, value)));
   } else {
     const type = options.type ?? 'text';
-    input = h('input', { id, name: options.name, class: 'input', type, inputmode: options.inputmode, autocomplete: 'off', dir: type === 'text' ? 'auto' : undefined });
+    input = h('input', { id, name: options.name, class: 'input', type, inputmode: options.inputmode, max: options.max, autocomplete: 'off', dir: type === 'text' ? 'auto' : undefined });
   }
   input.value = options.value;
   if (options.required) input.setAttribute('aria-required', 'true');

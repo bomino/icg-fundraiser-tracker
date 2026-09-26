@@ -64,8 +64,9 @@ This is for a maintainer who works in this repository, as an alternative to past
 
 Once:
 
-1. Run `npx @google/clasp login`. It opens a browser: sign in with the organiser's Google account, the one that owns the Sheet. clasp keeps that sign-in in `~/.clasprc.json` in your home folder. Treat that file like a password: it reaches the donor Sheet.
-2. Create `.clasp.json` in the repository root (it is already git-ignored), with the Script ID from **Apps Script → Project Settings → Script ID**:
+1. Signed in as the organiser's Google account, open [script.google.com/home/usersettings](https://script.google.com/home/usersettings) and turn **Google Apps Script API** on. clasp can't push or deploy without it.
+2. Run `npx @google/clasp login`. It opens a browser: sign in with the organiser's Google account, the one that owns the Sheet. clasp keeps that sign-in in `~/.clasprc.json` in your home folder. Treat that file like a password: it reaches the donor Sheet.
+3. Create `.clasp.json` in the repository root (it is already git-ignored), with the Script ID from **Apps Script → Project Settings → Script ID** (open it from the Sheet's **Extensions → Apps Script**; `clasp list-scripts` may not list a script that belongs to a Sheet):
 
    ```json
    {"scriptId": "<Script ID>", "rootDir": "apps-script"}

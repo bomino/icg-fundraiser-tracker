@@ -1,5 +1,5 @@
 import type { NewRow } from '../api';
-import { todayIso } from '../dates';
+import { isOverAYearAgo, todayIso } from '../dates';
 import { WARNING_MARK, WARN_NOT_IN_PLEDGES, createDonorResolver, duplicatePaymentKey, findByPhone, nearMatches, paymentsForKey, type Computed, type DerivedPayment, type DerivedPledge } from '../engine';
 import { formatCents, formatDate, parseAmount } from '../format';
 import { newId as makeId } from '../id';
@@ -19,6 +19,7 @@ const SAVE_ANYWAY = 'If they pledged with another volunteer, save this payment a
 // A pledge this form listed a moment ago is not with another volunteer, and adding it again could enter it twice: most
 // likely its save failed and the store took it back out, and its own Reopen retries it under the same id.
 const PLEDGE_TAKEN_BACK = "This number's pledge has just been taken off your list, most likely because it could not be saved. Do not add it again: press Cancel, then press Reopen on the red message.";
+const LONG_AGO = 'This date is over a year ago. Check the year before saving.';
 
 /** What "Save and add another" keeps for the next new payment; every other box starts empty. */
 export type PaymentCarry = Pick<PaymentDraft, 'dateReceived' | 'method'>;
@@ -100,7 +101,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   const listedKeys = new Set(pledges.map((pledge) => matchKey(pledge.phone)));
   const fields = {
     phone: field({ name: 'phone', label: 'Phone number', type: 'tel', value: existing?.phone ?? options.phone ?? '', help: PAYMENT_HELP.phone, required: true }),
-    dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : options.carried?.dateReceived ?? todayIso(), help: PAYMENT_HELP.dateReceived }),
+    dateReceived: field({ name: 'dateReceived', label: 'Date received', type: 'date', value: existing ? existing.dateReceived : options.carried?.dateReceived ?? todayIso(), max: todayIso(), help: PAYMENT_HELP.dateReceived }),
     amountReceived: field({ name: 'amountReceived', label: 'Amount received ($)', inputmode: 'decimal', value: existing?.amountReceived?.toString() ?? '', help: PAYMENT_HELP.amountReceived, required: true }),
     method: field({ name: 'method', label: 'Payment method', type: 'select', options: options.methods, value: existing?.method ?? options.carried?.method ?? '', help: PAYMENT_HELP.method }),
     notes: field({ name: 'notes', label: 'Notes', type: 'textarea', value: existing?.notes ?? '', help: PAYMENT_HELP.notes }),
@@ -167,6 +168,18 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
   for (const { input } of [fields.phone, fields.dateReceived, fields.amountReceived]) input.addEventListener('input', updateAlreadyLogged);
   updateAlreadyLogged();
 
+  // The future is refused on Save; a year typed one too low (2025 for 2026) is only questioned, since a late entry can
+  // be real. Not for an edit that keeps its saved date, so opening an old payment doesn't nag.
+  const longAgo = h('p', { class: 'hint hint-warning', role: 'status', 'data-role': 'long-ago', hidden: true });
+  const updateLongAgo = () => {
+    const date = fields.dateReceived.input.value;
+    const message = date !== existing?.dateReceived && isOverAYearAgo(date, todayIso()) ? LONG_AGO : '';
+    longAgo.hidden = message === '';
+    if (longAgo.textContent !== message) longAgo.textContent = message;
+  };
+  fields.dateReceived.input.addEventListener('input', updateLongAgo);
+  updateLongAgo();
+
   // Only the two notes are redrawn, each only when its text changes: no box, cursor or focus moves under the volunteer.
   const store = options.store;
   const follow = (state: State) => {
@@ -184,7 +197,7 @@ export function openPaymentForm(options: PaymentFormOptions, restore?: FormResto
 
   const onDelete = options.onDelete;
   const onAddAnother = options.onAddAnother;
-  const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, nearMatchList, fields.dateReceived.wrapper, fields.amountReceived.wrapper, alreadyLogged, fields.method.wrapper, fields.notes.wrapper);
+  const form = h('form', { class: 'form' }, fields.phone.wrapper, preview, nearMatchList, fields.dateReceived.wrapper, longAgo, fields.amountReceived.wrapper, alreadyLogged, fields.method.wrapper, fields.notes.wrapper);
   const dialog = runForm<PaymentDraft>({
     title: existing ? 'Edit payment' : 'Log a payment',
     form,

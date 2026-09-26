@@ -1033,6 +1033,40 @@ describe('payment form', () => {
   });
 });
 
+describe('payment form: the date box', () => {
+  const open = (options: Partial<PaymentFormOptions> = {}) =>
+    openPaymentForm({ methods: METHODS, pledges: [], computed: compute([], [], SETTINGS, TODAY), onSave: vi.fn(), reportError: vi.fn(), ...options });
+  const dateBox = () => document.querySelector('dialog[open] [name=dateReceived]') as HTMLInputElement;
+  const longAgo = () => {
+    const hint = document.querySelector('dialog[open] [data-role=long-ago]') as HTMLElement;
+    return hint.hidden ? null : { text: hint.textContent, className: hint.className, role: hint.getAttribute('role') };
+  };
+  const LONG_AGO = 'This date is over a year ago. Check the year before saving.';
+
+  it('offers no day after today in the picker', () => {
+    open();
+    expect(dateBox().max).toBe(todayIso());
+  });
+
+  it('questions a date over a year ago as it is typed, without blocking the save, and drops the note once it is fixed', () => {
+    open();
+    expect(longAgo()).toBeNull();
+    type(dateBox(), '2020-01-01');
+    expect(longAgo()).toEqual({ text: LONG_AGO, className: 'hint hint-warning', role: 'status' });
+    type(dateBox(), todayIso());
+    expect(longAgo()).toBeNull();
+  });
+
+  it('says nothing when an old payment is opened, and only questions a date changed to over a year ago', () => {
+    open({ existing: payment({ id: 'old', phone: '555-400-0001', dateReceived: '2020-01-01' }) });
+    expect(longAgo()).toBeNull();
+    type(dateBox(), '2020-01-02');
+    expect(longAgo()?.text).toBe(LONG_AGO);
+    type(dateBox(), '2020-01-01');
+    expect(longAgo()).toBeNull();
+  });
+});
+
 describe('payment form: a payment already logged, and what the donor owes', () => {
   const donors = [
     pledge({ id: 'd1', phone: '555-300-0001', name: 'Owes Some', amountPledged: 500 }),

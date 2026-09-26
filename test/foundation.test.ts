@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isIsoDate, todayIso, weekStartIso } from '../web/src/dates';
+import { isIsoDate, isOverAYearAgo, todayIso, weekStartIso } from '../web/src/dates';
 import { matchKey } from '../web/src/matchKey';
 import { toCents } from '../web/src/money';
 
@@ -83,6 +83,15 @@ describe('dates', () => {
   it('uses the local calendar date, not UTC', () => {
     expect(todayIso(new Date(2026, 8, 23, 23, 30))).toBe('2026-09-23');
     expect(todayIso(new Date(2026, 0, 1, 0, 5))).toBe('2026-01-01');
+  });
+  it('counts a date as over a year ago only when it is before the same day last year, and never a blank one', () => {
+    expect(isOverAYearAgo('2025-09-26', '2026-09-26')).toBe(false);
+    expect(isOverAYearAgo('2025-09-25', '2026-09-26')).toBe(true);
+    expect(isOverAYearAgo('2026-01-01', '2026-09-26')).toBe(false);
+    expect(isOverAYearAgo('', '2026-09-26')).toBe(false);
+    // On Feb 29, "the same day last year" doesn't exist: Feb 28 is over a year back, Mar 1 is not.
+    expect(isOverAYearAgo('2027-02-28', '2028-02-29')).toBe(true);
+    expect(isOverAYearAgo('2027-03-01', '2028-02-29')).toBe(false);
   });
   it('accepts only real ISO dates', () => {
     expect(isIsoDate('2025-02-28')).toBe(true);

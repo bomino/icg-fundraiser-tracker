@@ -23,6 +23,12 @@ export function localIsoDate(timestamp: string): string {
   return Number.isNaN(moment.getTime()) ? '' : todayIso(moment);
 }
 
+/** True when an ISO date is more than a year before today (both YYYY-MM-DD); compared as text, like every ISO date here. */
+export function isOverAYearAgo(date: string, today: string): boolean {
+  const aYearAgo = `${String(Number(today.slice(0, 4)) - 1).padStart(4, '0')}${today.slice(4)}`;
+  return date !== '' && date < aYearAgo;
+}
+
 export function isIsoDate(value: string): boolean {
   const match = ISO_DATE.exec(value);
   if (!match) return false;
