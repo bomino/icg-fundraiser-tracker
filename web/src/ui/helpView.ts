@@ -487,7 +487,17 @@ function howTo(): Child[] {
         ['Payment method', PAYMENT_HELP.method],
         ['Notes', PAYMENT_HELP.notes],
       ),
-      note('If the warning is ', said(WARN_NOT_IN_PLEDGES), ' and your list was last refreshed more than a couple of minutes ago, it adds ', said(SAID.saveAnyway), ' The payment finds the donor’s pledge by phone number as soon as your list refreshes.'),
+      note(
+        'If the warning is ',
+        said(WARN_NOT_IN_PLEDGES),
+        ' and your list was last refreshed more than a couple of minutes ago, it adds ',
+        said(SAID.saveAnyway),
+        ' The payment finds the donor’s pledge by phone number as soon as your list refreshes. The one exception is a number whose pledge was on your list while this form was open and has since been taken off, most likely because it could not be saved. Then neither this advice nor the one in step 2 appears. It says ',
+        said(SAID.pledgeTakenBack),
+        ' instead. See ',
+        b('Someone pledges and pays at once'),
+        '.',
+      ),
       note(
         'If a number on no pledge is close to one that is — one digit different, two digits side by side swapped, or the same 10-digit number with a country code (other than the US +1, which already matches) or a leading 0 in front of only one of them — a question appears under the warning, for example ',
         said(`${SAID.isThisFrom} Aisha Rahman (555-010-0101)?`),
@@ -1060,7 +1070,7 @@ function forTheOrganiser(): Child[] {
           b('Try it on a copy first.'),
           ' In the sheet, choose ',
           b('File → Make a copy'),
-          '. The copy has the same menu. Do the steps below on the copy with a few rows, look at what it wrote, then delete the copy (it holds donors’ phone numbers). The tracker keeps using the real sheet, so volunteers see nothing of the trial.',
+          '. The copy has the same menu. The first time you use it there, Google asks you to allow the script: choose the account that owns the sheet, tick every box, press Continue, then choose the menu item again. Do the steps below on the copy with a few rows, look at what it wrote, then delete the copy (it holds donors’ phone numbers). The tracker keeps using the real sheet, so volunteers see nothing of the trial.',
         ],
         [
           b('Tidy the list.'),
@@ -1089,7 +1099,7 @@ function forTheOrganiser(): Child[] {
         [
           'Press ',
           b('Refresh'),
-          ' in the tracker. On the Summary, the totals should have gone up by what you added, and every Data health figure should still read 0, or you know why.',
+          ' in the tracker. On the Summary, Total pledged and Payments logged should have gone up by what you added, and every Data health figure should still read 0, or you know why.',
         ],
       ),
       p(
