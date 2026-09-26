@@ -245,7 +245,7 @@ Plain TypeScript and DOM, one module per view plus shared `table.ts`, `dialog.ts
 **Validation**, identical on client and server:
 - `phone` is required on payments. On pledges it's optional, but a blank phone shows up in health check B23. A payment's phone counts as blank when nothing is left after the match key's NFKC step and stripping (the server's `PHONE_IGNORED` strips the same characters), so '(--)' or '＋（）' is refused. Each field's 500-character limit is checked first, so an overlong blank phone reports as overlong on both sides.
 - Amounts are numbers ≥ 0 with at most 2 decimals, and at most 1,000,000,000 ("That amount is too large."). "At most 2 decimals" allows a few units of float error relative to the amount, so 0.1 + 0.2 is a valid 0.30 and 999,999,999.99 passes. A pledge's amount may be blank; a payment's may not (0 is allowed), because a payment with no amount still counts toward # Payments and moves Last Payment, which drops a donor who paid nothing off Needs follow-up. Health check B24 still catches blank amounts on rows typed into the Sheet or saved before this rule. The goal has the same 1,000,000,000 cap and the same 2-decimal rule.
-- Dates are blank or valid `YYYY-MM-DD`: a real calendar date in 1900 or later.
+- Dates are blank or valid `YYYY-MM-DD`: a real calendar date in 1900 or later. A payment's date can't be after today (the server allows today in UTC+14); a pledge's can.
 - `method` is blank or one of the configured methods.
 - Text fields are at most 500 characters.
 - A pledge's name may not start with `⚠` ("A name cannot start with ⚠."), because every not-counted signal keys off that mark.

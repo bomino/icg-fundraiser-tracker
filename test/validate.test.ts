@@ -17,4 +17,11 @@ describe('client validation', () => {
     const errors = validatePayment({ phone: ' '.repeat(501), dateReceived: '', amountReceived: null, method: '', notes: '' }, METHODS);
     expect(errors.phone).toBe('Keep this under 500 characters.');
   });
+
+  it("refuses a payment dated after today's local date, and accepts today and a blank date", () => {
+    const draft = { phone: '555-010-0101', dateReceived: '2026-09-26', amountReceived: 20, method: '', notes: '' };
+    expect(validatePayment(draft, METHODS, '2026-09-26')).toEqual({});
+    expect(validatePayment({ ...draft, dateReceived: '' }, METHODS, '2026-09-26')).toEqual({});
+    expect(validatePayment({ ...draft, dateReceived: '2026-09-27' }, METHODS, '2026-09-26')).toEqual({ dateReceived: "The date received can't be in the future." });
+  });
 });

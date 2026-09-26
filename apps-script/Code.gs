@@ -6,7 +6,7 @@
 // the one `load` returns, so a volunteer sees a banner instead of saves failing in misleading ways
 // when this script and the site are deployed out of step. Raise it on every edit to this file;
 // test/server/code.test.ts fails until you do.
-const API_VERSION = 12;
+const API_VERSION = 13;
 
 const HEADERS = {
   Pledges: ['id', 'phone', 'name', 'datePledged', 'amountPledged', 'notes', 'updatedAt', 'updatedBy'],
@@ -354,6 +354,13 @@ function isIsoDate_(value) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
+// Today's date in UTC+14, the latest calendar date anywhere, so a volunteer's own today is never
+// refused whatever their time zone. The client checks against the device's local date, so this is
+// at most a day more lenient.
+function latestTodayIso_() {
+  return new Date(Date.now() + 14 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 function amountProblem_(value) {
   if (value === null) return '';
   if (!isFinite(value) || value < 0) return 'Enter an amount of 0 or more.';
@@ -388,6 +395,7 @@ function validateRow_(tab, payload, methods) {
     if (isBlankPhone_(row.phone)) throw invalid_('phone', "Enter the donor's phone number.");
     if (row.amountReceived === null) throw invalid_('amountReceived', 'Enter the amount received.');
     if (row.method !== '' && methods.indexOf(row.method) < 0) throw invalid_('method', 'Pick a method from the list.');
+    if (row.dateReceived > latestTodayIso_()) throw invalid_('dateReceived', "The date received can't be in the future.");
   }
   return row;
 }

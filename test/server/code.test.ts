@@ -52,6 +52,7 @@ const CODE_GS_HASHES: readonly string[] = [
   'd4f8cbd947c3b59e64906315a59bb1d354d7da68e96fad7b7a07615507d7027b',
   'f57f3bd1092220049d811db44c18739a7ba0de15f97e18988e3ca9050a168c0e',
   '7b810f75ccd064011f227d5f1b4966cbac522a1ac834f69414f9eca323cbbbb0',
+  'f4fa12c36691809cef1fe8d0accae680f9ab5f024d3ed58cbc0ba4ebf3c4adff',
 ];
 
 describe('API_VERSION', () => {
@@ -1021,6 +1022,7 @@ describe('adding selected rows to the tracker', () => {
     ['a name that starts with the warning mark', 'Pledges', [['555-010-0102', '⚠ Eman', '', 100, '']], 'Row 4, name (column C): A name cannot start with ⚠.'],
     ['an amount with more than 2 decimal places', 'Pledges', [['555-010-0102', 'Eman Saleh', '', 10.125, '']], 'Row 4, amountPledged (column E): Use at most 2 decimal places.'],
     ['a negative amount', 'Payments', [['555-010-0101', '2026-09-03', -20, 'Cash', '']], 'Row 4, amountReceived (column D): Enter an amount of 0 or more.'],
+    ['a payment dated in the future', 'Payments', [['555-010-0101', '2099-01-01', 20, 'Cash', '']], "Row 4, dateReceived (column C): The date received can't be in the future."],
     ['notes over the length limit', 'Payments', [['555-010-0101', '2026-09-03', 20, 'Cash', 'x'.repeat(501)]], 'Row 4, notes (column F): Keep this under 500 characters.'],
     ['a method not on the Settings tab', 'Payments', [['555-010-0101', '2026-09-03', 20, 'Venmo', '']], `Row 4, method (column E): "Venmo" is not on the Settings tab's list (${METHODS.join(', ')}). Change it to one of those, or leave it blank.`],
     ['a donor already in the tracker', 'Pledges', [['(555) 010-0101', 'Aisha R.', '', 100, '']], 'Row 4, phone (column B): this number is already on the pledge in row 2. Bring in only their payments, and leave this row out.'],
@@ -1136,6 +1138,16 @@ describe('settings', () => {
 });
 
 describe('server validation matches the client', () => {
+  // The server allows today in UTC+14 (latestTodayIso_), the latest date anywhere, so a volunteer
+  // ahead of the spreadsheet's time zone can still save their own today.
+  it('accepts a payment dated today in UTC+14 and refuses the day after', () => {
+    const latest = new Date(Date.now() + 14 * 3600 * 1000);
+    const dayAfter = new Date(latest.getTime() + 24 * 3600 * 1000);
+    const draft = (date: Date) => newRow({ ...paymentDraft, dateReceived: date.toISOString().slice(0, 10) });
+    expect(server.post('upsertPayment', draft(latest), token).ok).toBe(true);
+    expect(server.post('upsertPayment', draft(dayAfter), token).error).toMatchObject({ code: 'BAD_REQUEST', field: 'dateReceived', message: "The date received can't be in the future." });
+  });
+
   for (const testCase of VALIDATION_CASES) {
     it(`${testCase.tab}: ${testCase.name}`, () => {
       const response = server.post(testCase.tab === 'Pledges' ? 'upsertPledge' : 'upsertPayment', newRow(testCase.draft), token);

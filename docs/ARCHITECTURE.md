@@ -119,6 +119,8 @@ Validation lives in `web/src/validate.ts` and in `validateRow_` in `Code.gs`, an
 
 A payment also needs an amount ("Enter the amount received."; 0 is allowed), though a pledge's may stay blank: a payment of nothing would still add to # Payments and move Last payment, dropping a donor who paid nothing off Needs follow-up.
 
+A payment's date can't be after today ("The date received can't be in the future."); a pledge's can. The client compares with the device's local date (`todayIso()`, the date the "(future)" marker uses); `validateRow_` compares with today in UTC+14 (`latestTodayIso_`), the latest calendar date anywhere, so a volunteer ahead of the spreadsheet's time zone is never refused their own today. The server is therefore up to a day more lenient, and `validationCases.ts` uses a far-future date both sides refuse. Add selected rows refuses such a row through `validateRow_`. The "(future)" marker and health check 5 stay for rows typed into the Sheet or saved before this rule.
+
 The goal (`setSetting_`) takes the amounts' 2-decimal rule and message ("Use at most 2 decimal places.", `hasAtMostTwoDecimals_`, the twin of `hasAtMostTwoDecimals` in `validate.ts`) instead of rounding to a figure nobody typed. The goal form's `amountError` already refuses the same goals before they are sent, so only a hand-made request meets the server's refusal. A negative, non-numeric or over-cap goal answers "Enter a goal of 0 or more.", and float dust such as 0.1 + 0.2 is still stored as whole cents.
 
 ### Client-named rows

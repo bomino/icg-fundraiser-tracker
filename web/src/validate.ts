@@ -1,4 +1,4 @@
-import { isIsoDate } from './dates';
+import { isIsoDate, todayIso } from './dates';
 import { WARNING_MARK } from './engine/constants';
 import { matchKey } from './matchKey';
 import type { PaymentDraft, PledgeDraft } from './types';
@@ -45,12 +45,14 @@ export function validatePledge(draft: PledgeDraft): FieldErrors {
   });
 }
 
-export function validatePayment(draft: PaymentDraft, methods: readonly string[]): FieldErrors {
+// today is the device's local date, the one the "(future)" marker uses. Code.gs allows up to a
+// day later (latestTodayIso_), so a device in any time zone can save its own today.
+export function validatePayment(draft: PaymentDraft, methods: readonly string[], today: string = todayIso()): FieldErrors {
   return compact({
     // Length before blank, matching validateRow_ in Code.gs: it checks every field's length in
     // field order before its Payments-only blank-phone check runs.
     phone: textError(draft.phone) ?? (matchKey(draft.phone) === '' ? "Enter the donor's phone number." : undefined),
-    dateReceived: dateError(draft.dateReceived),
+    dateReceived: dateError(draft.dateReceived) ?? (draft.dateReceived > today ? "The date received can't be in the future." : undefined),
     // Blank is refused here, unlike a pledge's amount: a payment of nothing still counts as a
     // payment and moves the donor's Last payment date, which hides them from Needs follow-up.
     amountReceived: draft.amountReceived === null ? 'Enter the amount received.' : amountError(draft.amountReceived),

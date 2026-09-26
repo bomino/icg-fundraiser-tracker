@@ -37,6 +37,7 @@ const SAID = {
   decimals: 'Use at most 2 decimal places.',
   tooLarge: 'That amount is too large.',
   validDate: 'Enter a valid date.',
+  futureDate: "The date received can't be in the future.",
   noPhone: "Enter the donor's phone number.",
   noAmount: 'Enter the amount received.',
   pickMethod: 'Pick a method from the list.',
@@ -142,7 +143,7 @@ const HEALTH_HELP: Record<HealthId, { meaning: string; fix: Inline }> = {
     fix: ['Open the payment and fill in the missing date or amount. If it was entered by mistake, delete it.'],
   },
   futureDated: {
-    meaning: 'A payment is dated after today. It is still counted, but it is usually a typo, such as the wrong year.',
+    meaning: 'A payment is dated after today. The tracker refuses such a date, so this one was typed into the sheet or saved before that rule. It is still counted, but it is usually a typo, such as the wrong year.',
     fix: ['Open the payment and correct the Date received. If it is a real post-dated check, see ', b('A donor gives post-dated checks'), ' in How to….'],
   },
   predatesPledge: {
@@ -721,13 +722,12 @@ function howTo(): Child[] {
     ),
     topic(
       'A donor gives post-dated checks',
-      p('A post-dated check cannot be paid into the bank before its date. Log each one on the day it is deposited, not the day it is handed over, so the totals only count money the masjid can bank.'),
+      p('A post-dated check cannot be paid into the bank before its date. Log each one on the day it is deposited, not the day it is handed over, so the totals only count money the masjid can bank. The tracker does not accept a payment dated after today.'),
       steps(
         ['When the donor hands the checks over, open their pledge and add a line to Notes, for example “3 post-dated checks held: Nov, Dec, Jan”. Save. Anyone who sees them on ', b('Needs follow-up'), ' then knows not to call them for money already given.'],
         ['On the day each check is deposited, log it as a payment dated that day, and update the note.'],
       ),
       p('If one was already logged with its future date, its date on Payments is shaded amber and marked ', said(SAID.future), ', and it shows under ', b(HEALTH_LABELS.futureDated), ' in Data health. Delete it, add it to the note, and log it again on the day it is deposited.'),
-      note('This is the suggested way. If the organiser prefers another, such as counting the checks as soon as they are handed over, follow theirs.'),
     ),
     topic(
       'Fix a donor entered twice',
@@ -955,6 +955,7 @@ function whenSomethingGoesWrong(): Child[] {
         [said(SAID.decimals)],
         [said(SAID.tooLarge)],
         [said(SAID.validDate), ' On a computer, type the year in full (2026, not 26).'],
+        [said(SAID.futureDate), ' Log a payment on or after the day the money came in. For a check dated later, see ', b('A donor gives post-dated checks'), ' in How to….'],
         [said(SAID.noPhone)],
         [said(SAID.noAmount)],
         [said(SAID.pickMethod)],
@@ -1074,7 +1075,7 @@ function forTheOrganiser(): Child[] {
         ],
         [
           b('Tidy the list.'),
-          ' Keep one pledge row per donor, and one payment row per payment, and leave out totals and notes rows. Dates must be real dates, or typed like 2026-09-24. Amounts must be plain numbers such as 1250.50, with no $ or words. Payment methods must be spelled as on the Settings tab, or left empty. A phone number that starts with 0 or + must still have it. Look each donor up in ',
+          ' Keep one pledge row per donor, and one payment row per payment, and leave out totals and notes rows. Dates must be real dates, or typed like 2026-09-24, and a payment’s date cannot be later than today. Amounts must be plain numbers such as 1250.50, with no $ or words. Payment methods must be spelled as on the Settings tab, or left empty. A phone number that starts with 0 or + must still have it. Look each donor up in ',
           b('Find donor'),
           ': if they are already in the tracker, bring in only their payments.',
         ],

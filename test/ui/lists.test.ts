@@ -1486,7 +1486,8 @@ describe('instant save from the lists', () => {
     const view = createPaymentsView({ store: { ...store, savePayment, state: () => liveState } as Store, reportError: vi.fn() })(state, null, () => undefined);
     document.body.append(view);
     (view.querySelector('tr[data-id="y1"] .row-open') as HTMLButtonElement).click();
-    fillAndSave({ amountReceived: '36' });
+    // y1 is dated 2099 for the "(future)" marker, a date the form now refuses, so the edit fixes it.
+    fillAndSave({ amountReceived: '36', dateReceived: '2025-01-15' });
     await vi.waitFor(() => expect(document.querySelector('.toast-error .toast-message')?.textContent).toBe("Couldn't save the payment from 555-999-0000. The tracker is busy. Try again in a moment."));
     // #when it is reopened and saved again
     button('Reopen').click();
